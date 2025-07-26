@@ -772,8 +772,12 @@ class YouTubeMonitor {
         }).join('');
     }
 
-    // 채널 분석 (롱폼 영상 수 및 돌연변이 영상 수) - 최근 6개월 기준
-// 채널 영상 가져오기 (롱폼만)
+// YouTubeMonitor 클래스 내부에 "fetchChannelVideos" 함수 단 하나만 남기세요!
+
+/**
+ * 모니터링 채널별 최신 롱폼 영상/조회수/ratio 분석 (롱폼: 3분 1초 이상)
+ * ratio: 조회수/구독자수
+ */
 async fetchChannelVideos() {
     const apiKey = this.getCurrentApiKey();
     if (!apiKey) {
@@ -783,96 +787,101 @@ async fetchChannelVideos() {
     const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
     const results = [];
 
-for (const channel of this.monitoringChannels) {
-    try {
-        // 1. 채널 영상 검색
-        const searchResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=10&key=${apiKey}`
-        );
+    for (const channel of this.monitoringChannels) {
+        try {
+            // 1. 채널 최신 영상 20개 불러오기
+            const searchResponse = await fetch(
+                `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=20&key=${apiKey}`
+            );
 
-        if (!searchResponse.ok) {
+            if (!searchResponse.ok) {
+                results.push({
+                    channel: channel,
+                    error: `API 오류: ${searchResponse.status}`,
+                    videos: []
+                });
+                continue;
+            }
+
+            const searchData = await searchResponse.json();
+            if (!searchData.items || searchData.items.length === 0) {
+                results.push({
+                    channel: channel,
+                    videos: []
+                });
+                continue;
+            }
+
+            // 2. 영상 상세정보 fetch
+            const videoIds = searchData.items.map(item => item.id.videoId);
+            const videosResponse = await fetch(
+                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
+            );
+
+            if (!videosResponse.ok) {
+                results.push({
+                    channel: channel,
+                    error: `영상 정보 API 오류: ${videosResponse.status}`,
+                    videos: []
+                });
+                continue;
+            }
+
+            const videosData = await videosResponse.json();
+
+            // 3. 롱폼 필터 (3분 1초 이상, 180초 초과)
+            const videos = videosData.items
+                .filter(video => {
+                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                    return duration > 180;
+                })
+                .map(video => {
+                    const viewCount = parseInt(video.statistics?.viewCount || 0);
+                    const subscriberCount = parseInt(channel.subscriberCount || 0);
+                    const ratio = subscriberCount > 0 ? (viewCount / subscriberCount) : 0;
+
+                    return {
+                        id: video.id,
+                        title: video.snippet.title,
+                        publishedAt: video.snippet.publishedAt,
+                        thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                        viewCount: viewCount,
+                        likeCount: parseInt(video.statistics?.likeCount || 0),
+                        commentCount: parseInt(video.statistics?.commentCount || 0),
+                        ratio: ratio,
+                        isHot: ratio >= hotVideoRatio,
+                        subscriberCount: subscriberCount, // 이 채널 구독자수
+                        duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                    };
+                });
+
             results.push({
                 channel: channel,
-                error: `API 오류: ${searchResponse.status}`,
-                videos: []
+                videos: videos
             });
-            continue;
-        }
 
-        const searchData = await searchResponse.json();
-        if (!searchData.items || searchData.items.length === 0) {
+        } catch (error) {
             results.push({
                 channel: channel,
+                error: error.message,
                 videos: []
             });
-            continue;
         }
-
-        // 2. 영상 상세정보 조회
-        const videoIds = searchData.items.map(item => item.id.videoId);
-        const videosResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
-        );
-
-        if (!videosResponse.ok) {
-            results.push({
-                channel: channel,
-                error: `영상 정보 API 오류: ${videosResponse.status}`,
-                videos: []
-            });
-            continue;
-        }
-
-        // ⭐⭐ 문제 생긴 부분 바로 아래에서부터 이렇게!
-        const videosData = await videosResponse.json();
-
-        // 영상 리스트 가공
-        const videos = videosData.items.map(video => {
-            const viewCount = parseInt(video.statistics?.viewCount || 0);
-            const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
-
-            return {
-                id: video.id,
-                title: video.snippet.title,
-                publishedAt: video.snippet.publishedAt,
-                thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                viewCount: viewCount,
-                likeCount: parseInt(video.statistics?.likeCount || 0),
-                commentCount: parseInt(video.statistics?.commentCount || 0),
-                ratio: ratio,
-                isHot: ratio >= hotVideoRatio
-            };
-        });
-
-        results.push({
-            channel: channel,
-            videos: videos
-        });
-
-    } catch (error) {
-        results.push({
-            channel: channel,
-            error: error.message,
-            videos: []
-        });
     }
-}
-
 
     return results;
 }
 
     // YouTube 동영상 길이 파싱 (ISO 8601 duration) - 3분 1초 이상만 롱폼
-    parseDuration(duration) {
-        const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-        if (!match) return 0;
-        
-        const hours = parseInt(match[1] || 0);
-        const minutes = parseInt(match[2] || 0);
-        const seconds = parseInt(match[3] || 0);
-        
-        return hours * 3600 + minutes * 60 + seconds;
-    }
+parseDuration(duration) {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    const hours = parseInt(match[1] || 0);
+    const minutes = parseInt(match[2] || 0);
+    const seconds = parseInt(match[3] || 0);
+    return hours * 3600 + minutes * 60 + seconds;
+}
+
 
     // 롱폼 여부 확인 (3분 1초 이상)
     isLongForm(duration) {
@@ -1171,98 +1180,101 @@ for (const channel of this.monitoringChannels) {
         this.hideLoading();
     }
 
-    // 채널 영상 가져오기 (롱폼만)
-    async fetchChannelVideos() {
-        const apiKey = this.getCurrentApiKey();
-        if (!apiKey) {
-            throw new Error('API 키가 설정되지 않았습니다.');
-        }
+    // YouTubeMonitor 클래스 내부에 붙여넣으세요
+async fetchChannelVideos() {
+    const apiKey = this.getCurrentApiKey();
+    if (!apiKey) {
+        throw new Error('API 키가 설정되지 않았습니다.');
+    }
 
-        const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
-        const results = [];
+    const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
+    const results = [];
 
-        for (const channel of this.monitoringChannels) {
-            try {
-                // 채널의 최신 영상 가져오기
-                const searchResponse = await fetch(
-                    `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=10&key=${apiKey}`
-                );
+    for (const channel of this.monitoringChannels) {
+        try {
+            // 1. 채널 영상 검색
+            const searchResponse = await fetch(
+                `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=10&key=${apiKey}`
+            );
 
-                if (!searchResponse.ok) {
-                    results.push({
-                        channel: channel,
-                        error: `API 오류: ${searchResponse.status}`,
-                        videos: []
-                    });
-                    continue;
-                }
-
-                const searchData = await searchResponse.json();
-                if (!searchData.items || searchData.items.length === 0) {
-                    results.push({
-                        channel: channel,
-                        videos: []
-                    });
-                    continue;
-                }
-
-                // 영상 상세 정보 가져오기 (contentDetails 포함)
-                const videoIds = searchData.items.map(item => item.id.videoId);
-                const videosResponse = await fetch(
-                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
-                );
-
-                if (!videosResponse.ok) {
-                    results.push({
-                        channel: channel,
-                        error: `영상 정보 API 오류: ${videosResponse.status}`,
-                        videos: []
-                    });
-                    continue;
-                }
-
-                const videosData = await videosResponse.json();
-                
-                // 롱폼 영상만 필터링
-                const videos = videosData.items
-                    .filter(video => {
-                        const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
-                        return duration >= 60; // 1분 이상만 롱폼으로 간주
-                    })
-                    .map(video => {
-                        const viewCount = parseInt(video.statistics?.viewCount || 0);
-                        const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
-                        
-                        return {
-                            id: video.id,
-                            title: video.snippet.title,
-                            publishedAt: video.snippet.publishedAt,
-                            thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                            viewCount: viewCount,
-                            likeCount: parseInt(video.statistics?.likeCount || 0),
-                            commentCount: parseInt(video.statistics?.commentCount || 0),
-                            ratio: ratio,
-                            isHot: ratio >= hotVideoRatio,
-                            duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
-                        };
-                    });
-
+            if (!searchResponse.ok) {
                 results.push({
                     channel: channel,
-                    videos: videos
-                });
-
-            } catch (error) {
-                results.push({
-                    channel: channel,
-                    error: error.message,
+                    error: `API 오류: ${searchResponse.status}`,
                     videos: []
                 });
+                continue;
             }
-        }
 
-        return results;
+            const searchData = await searchResponse.json();
+            if (!searchData.items || searchData.items.length === 0) {
+                results.push({
+                    channel: channel,
+                    videos: []
+                });
+                continue;
+            }
+
+            // 2. 영상 상세정보 조회
+            const videoIds = searchData.items.map(item => item.id.videoId);
+            const videosResponse = await fetch(
+                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
+            );
+
+            if (!videosResponse.ok) {
+                results.push({
+                    channel: channel,
+                    error: `영상 정보 API 오류: ${videosResponse.status}`,
+                    videos: []
+                });
+                continue;
+            }
+
+            // ⭐⭐ 반드시 함수 안에만 위치!
+            const videosData = await videosResponse.json();
+
+            // 영상 리스트 가공
+            const videos = videosData.items
+                .filter(video => {
+                    // 롱폼 영상만 (예: 60초 이상)
+                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                    return duration >= 60;
+                })
+                .map(video => {
+                    const viewCount = parseInt(video.statistics?.viewCount || 0);
+                    const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
+
+                    return {
+                        id: video.id,
+                        title: video.snippet.title,
+                        publishedAt: video.snippet.publishedAt,
+                        thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                        viewCount: viewCount,
+                        likeCount: parseInt(video.statistics?.likeCount || 0),
+                        commentCount: parseInt(video.statistics?.commentCount || 0),
+                        ratio: ratio,
+                        isHot: ratio >= hotVideoRatio,
+                        duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                    };
+                });
+
+            results.push({
+                channel: channel,
+                videos: videos
+            });
+
+        } catch (error) {
+            results.push({
+                channel: channel,
+                error: error.message,
+                videos: []
+            });
+        }
     }
+
+    return results;
+}
+
    const videosData = await videosResponse.json();
 // channelList: 채널 정보 배열 (id, statistics.subscriberCount 등이 들어있는 배열이어야 함)
 
