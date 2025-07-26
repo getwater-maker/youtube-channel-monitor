@@ -158,3 +158,5 @@ function toggleChannelManagementSection(section) {
     collapseBtn.textContent = '▲';
   }
 }
+
+window.toggleChannelManagementSection = toggleChannelManagementSection;
