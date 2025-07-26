@@ -1244,7 +1244,7 @@ async fetchChannelVideos() {
 }
 
 
-   const videosData = await videosResponse.json();
+   
 // channelList: 채널 정보 배열 (id, statistics.subscriberCount 등이 들어있는 배열이어야 함)
 
 const videos = videosData.items.map(video => {
