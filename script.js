@@ -131,7 +131,9 @@
         }
 
         return questions;
-    }// YouTube 채널 모니터링 애플리케이션
+    }
+
+// YouTube 채널 모니터링 애플리케이션
 class YouTubeMonitor {
     constructor() {
         this.apiKeys = [];
