@@ -1,5 +1,5 @@
 // 테스트 문제 생성 (롱폼만)
-    async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
+async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
             throw new Error('API 키가 설정되지 않았습니다.');
