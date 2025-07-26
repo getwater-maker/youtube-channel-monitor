@@ -4358,7 +4358,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
 
 // ========== script.js ==========
 // 전역 변수
-let apiKeys = [];
+apiKeys =  [];
 let currentApiIndex = 0;
 let channels = [];
 let monitoringChannels = [];  // 모니터링 전용 채널
