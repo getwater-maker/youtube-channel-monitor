@@ -4359,7 +4359,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
 // ========== script.js ==========
 // 전역 변수
 apiKeys =  [];
-let currentApiIndex = 0;
+currentApiIndex = 0;
 let channels = [];
 let monitoringChannels = [];  // 모니터링 전용 채널
 let trackingChannels = [];    // 구독자 추적 전용 채널
