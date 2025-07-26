@@ -1265,8 +1265,7 @@ async fetchChannelVideos() {
         }
 
         return results;
-    }
-        const videosData = await videosResponse.json();
+    }const videosData = await videosResponse.json();
                 const videos = videosData.items.map(video => {
                     const viewCount = parseInt(video.statistics?.viewCount || 0);
                     const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
