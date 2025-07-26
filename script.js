@@ -1,5 +1,7 @@
 // 테스트 문제 생성 (롱폼만)
-async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
+class YouTubeMonitor {
+
+        async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
             throw new Error('API 키가 설정되지 않았습니다.');
@@ -134,7 +136,7 @@ async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
     }
 
 // YouTube 채널 모니터링 애플리케이션
-class YouTubeMonitor {
+
     constructor() {
         this.apiKeys = [];
         this.currentApiIndex = 0;
