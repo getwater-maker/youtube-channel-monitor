@@ -1266,23 +1266,25 @@ async fetchChannelVideos() {
 
         return results;
     }
-        const videosData = await videosResponse.json(); 
-                const videos = videosData.items.map(video => {
-                    const viewCount = parseInt(video.statistics?.viewCount || 0);
-                    const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
-                    
-                    return {
-                        id: video.id,
-                        title: video.snippet.title,
-                        publishedAt: video.snippet.publishedAt,
-                        thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                        viewCount: viewCount,
-                        likeCount: parseInt(video.statistics?.likeCount || 0),
-                        commentCount: parseInt(video.statistics?.commentCount || 0),
-                        ratio: ratio,
-                        isHot: ratio >= hotVideoRatio
-                    };
-                });
+       const videosData = await videosResponse.json();
+const videos = videosData.items.map(video => {
+    const viewCount = parseInt(video.statistics?.viewCount || 0);
+    const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
+    
+    return {
+        id: video.id,
+        title: video.snippet.title,
+        publishedAt: video.snippet.publishedAt,
+        thumbnail: video.snippet.thumbnails?.medium?.url || '',
+        viewCount: viewCount,
+        likeCount: parseInt(video.statistics?.likeCount || 0),
+        commentCount: parseInt(video.statistics?.commentCount || 0),
+        ratio: ratio,
+        isHot: ratio >= hotVideoRatio
+    };
+});
+
+
 
                 results.push({
                     channel: channel,
