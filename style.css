@@ -2038,3 +2038,40 @@ body {
     border-radius: 6px;
     border: 1px solid #ccc;
 }
+
+/* 채널 분석 정보 스타일 */
+.channel-analytics {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #764ba2;
+}
+
+.channel-analytics.error {
+    border-left-color: #f44336;
+    background: #ffebee;
+}
+
+.analytics-item {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.analytics-item:last-child {
+    margin-bottom: 0;
+}
+
+.analytics-item.hot {
+    color: #ff5722;
+    font-weight: 600;
+}
+
+.loading {
+    color: #666;
+    font-style: italic;
+}
