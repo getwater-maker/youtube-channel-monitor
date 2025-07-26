@@ -473,7 +473,18 @@ class YouTubeMonitor {
             }
         }
 
-        return channels;
+        // 중복 제거 (같은 채널 ID)
+        const uniqueChannels = [];
+        const seenIds = new Set();
+        
+        for (const channel of channels) {
+            if (!seenIds.has(channel.id)) {
+                seenIds.add(channel.id);
+                uniqueChannels.push(channel);
+            }
+        }
+
+        return uniqueChannels;
     }
 
     // 채널 선택 모달 표시
@@ -559,7 +570,7 @@ class YouTubeMonitor {
     }
 
     // 채널 관리 UI 업데이트 (모니터링용)
-    updateChannelManagement() {
+    async updateChannelManagement() {
         const grid = document.getElementById('monitoring-channel-grid');
         const count = document.getElementById('monitoring-channel-count');
         
@@ -577,35 +588,132 @@ class YouTubeMonitor {
             return;
         }
 
-        grid.innerHTML = this.monitoringChannels.map(channel => `
-            <div class="channel-item">
-                <div class="channel-item-header">
-                    <div class="channel-info-with-logo">
-                        ${channel.thumbnail ? 
-                            `<img src="${channel.thumbnail}" alt="${channel.title}" class="channel-logo">` :
-                            `<div class="channel-logo-placeholder">📺</div>`
-                        }
-                        <div class="channel-text-info">
-                            <h4 class="channel-name" onclick="window.open('https://youtube.com/channel/${channel.id}', '_blank')">${channel.title}</h4>
+        // 각 채널의 분석 데이터 수집
+        grid.innerHTML = '<div class="loading" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">채널 데이터 분석 중...</div>';
+        
+        const channelAnalytics = await this.analyzeChannels();
+
+        grid.innerHTML = this.monitoringChannels.map(channel => {
+            const analytics = channelAnalytics[channel.id] || { longFormCount: 0, hotVideoCount: 0, error: true };
+            
+            return `
+                <div class="channel-item">
+                    <div class="channel-item-header">
+                        <div class="channel-info-with-logo">
+                            ${channel.thumbnail ? 
+                                `<img src="${channel.thumbnail}" alt="${channel.title}" class="channel-logo">` :
+                                `<div class="channel-logo-placeholder">📺</div>`
+                            }
+                            <div class="channel-text-info">
+                                <h4 class="channel-name" onclick="window.open('https://youtube.com/channel/${channel.id}', '_blank')">${channel.title}</h4>
+                            </div>
+                        </div>
+                        <div class="channel-actions">
+                            <button class="btn-icon delete" onclick="youtubeMonitor.removeChannel('monitoring', '${channel.id}')" title="채널 삭제">🗑️</button>
                         </div>
                     </div>
-                    <div class="channel-actions">
-                        <button class="btn-icon delete" onclick="youtubeMonitor.removeChannel('monitoring', '${channel.id}')" title="채널 삭제">🗑️</button>
+                    <div class="channel-info">
+                        <span class="channel-subscribers">구독자 ${this.formatNumber(channel.subscriberCount)}명</span>
+                        <span class="channel-id">${channel.id}</span>
+                    </div>
+                    ${analytics.error ? 
+                        `<div class="channel-analytics error">
+                            <div class="analytics-item">❌ 데이터 로드 실패</div>
+                        </div>` :
+                        `<div class="channel-analytics">
+                            <div class="analytics-item">📹 롱폼 영상: ${analytics.longFormCount}개</div>
+                            <div class="analytics-item ${analytics.hotVideoCount > 0 ? 'hot' : ''}">🔥 돌연변이: ${analytics.hotVideoCount}개</div>
+                        </div>`
+                    }
+                    <div class="channel-status">
+                        <div class="status-indicator ${analytics.error ? 'error' : ''}"></div>
+                        <span>${analytics.error ? '오류' : '정상'}</span>
                     </div>
                 </div>
-                <div class="channel-info">
-                    <span class="channel-subscribers">구독자 ${this.formatNumber(channel.subscriberCount)}명</span>
-                    <span class="channel-id">${channel.id}</span>
-                </div>
-                <div class="channel-status">
-                    <div class="status-indicator"></div>
-                    <span>정상</span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
-    // 채널 관리 UI 업데이트 (추적용)
+    // 채널 분석 (롱폼 영상 수 및 돌연변이 영상 수)
+    async analyzeChannels() {
+        const apiKey = this.getCurrentApiKey();
+        if (!apiKey) return {};
+
+        const analytics = {};
+        const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 2;
+
+        for (const channel of this.monitoringChannels) {
+            try {
+                // 채널의 최신 영상들 가져오기 (최대 50개)
+                const searchResponse = await fetch(
+                    `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=50&key=${apiKey}`
+                );
+
+                if (!searchResponse.ok) {
+                    analytics[channel.id] = { longFormCount: 0, hotVideoCount: 0, error: true };
+                    continue;
+                }
+
+                const searchData = await searchResponse.json();
+                if (!searchData.items || searchData.items.length === 0) {
+                    analytics[channel.id] = { longFormCount: 0, hotVideoCount: 0, error: false };
+                    continue;
+                }
+
+                // 영상 상세 정보 가져오기
+                const videoIds = searchData.items.map(item => item.id.videoId);
+                const videosResponse = await fetch(
+                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
+                );
+
+                if (!videosResponse.ok) {
+                    analytics[channel.id] = { longFormCount: 0, hotVideoCount: 0, error: true };
+                    continue;
+                }
+
+                const videosData = await videosResponse.json();
+                
+                let longFormCount = 0;
+                let hotVideoCount = 0;
+
+                videosData.items.forEach(video => {
+                    // 롱폼 영상 필터링 (1분 이상)
+                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                    if (duration >= 60) { // 1분 이상만 롱폼으로 간주
+                        longFormCount++;
+                        
+                        // 돌연변이 영상 체크 (조회수/구독자 비율)
+                        const viewCount = parseInt(video.statistics?.viewCount || 0);
+                        const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
+                        
+                        if (ratio >= hotVideoRatio) {
+                            hotVideoCount++;
+                        }
+                    }
+                });
+
+                analytics[channel.id] = { longFormCount, hotVideoCount, error: false };
+
+            } catch (error) {
+                console.error(`채널 ${channel.title} 분석 오류:`, error);
+                analytics[channel.id] = { longFormCount: 0, hotVideoCount: 0, error: true };
+            }
+        }
+
+        return analytics;
+    }
+
+    // YouTube 동영상 길이 파싱 (ISO 8601 duration)
+    parseDuration(duration) {
+        const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (!match) return 0;
+        
+        const hours = parseInt(match[1] || 0);
+        const minutes = parseInt(match[2] || 0);
+        const seconds = parseInt(match[3] || 0);
+        
+        return hours * 3600 + minutes * 60 + seconds;
+    }
     updateTrackingChannelManagement() {
         const grid = document.getElementById('tracking-channel-grid');
         const count = document.getElementById('tracking-channel-count');
@@ -691,7 +799,7 @@ class YouTubeMonitor {
         this.hideLoading();
     }
 
-    // 영상 데이터 가져오기
+    // 영상 데이터 가져오기 (롱폼만)
     async fetchVideos(keyword) {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
@@ -702,7 +810,7 @@ class YouTubeMonitor {
         const publishedAfter = this.getPublishedAfter();
         const maxResults = 50;
 
-        // 검색 API 호출
+        // 검색 API 호출 (롱폼만 - videoDuration=medium,long)
         const searchResponse = await fetch(
             `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(keyword)}&maxResults=${maxResults}&publishedAfter=${publishedAfter}&videoDuration=medium&key=${apiKey}`
         );
@@ -724,9 +832,9 @@ class YouTubeMonitor {
         // 영상 ID들 추출
         const videoIds = searchData.items.map(item => item.id.videoId);
 
-        // 영상 상세 정보 및 통계 가져오기
+        // 영상 상세 정보 및 통계 가져오기 (contentDetails 추가로 길이 확인)
         const videosResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds.join(',')}&key=${apiKey}`
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
         );
 
         if (!videosResponse.ok) {
@@ -746,26 +854,33 @@ class YouTubeMonitor {
             channelsData = await channelsResponse.json();
         }
 
-        // 데이터 결합 및 필터링
-        const videos = videosData.items.map(video => {
-            const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
-            const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
-            const viewCount = parseInt(video.statistics?.viewCount || 0);
-            
-            return {
-                id: video.id,
-                title: video.snippet.title,
-                channelTitle: video.snippet.channelTitle,
-                channelId: video.snippet.channelId,
-                publishedAt: video.snippet.publishedAt,
-                thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                viewCount: viewCount,
-                subscriberCount: subscriberCount,
-                likeCount: parseInt(video.statistics?.likeCount || 0),
-                commentCount: parseInt(video.statistics?.commentCount || 0),
-                ratio: subscriberCount > 0 ? (viewCount / subscriberCount) : 0
-            };
-        });
+        // 데이터 결합 및 필터링 (롱폼만)
+        const videos = videosData.items
+            .filter(video => {
+                // 영상 길이 필터링 (1분 이상만 롱폼으로 간주)
+                const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                return duration >= 60;
+            })
+            .map(video => {
+                const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
+                const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
+                const viewCount = parseInt(video.statistics?.viewCount || 0);
+                
+                return {
+                    id: video.id,
+                    title: video.snippet.title,
+                    channelTitle: video.snippet.channelTitle,
+                    channelId: video.snippet.channelId,
+                    publishedAt: video.snippet.publishedAt,
+                    thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                    viewCount: viewCount,
+                    subscriberCount: subscriberCount,
+                    likeCount: parseInt(video.statistics?.likeCount || 0),
+                    commentCount: parseInt(video.statistics?.commentCount || 0),
+                    ratio: subscriberCount > 0 ? (viewCount / subscriberCount) : 0,
+                    duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                };
+            });
 
         return this.applyFilters(videos);
     }
@@ -888,14 +1003,14 @@ class YouTubeMonitor {
         this.hideLoading();
     }
 
-    // 채널 영상 가져오기
+    // 채널 영상 가져오기 (롱폼만)
     async fetchChannelVideos() {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
             throw new Error('API 키가 설정되지 않았습니다.');
         }
 
-        const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio').value) || 5;
+        const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
         const results = [];
 
         for (const channel of this.monitoringChannels) {
@@ -923,10 +1038,10 @@ class YouTubeMonitor {
                     continue;
                 }
 
-                // 영상 상세 정보 가져오기
+                // 영상 상세 정보 가져오기 (contentDetails 포함)
                 const videoIds = searchData.items.map(item => item.id.videoId);
                 const videosResponse = await fetch(
-                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds.join(',')}&key=${apiKey}`
+                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
                 );
 
                 if (!videosResponse.ok) {
@@ -939,6 +1054,47 @@ class YouTubeMonitor {
                 }
 
                 const videosData = await videosResponse.json();
+                
+                // 롱폼 영상만 필터링
+                const videos = videosData.items
+                    .filter(video => {
+                        const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                        return duration >= 60; // 1분 이상만 롱폼으로 간주
+                    })
+                    .map(video => {
+                        const viewCount = parseInt(video.statistics?.viewCount || 0);
+                        const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
+                        
+                        return {
+                            id: video.id,
+                            title: video.snippet.title,
+                            publishedAt: video.snippet.publishedAt,
+                            thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                            viewCount: viewCount,
+                            likeCount: parseInt(video.statistics?.likeCount || 0),
+                            commentCount: parseInt(video.statistics?.commentCount || 0),
+                            ratio: ratio,
+                            isHot: ratio >= hotVideoRatio,
+                            duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                        };
+                    });
+
+                results.push({
+                    channel: channel,
+                    videos: videos
+                });
+
+            } catch (error) {
+                results.push({
+                    channel: channel,
+                    error: error.message,
+                    videos: []
+                });
+            }
+        }
+
+        return results;
+    }const videosData = await videosResponse.json();
                 const videos = videosData.items.map(video => {
                     const viewCount = parseInt(video.statistics?.viewCount || 0);
                     const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
@@ -1134,7 +1290,7 @@ class YouTubeMonitor {
         });
     }
 
-    // 최신 영상 표시
+    // 최신 영상 표시 (롱폼만)
     async showLatestVideos() {
         const container = document.getElementById('latest-videos-container');
         
@@ -1166,28 +1322,34 @@ class YouTubeMonitor {
 
             const allVideos = [];
             
-            // 각 채널별로 최신 영상 1개씩 가져오기
+            // 각 채널별로 최신 롱폼 영상 1개씩 가져오기
             for (const channel of this.monitoringChannels) {
                 try {
-                    // 채널의 최신 영상 검색
+                    // 채널의 최신 영상 검색 (더 많이 가져와서 롱폼 필터링)
                     const searchResponse = await fetch(
-                        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=1&key=${apiKey}`
+                        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=20&key=${apiKey}`
                     );
 
                     if (searchResponse.ok) {
                         const searchData = await searchResponse.json();
                         if (searchData.items && searchData.items.length > 0) {
-                            const videoItem = searchData.items[0];
-                            
                             // 영상 상세 정보 가져오기
+                            const videoIds = searchData.items.map(item => item.id.videoId);
                             const videoResponse = await fetch(
-                                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoItem.id.videoId}&key=${apiKey}`
+                                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
                             );
 
                             if (videoResponse.ok) {
                                 const videoData = await videoResponse.json();
-                                if (videoData.items && videoData.items.length > 0) {
-                                    const video = videoData.items[0];
+                                
+                                // 롱폼 영상만 필터링하고 가장 최신 것 1개 선택
+                                const longFormVideos = videoData.items.filter(video => {
+                                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                                    return duration >= 60; // 1분 이상만 롱폼으로 간주
+                                });
+
+                                if (longFormVideos.length > 0) {
+                                    const video = longFormVideos[0]; // 가장 최신 롱폼 영상
                                     allVideos.push({
                                         id: video.id,
                                         title: video.snippet.title,
@@ -1196,7 +1358,8 @@ class YouTubeMonitor {
                                         publishedAt: video.snippet.publishedAt,
                                         thumbnail: video.snippet.thumbnails?.medium?.url || '',
                                         viewCount: parseInt(video.statistics?.viewCount || 0),
-                                        subscriberCount: channel.subscriberCount
+                                        subscriberCount: channel.subscriberCount,
+                                        duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
                                     });
                                 }
                             }
@@ -1210,7 +1373,7 @@ class YouTubeMonitor {
             if (allVideos.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <p>최근 영상이 없거나 불러올 수 없습니다.</p>
+                        <p>최근 롱폼 영상이 없거나 불러올 수 없습니다.</p>
                     </div>
                 `;
                 return;
@@ -1231,6 +1394,7 @@ class YouTubeMonitor {
                         <div class="video-stats">
                             <span>👥 ${this.formatNumber(video.subscriberCount)}</span>
                             <span>👁️ ${this.formatNumber(video.viewCount)}</span>
+                            <span>⏱️ ${this.formatDuration(video.duration)}</span>
                             <span>📅 ${this.formatDate(video.publishedAt)}</span>
                         </div>
                     </div>
@@ -1245,6 +1409,19 @@ class YouTubeMonitor {
                     <p>API 키를 확인해주세요.</p>
                 </div>
             `;
+        }
+    }
+
+    // 영상 길이 포맷팅
+    formatDuration(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        } else {
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
         }
     }
 
@@ -1654,7 +1831,7 @@ class YouTubeMonitor {
         }
     }
 
-    // 테스트 문제 생성
+    // 테스트 문제 생성 (롱폼만)
     async generateTestQuestions(keyword, subscriberRange) {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
@@ -1677,7 +1854,7 @@ class YouTubeMonitor {
             searchQuery = topics[Math.floor(Math.random() * topics.length)];
         }
 
-        // 영상 검색
+        // 영상 검색 (롱폼만)
         const searchResponse = await fetch(
             `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(searchQuery)}&maxResults=50&publishedAfter=${publishedAfter}&publishedBefore=${publishedBefore}&videoDuration=medium&key=${apiKey}`
         );
@@ -1691,10 +1868,10 @@ class YouTubeMonitor {
             throw new Error('충분한 영상을 찾을 수 없습니다.');
         }
 
-        // 영상 상세 정보 가져오기
+        // 영상 상세 정보 가져오기 (contentDetails 포함)
         const videoIds = searchData.items.map(item => item.id.videoId);
         const videosResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds.join(',')}&key=${apiKey}`
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
         );
 
         if (!videosResponse.ok) {
@@ -1714,40 +1891,49 @@ class YouTubeMonitor {
             channelsData = await channelsResponse.json();
         }
 
-        // 구독자 수 필터링
-        const videos = videosData.items.map(video => {
-            const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
-            const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
-            
-            return {
-                id: video.id,
-                title: video.snippet.title,
-                channelTitle: video.snippet.channelTitle,
-                channelId: video.snippet.channelId,
-                thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                viewCount: parseInt(video.statistics?.viewCount || 0),
-                subscriberCount: subscriberCount
-            };
-        }).filter(video => {
-            if (subscriberRange === 'all') return true;
-            
-            const sub = video.subscriberCount;
-            switch (subscriberRange) {
-                case 'micro': return sub >= 1000 && sub <= 10000;
-                case 'small': return sub >= 10000 && sub <= 100000;
-                case 'medium': return sub >= 100000 && sub <= 1000000;
-                case 'large': return sub >= 1000000 && sub <= 10000000;
-                case 'mega': return sub >= 10000000;
-                case 'custom':
-                    const min = parseInt(document.getElementById('min-subscribers').value) || 0;
-                    const max = parseInt(document.getElementById('max-subscribers').value) || Infinity;
-                    return sub >= min && sub <= max;
-                default: return true;
-            }
-        });
+        // 롱폼 영상만 필터링 및 구독자 수 필터링
+        const videos = videosData.items
+            .filter(video => {
+                // 롱폼 필터링 (1분 이상)
+                const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
+                return duration >= 60;
+            })
+            .map(video => {
+                const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
+                const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
+                
+                return {
+                    id: video.id,
+                    title: video.snippet.title,
+                    channelTitle: video.snippet.channelTitle,
+                    channelId: video.snippet.channelId,
+                    thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                    viewCount: parseInt(video.statistics?.viewCount || 0),
+                    subscriberCount: subscriberCount,
+                    duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                };
+            })
+            .filter(video => {
+                // 구독자 수 필터링
+                if (subscriberRange === 'all') return true;
+                
+                const sub = video.subscriberCount;
+                switch (subscriberRange) {
+                    case 'micro': return sub >= 1000 && sub <= 10000;
+                    case 'small': return sub >= 10000 && sub <= 100000;
+                    case 'medium': return sub >= 100000 && sub <= 1000000;
+                    case 'large': return sub >= 1000000 && sub <= 10000000;
+                    case 'mega': return sub >= 10000000;
+                    case 'custom':
+                        const min = parseInt(document.getElementById('min-subscribers').value) || 0;
+                        const max = parseInt(document.getElementById('max-subscribers').value) || Infinity;
+                        return sub >= min && sub <= max;
+                    default: return true;
+                }
+            });
 
         if (videos.length < 10) {
-            throw new Error('필터 조건에 맞는 충분한 영상을 찾을 수 없습니다.');
+            throw new Error('필터 조건에 맞는 충분한 롱폼 영상을 찾을 수 없습니다.');
         }
 
         // 문제 생성 (50문제)
