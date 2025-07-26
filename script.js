@@ -1186,64 +1186,42 @@ async fetchChannelVideos() {
     if (!apiKey) {
         throw new Error('API 키가 설정되지 않았습니다.');
     }
-
     const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
     const results = [];
-
     for (const channel of this.monitoringChannels) {
         try {
-            // 1. 채널 영상 검색
+            // 1. 채널 최신 영상 최대 20개 검색
             const searchResponse = await fetch(
-                `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=10&key=${apiKey}`
+                `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=20&key=${apiKey}`
             );
-
             if (!searchResponse.ok) {
-                results.push({
-                    channel: channel,
-                    error: `API 오류: ${searchResponse.status}`,
-                    videos: []
-                });
+                results.push({ channel, error: `API 오류: ${searchResponse.status}`, videos: [] });
                 continue;
             }
-
             const searchData = await searchResponse.json();
             if (!searchData.items || searchData.items.length === 0) {
-                results.push({
-                    channel: channel,
-                    videos: []
-                });
+                results.push({ channel, videos: [] });
                 continue;
             }
-
-            // 2. 영상 상세정보 조회
+            // 2. 영상 상세정보 (길이, 조회수 등) 가져오기
             const videoIds = searchData.items.map(item => item.id.videoId);
             const videosResponse = await fetch(
                 `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
             );
-
             if (!videosResponse.ok) {
-                results.push({
-                    channel: channel,
-                    error: `영상 정보 API 오류: ${videosResponse.status}`,
-                    videos: []
-                });
+                results.push({ channel, error: `영상 정보 API 오류: ${videosResponse.status}`, videos: [] });
                 continue;
             }
-
-            // ⭐⭐ 반드시 함수 안에만 위치!
             const videosData = await videosResponse.json();
-
-            // 영상 리스트 가공
+            // 3. 롱폼 필터 (1분 이상만)
             const videos = videosData.items
                 .filter(video => {
-                    // 롱폼 영상만 (예: 60초 이상)
                     const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
                     return duration >= 60;
                 })
                 .map(video => {
                     const viewCount = parseInt(video.statistics?.viewCount || 0);
                     const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
-
                     return {
                         id: video.id,
                         title: video.snippet.title,
@@ -1257,23 +1235,14 @@ async fetchChannelVideos() {
                         duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
                     };
                 });
-
-            results.push({
-                channel: channel,
-                videos: videos
-            });
-
+            results.push({ channel, videos });
         } catch (error) {
-            results.push({
-                channel: channel,
-                error: error.message,
-                videos: []
-            });
+            results.push({ channel, error: error.message, videos: [] });
         }
     }
-
     return results;
 }
+
 
    const videosData = await videosResponse.json();
 // channelList: 채널 정보 배열 (id, statistics.subscriberCount 등이 들어있는 배열이어야 함)
@@ -1536,7 +1505,7 @@ const videos = videosData.items.map(video => {
                                 // 롱폼 영상만 필터링하고 가장 최신 것 1개 선택
                                 const longFormVideos = videoData.items.filter(video => {
                                     const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
-                                    return duration >= 60; // 1분 이상만 롱폼으로 간주
+                                    return duration >= 180; // 1분 이상만 롱폼으로 간주
                                 });
 
                                 if (longFormVideos.length > 0) {
