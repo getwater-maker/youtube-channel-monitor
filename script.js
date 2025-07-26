@@ -1180,68 +1180,6 @@ parseDuration(duration) {
         this.hideLoading();
     }
 
-    // YouTubeMonitor 클래스 내부에 붙여넣으세요
-async fetchChannelVideos() {
-    const apiKey = this.getCurrentApiKey();
-    if (!apiKey) {
-        throw new Error('API 키가 설정되지 않았습니다.');
-    }
-    const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 5;
-    const results = [];
-    for (const channel of this.monitoringChannels) {
-        try {
-            // 1. 채널 최신 영상 최대 20개 검색
-            const searchResponse = await fetch(
-                `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=20&key=${apiKey}`
-            );
-            if (!searchResponse.ok) {
-                results.push({ channel, error: `API 오류: ${searchResponse.status}`, videos: [] });
-                continue;
-            }
-            const searchData = await searchResponse.json();
-            if (!searchData.items || searchData.items.length === 0) {
-                results.push({ channel, videos: [] });
-                continue;
-            }
-            // 2. 영상 상세정보 (길이, 조회수 등) 가져오기
-            const videoIds = searchData.items.map(item => item.id.videoId);
-            const videosResponse = await fetch(
-                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
-            );
-            if (!videosResponse.ok) {
-                results.push({ channel, error: `영상 정보 API 오류: ${videosResponse.status}`, videos: [] });
-                continue;
-            }
-            const videosData = await videosResponse.json();
-            // 3. 롱폼 필터 (1분 이상만)
-            const videos = videosData.items
-                .filter(video => {
-                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
-                    return duration >= 60;
-                })
-                .map(video => {
-                    const viewCount = parseInt(video.statistics?.viewCount || 0);
-                    const ratio = channel.subscriberCount > 0 ? (viewCount / channel.subscriberCount) : 0;
-                    return {
-                        id: video.id,
-                        title: video.snippet.title,
-                        publishedAt: video.snippet.publishedAt,
-                        thumbnail: video.snippet.thumbnails?.medium?.url || '',
-                        viewCount: viewCount,
-                        likeCount: parseInt(video.statistics?.likeCount || 0),
-                        commentCount: parseInt(video.statistics?.commentCount || 0),
-                        ratio: ratio,
-                        isHot: ratio >= hotVideoRatio,
-                        duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
-                    };
-                });
-            results.push({ channel, videos });
-        } catch (error) {
-            results.push({ channel, error: error.message, videos: [] });
-        }
-    }
-    return results;
-}
 
 
    
