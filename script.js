@@ -1183,29 +1183,7 @@ parseDuration(duration) {
 
 
    
-// channelList: 채널 정보 배열 (id, statistics.subscriberCount 등이 들어있는 배열이어야 함)
 
-const videos = videosData.items.map(video => {
-    // 해당 영상의 채널 정보 찾기
-    const videoChannelId = video.snippet.channelId;
-    const channel = channelList.find(c => c.id === videoChannelId);
-    const subscriberCount = parseInt(channel?.statistics?.subscriberCount || 0);
-    const viewCount = parseInt(video.statistics?.viewCount || 0);
-    const ratio = subscriberCount > 0 ? (viewCount / subscriberCount) : 0;
-
-    return {
-        id: video.id,
-        title: video.snippet.title,
-        publishedAt: video.snippet.publishedAt,
-        thumbnail: video.snippet.thumbnails?.medium?.url || '',
-        viewCount: viewCount,
-        likeCount: parseInt(video.statistics?.likeCount || 0),
-        commentCount: parseInt(video.statistics?.commentCount || 0),
-        ratio: ratio,
-        isHot: ratio >= hotVideoRatio,
-        subscriberCount: subscriberCount   // 구독자수 표시용
-    };
-});
 
 
 
