@@ -1,4 +1,137 @@
-// YouTube 채널 모니터링 애플리케이션
+// 테스트 문제 생성 (롱폼만)
+    async generateTestQuestions(keyword, subscriberRange, questionCount = 50) {
+        const apiKey = this.getCurrentApiKey();
+        if (!apiKey) {
+            throw new Error('API 키가 설정되지 않았습니다.');
+        }
+
+        // 48-50시간 전 날짜 범위 계산
+        const endTime = new Date();
+        endTime.setHours(endTime.getHours() - 48);
+        const startTime = new Date();
+        startTime.setHours(startTime.getHours() - 50);
+
+        const publishedAfter = startTime.toISOString();
+        const publishedBefore = endTime.toISOString();
+
+        let searchQuery = keyword || '';
+        if (!keyword) {
+            // 키워드가 없으면 다양한 주제로 검색
+            const topics = ['음악', '게임', '요리', '여행', '스포츠', '기술', '영화', '드라마', '뉴스', '교육'];
+            searchQuery = topics[Math.floor(Math.random() * topics.length)];
+        }
+
+        // 영상 검색 (롱폼만)
+        const searchResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(searchQuery)}&maxResults=50&publishedAfter=${publishedAfter}&publishedBefore=${publishedBefore}&videoDuration=medium&key=${apiKey}`
+        );
+
+        if (!searchResponse.ok) {
+            throw new Error(`검색 API 오류: ${searchResponse.status}`);
+        }
+
+        const searchData = await searchResponse.json();
+        if (!searchData.items || searchData.items.length < 10) {
+            throw new Error('충분한 영상을 찾을 수 없습니다.');
+        }
+
+        // 영상 상세 정보 가져오기 (contentDetails 포함)
+        const videoIds = searchData.items.map(item => item.id.videoId);
+        const videosResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`
+        );
+
+        if (!videosResponse.ok) {
+            throw new Error(`영상 정보 API 오류: ${videosResponse.status}`);
+        }
+
+        const videosData = await videosResponse.json();
+
+        // 채널 정보 가져오기
+        const channelIds = [...new Set(videosData.items.map(item => item.snippet.channelId))];
+        const channelsResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds.join(',')}&key=${apiKey}`
+        );
+
+        let channelsData = { items: [] };
+        if (channelsResponse.ok) {
+            channelsData = await channelsResponse.json();
+        }
+
+        // 롱폼 영상만 필터링 및 구독자 수 필터링 (3분 1초 이상)
+        const videos = videosData.items
+            .filter(video => {
+                // 롱폼 필터링 (3분 1초 이상)
+                return this.isLongForm(video.contentDetails?.duration || 'PT0S');
+            })
+            .map(video => {
+                const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
+                const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
+                
+                return {
+                    id: video.id,
+                    title: video.snippet.title,
+                    channelTitle: video.snippet.channelTitle,
+                    channelId: video.snippet.channelId,
+                    thumbnail: video.snippet.thumbnails?.medium?.url || '',
+                    viewCount: parseInt(video.statistics?.viewCount || 0),
+                    subscriberCount: subscriberCount,
+                    duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
+                };
+            })
+            .filter(video => {
+                // 구독자 수 필터링
+                if (subscriberRange === 'all') return true;
+                
+                const sub = video.subscriberCount;
+                switch (subscriberRange) {
+                    case 'micro': return sub >= 1000 && sub <= 10000;
+                    case 'small': return sub >= 10000 && sub <= 100000;
+                    case 'medium': return sub >= 100000 && sub <= 1000000;
+                    case 'large': return sub >= 1000000 && sub <= 10000000;
+                    case 'mega': return sub >= 10000000;
+                    case 'custom':
+                        const min = parseInt(document.getElementById('min-subscribers').value) || 0;
+                        const max = parseInt(document.getElementById('max-subscribers').value) || Infinity;
+                        return sub >= min && sub <= max;
+                    default: return true;
+                }
+            });
+
+        if (videos.length < 10) {
+            throw new Error('필터 조건에 맞는 충분한 롱폼 영상을 찾을 수 없습니다.');
+        }
+
+        // 문제 생성
+        const questions = [];
+        const usedVideos = new Set();
+
+        while (questions.length < questionCount && usedVideos.size < videos.length - 1) {
+            // 랜덤하게 두 영상 선택
+            const availableVideos = videos.filter(v => !usedVideos.has(v.id));
+            if (availableVideos.length < 2) break;
+
+            const video1 = availableVideos[Math.floor(Math.random() * availableVideos.length)];
+            let video2;
+            do {
+                video2 = availableVideos[Math.floor(Math.random() * availableVideos.length)];
+            } while (video2.id === video1.id);
+
+            // 정답 결정 (조회수가 더 높은 것)
+            const correctAnswer = video1.viewCount > video2.viewCount ? 'a' : 'b';
+
+            questions.push({
+                videoA: video1,
+                videoB: video2,
+                correctAnswer: correctAnswer
+            });
+
+            usedVideos.add(video1.id);
+            usedVideos.add(video2.id);
+        }
+
+        return questions;
+    }// YouTube 채널 모니터링 애플리케이션
 class YouTubeMonitor {
     constructor() {
         this.apiKeys = [];
@@ -261,7 +394,8 @@ class YouTubeMonitor {
 
         for (let i = 0; i < this.apiKeys.length; i++) {
             try {
-                const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true&key=${this.apiKeys[i]}`);
+                // 간단한 채널 검색으로 API 키 테스트 (mine=true 대신)
+                const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=test&maxResults=1&key=${this.apiKeys[i]}`);
                 if (response.ok) {
                     results.push(`키 #${i + 1}: 정상`);
                 } else {
@@ -621,7 +755,7 @@ class YouTubeMonitor {
                             <div class="analytics-item">❌ 데이터 로드 실패</div>
                         </div>` :
                         `<div class="channel-analytics">
-                            <div class="analytics-item">📹 롱폼 영상: ${analytics.longFormCount}개</div>
+                            <div class="analytics-item">📹 롱폼: ${analytics.hotVideoCount} / ${analytics.longFormCount}개 (최근 6개월)</div>
                             <div class="analytics-item ${analytics.hotVideoCount > 0 ? 'hot' : ''}">🔥 돌연변이: ${analytics.hotVideoCount}개</div>
                         </div>`
                     }
@@ -634,19 +768,24 @@ class YouTubeMonitor {
         }).join('');
     }
 
-    // 채널 분석 (롱폼 영상 수 및 돌연변이 영상 수)
+    // 채널 분석 (롱폼 영상 수 및 돌연변이 영상 수) - 최근 6개월 기준
     async analyzeChannels() {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) return {};
 
         const analytics = {};
         const hotVideoRatio = parseInt(document.getElementById('hot-video-ratio')?.value) || 2;
+        
+        // 6개월 전 날짜 계산
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const publishedAfter = sixMonthsAgo.toISOString();
 
         for (const channel of this.monitoringChannels) {
             try {
-                // 채널의 최신 영상들 가져오기 (최대 50개)
+                // 채널의 최근 6개월 영상들 가져오기 (최대 50개)
                 const searchResponse = await fetch(
-                    `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=50&key=${apiKey}`
+                    `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channel.id}&type=video&order=date&maxResults=50&publishedAfter=${publishedAfter}&key=${apiKey}`
                 );
 
                 if (!searchResponse.ok) {
@@ -677,9 +816,8 @@ class YouTubeMonitor {
                 let hotVideoCount = 0;
 
                 videosData.items.forEach(video => {
-                    // 롱폼 영상 필터링 (1분 이상)
-                    const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
-                    if (duration >= 60) { // 1분 이상만 롱폼으로 간주
+                    // 롱폼 영상 필터링 (3분 1초 이상)
+                    if (this.isLongForm(video.contentDetails?.duration || 'PT0S')) {
                         longFormCount++;
                         
                         // 돌연변이 영상 체크 (조회수/구독자 비율)
@@ -703,7 +841,7 @@ class YouTubeMonitor {
         return analytics;
     }
 
-    // YouTube 동영상 길이 파싱 (ISO 8601 duration)
+    // YouTube 동영상 길이 파싱 (ISO 8601 duration) - 3분 1초 이상만 롱폼
     parseDuration(duration) {
         const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
         if (!match) return 0;
@@ -713,6 +851,11 @@ class YouTubeMonitor {
         const seconds = parseInt(match[3] || 0);
         
         return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    // 롱폼 여부 확인 (3분 1초 이상)
+    isLongForm(duration) {
+        return this.parseDuration(duration) > 180; // 3분 = 180초
     }
     updateTrackingChannelManagement() {
         const grid = document.getElementById('tracking-channel-grid');
@@ -799,7 +942,7 @@ class YouTubeMonitor {
         this.hideLoading();
     }
 
-    // 영상 데이터 가져오기 (롱폼만)
+    // 영상 데이터 가져오기 (돌연변이 영상만)
     async fetchVideos(keyword) {
         const apiKey = this.getCurrentApiKey();
         if (!apiKey) {
@@ -854,17 +997,17 @@ class YouTubeMonitor {
             channelsData = await channelsResponse.json();
         }
 
-        // 데이터 결합 및 필터링 (롱폼만)
+        // 데이터 결합 및 필터링 (롱폼 + 돌연변이만)
         const videos = videosData.items
             .filter(video => {
-                // 영상 길이 필터링 (1분 이상만 롱폼으로 간주)
-                const duration = this.parseDuration(video.contentDetails?.duration || 'PT0S');
-                return duration >= 60;
+                // 영상 길이 필터링 (3분 1초 이상만 롱폼으로 간주)
+                return this.isLongForm(video.contentDetails?.duration || 'PT0S');
             })
             .map(video => {
                 const channel = channelsData.items.find(c => c.id === video.snippet.channelId) || {};
                 const subscriberCount = parseInt(channel.statistics?.subscriberCount || 0);
                 const viewCount = parseInt(video.statistics?.viewCount || 0);
+                const ratio = subscriberCount > 0 ? (viewCount / subscriberCount) : 0;
                 
                 return {
                     id: video.id,
@@ -877,9 +1020,13 @@ class YouTubeMonitor {
                     subscriberCount: subscriberCount,
                     likeCount: parseInt(video.statistics?.likeCount || 0),
                     commentCount: parseInt(video.statistics?.commentCount || 0),
-                    ratio: subscriberCount > 0 ? (viewCount / subscriberCount) : 0,
+                    ratio: ratio,
                     duration: this.parseDuration(video.contentDetails?.duration || 'PT0S')
                 };
+            })
+            .filter(video => {
+                // 돌연변이 영상만 필터링 (구독자 수 대비 조회수가 1배 이상)
+                return video.ratio >= 1;
             });
 
         return this.applyFilters(videos);
@@ -1439,8 +1586,8 @@ class YouTubeMonitor {
         }
 
         container.innerHTML = this.trackingChannels.map(channel => `
-            <div class="tracking-channel-option" onclick="this.classList.toggle('selected'); youtubeMonitor.updateTrackingSelection()">
-                <input type="checkbox" class="tracking-channel-checkbox" data-channel-id="${channel.id}">
+            <div class="tracking-channel-option selected" onclick="this.classList.toggle('selected'); youtubeMonitor.updateTrackingSelection()">
+                <input type="checkbox" class="tracking-channel-checkbox" data-channel-id="${channel.id}" checked>
                 <div class="tracking-channel-info">
                     ${channel.thumbnail ? 
                         `<img src="${channel.thumbnail}" alt="${channel.title}" class="tracking-channel-logo">` :
@@ -1800,24 +1947,26 @@ class YouTubeMonitor {
     async startThumbnailTest() {
         const keyword = document.getElementById('test-keyword').value.trim();
         const subscriberRange = document.getElementById('subscriber-range').value;
+        const questionCount = parseInt(document.getElementById('question-count')?.value) || 50;
         
         this.showLoading('테스트 문제를 준비하는 중...');
         
         try {
-            this.testQuestions = await this.generateTestQuestions(keyword, subscriberRange);
+            this.testQuestions = await this.generateTestQuestions(keyword, subscriberRange, questionCount);
             
-            if (this.testQuestions.length < 50) {
+            if (this.testQuestions.length < questionCount) {
                 this.hideLoading();
-                this.showMessage(`충분한 문제를 생성할 수 없습니다. (${this.testQuestions.length}/50)`, 'error');
+                this.showMessage(`충분한 문제를 생성할 수 없습니다. (${this.testQuestions.length}/${questionCount})`, 'error');
                 return;
             }
             
             this.currentTest = {
                 keyword: keyword || '전체',
                 subscriberRange: subscriberRange,
+                questionCount: questionCount,
                 startedAt: new Date().toISOString(),
                 score: 0,
-                totalQuestions: 50
+                totalQuestions: questionCount
             };
             
             this.currentQuestionIndex = 0;
@@ -1978,7 +2127,7 @@ class YouTubeMonitor {
     displayCurrentQuestion() {
         const question = this.testQuestions[this.currentQuestionIndex];
         
-        document.getElementById('question-counter').textContent = `${this.currentQuestionIndex + 1} / 50`;
+        document.getElementById('question-counter').textContent = `${this.currentQuestionIndex + 1} / ${this.currentTest.totalQuestions}`;
         document.getElementById('score-counter').textContent = `정답: ${this.currentTest.score}개`;
         
         // 썸네일과 정보 표시
@@ -2015,7 +2164,7 @@ class YouTubeMonitor {
             setTimeout(() => {
                 this.currentQuestionIndex++;
                 
-                if (this.currentQuestionIndex >= 50) {
+                if (this.currentQuestionIndex >= this.currentTest.totalQuestions) {
                     this.finishTest();
                 } else {
                     this.displayCurrentQuestion();
@@ -2027,7 +2176,7 @@ class YouTubeMonitor {
     // 테스트 완료
     finishTest() {
         this.currentTest.completedAt = new Date().toISOString();
-        this.currentTest.percentage = Math.round((this.currentTest.score / 50) * 100);
+        this.currentTest.percentage = Math.round((this.currentTest.score / this.currentTest.totalQuestions) * 100);
         
         // 기록 저장
         this.testRecords.push({
@@ -2040,7 +2189,7 @@ class YouTubeMonitor {
         document.getElementById('test-game').style.display = 'none';
         document.getElementById('test-result').style.display = 'block';
         
-        document.getElementById('final-score-text').textContent = `50문제 중 ${this.currentTest.score}문제 정답`;
+        document.getElementById('final-score-text').textContent = `${this.currentTest.totalQuestions}문제 중 ${this.currentTest.score}문제 정답`;
         document.getElementById('final-percentage').textContent = `(${this.currentTest.percentage}%)`;
     }
 
@@ -2078,7 +2227,7 @@ class YouTubeMonitor {
                         <div class="record-keyword">키워드: ${record.keyword} | 구독자: ${this.getSubscriberRangeText(record.subscriberRange)}</div>
                     </div>
                     <div class="record-score">
-                        <div class="record-score-number">${record.score}/50</div>
+                        <div class="record-score-number">${record.score}/${record.totalQuestions}</div>
                         <div class="record-percentage">${record.percentage}%</div>
                     </div>
                 </div>
@@ -2232,8 +2381,26 @@ class YouTubeMonitor {
     }
 }
 
-// 채널 관리 섹션 토글 함수
-function toggleChannelManagementSection(type) {
+// 전역 함수들 (HTML에서 직접 호출)
+window.selectAllTrackingChannels = function() {
+    if (window.youtubeMonitor) {
+        window.youtubeMonitor.selectAllTrackingChannels();
+    }
+}
+
+window.deselectAllTrackingChannels = function() {
+    if (window.youtubeMonitor) {
+        window.youtubeMonitor.deselectAllTrackingChannels();
+    }
+}
+
+window.selectThumbnail = function(option) {
+    if (window.youtubeMonitor) {
+        window.youtubeMonitor.selectThumbnail(option);
+    }
+}
+
+window.toggleChannelManagementSection = function(type) {
     const gridId = type === 'monitoring' ? 'monitoring-channel-grid' : 'tracking-channel-grid';
     const btnId = type === 'monitoring' ? 'monitoring-collapse-btn' : 'tracking-collapse-btn';
     
@@ -2248,25 +2415,6 @@ function toggleChannelManagementSection(type) {
         grid.style.display = 'none';
         btn.textContent = '▶';
         btn.style.transform = 'rotate(-90deg)';
-    }
-}
-
-// 전역 함수들
-function selectAllTrackingChannels() {
-    if (window.youtubeMonitor) {
-        window.youtubeMonitor.selectAllTrackingChannels();
-    }
-}
-
-function deselectAllTrackingChannels() {
-    if (window.youtubeMonitor) {
-        window.youtubeMonitor.deselectAllTrackingChannels();
-    }
-}
-
-function selectThumbnail(option) {
-    if (window.youtubeMonitor) {
-        window.youtubeMonitor.selectThumbnail(option);
     }
 }
 
