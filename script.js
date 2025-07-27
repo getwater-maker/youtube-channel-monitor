@@ -1,19 +1,108 @@
 // YouTube 채널 모니터 JavaScript
 class YouTubeMonitor {
     constructor() {
-        this.apiKeys = [];
-        this.currentApiIndex = 0;
-        this.monitoringChannels = [];
-        this.trackingChannels = [];
-        this.thumbnailTestData = {
-            currentQuestion: 0,
-            score: 0,
-            questions: [],
-            gameInProgress: false
-        };
-        
-        this.init();
+    this.apiKeys = [];
+    this.currentApiIndex = 0;
+    this.monitoringChannels = [];
+    this.trackingChannels = [];
+    this.chart = null; // 이 줄 추가
+    this.thumbnailTestData = {
+        currentQuestion: 0,
+        score: 0,
+        questions: [],
+        gameInProgress: false
+    };
+    
+    this.init();
+}
+
+// API 키 가져오기
+importApiKeys() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.json,.csv';
+    input.onchange = (e) => this.handleApiKeyFile(e.target.files[0]);
+    input.click();
+}
+
+// API 키 파일 처리
+async handleApiKeyFile(file) {
+    if (!file) return;
+    
+    const text = await file.text();
+    let keys = [];
+    
+    if (file.name.endsWith('.json')) {
+        keys = JSON.parse(text);
+    } else {
+        keys = text.split(/[\n,]/).map(key => key.trim()).filter(key => key);
     }
+    
+    this.apiKeys = keys;
+    this.saveLocalData();
+    this.updateApiStatus();
+    this.showApiModal(); // 모달 다시 표시하여 업데이트된 키들 보여주기
+}
+
+// API 키 내보내기
+exportApiKeys() {
+    if (this.apiKeys.length === 0) {
+        alert('내보낼 API 키가 없습니다.');
+        return;
+    }
+    
+    const data = this.apiKeys.join('\n');
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'youtube_api_keys.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// 전체 API 키 테스트
+async testAllApiKeys() {
+    if (this.apiKeys.length === 0) {
+        alert('테스트할 API 키가 없습니다.');
+        return;
+    }
+    
+    this.showLoading();
+    const results = [];
+    
+    for (let i = 0; i < this.apiKeys.length; i++) {
+        try {
+            const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=test&maxResults=1&key=${this.apiKeys[i]}`);
+            const data = await response.json();
+            
+            results.push({
+                index: i + 1,
+                status: data.error ? '오류' : '정상',
+                message: data.error ? data.error.message : 'OK'
+            });
+        } catch (error) {
+            results.push({
+                index: i + 1,
+                status: '오류',
+                message: error.message
+            });
+        }
+    }
+    
+    this.hideLoading();
+    
+    const resultText = results.map(r => `API 키 #${r.index}: ${r.status} - ${r.message}`).join('\n');
+    alert('API 키 테스트 결과:\n\n' + resultText);
+}
+
+// API 순환 초기화
+resetApiRotation() {
+    this.currentApiIndex = 0;
+    this.saveLocalData();
+    this.updateApiStatus();
+    alert('API 키 순환이 첫 번째 키로 초기화되었습니다.');
+}
 
     init() {
         this.loadLocalData();
@@ -54,95 +143,112 @@ class YouTubeMonitor {
         localStorage.setItem('current_api_index', this.currentApiIndex.toString());
     }
 
-    // 이벤트 리스너 설정
-    setupEventListeners() {
-        // API 설정 모달
-        document.getElementById('api-settings-btn').addEventListener('click', () => {
-            this.showApiModal();
-        });
-        
-        document.getElementById('save-api-btn').addEventListener('click', () => {
-            this.saveApiKeys();
-        });
-        
-        document.getElementById('cancel-api-btn').addEventListener('click', () => {
-            this.hideApiModal();
-        });
+// 이벤트 리스너 설정
+setupEventListeners() {
+    // API 설정 모달
+    document.getElementById('api-settings-btn').addEventListener('click', () => {
+        this.showApiModal();
+    });
+    
+    document.getElementById('save-api-btn').addEventListener('click', () => {
+        this.saveApiKeys();
+    });
+    
+    document.getElementById('cancel-api-btn').addEventListener('click', () => {
+        this.hideApiModal();
+    });
 
-        // 채널 추가 모달 (모니터링)
-        document.getElementById('add-monitoring-channel-btn').addEventListener('click', () => {
-            this.currentChannelType = 'monitoring';
-            this.showChannelModal();
-        });
+    // API 키 파일 관리
+    document.getElementById('import-api-keys-btn').addEventListener('click', () => {
+        this.importApiKeys();
+    });
+    
+    document.getElementById('export-api-keys-btn').addEventListener('click', () => {
+        this.exportApiKeys();
+    });
+    
+    document.getElementById('test-all-api-keys-btn').addEventListener('click', () => {
+        this.testAllApiKeys();
+    });
+    
+    document.getElementById('reset-api-rotation').addEventListener('click', () => {
+        this.resetApiRotation();
+    });
 
-        // 채널 추가 모달 (구독자수 추적)
-        document.getElementById('add-tracking-channel-btn').addEventListener('click', () => {
-            this.currentChannelType = 'tracking';
-            this.showChannelModal();
-        });
-        
-        document.getElementById('add-channel-confirm-btn').addEventListener('click', () => {
-            this.addChannel();
-        });
-        
-        document.getElementById('cancel-channel-btn').addEventListener('click', () => {
-            this.hideChannelModal();
-        });
+    // 채널 추가 모달 (모니터링)
+    document.getElementById('add-monitoring-channel-btn').addEventListener('click', () => {
+        this.currentChannelType = 'monitoring';
+        this.showChannelModal();
+    });
 
-        // 채널 추적 시작
-        document.getElementById('track-channels-btn').addEventListener('click', () => {
-            this.trackChannels();
-        });
+    // 채널 추가 모달 (구독자수 추적)
+    document.getElementById('add-tracking-channel-btn').addEventListener('click', () => {
+        this.currentChannelType = 'tracking';
+        this.showChannelModal();
+    });
+    
+    document.getElementById('add-channel-confirm-btn').addEventListener('click', () => {
+        this.addChannel();
+    });
+    
+    document.getElementById('cancel-channel-btn').addEventListener('click', () => {
+        this.hideChannelModal();
+    });
 
-        // 영상 검색
-        document.getElementById('search-btn').addEventListener('click', () => {
-            this.searchVideos();
-        });
+    // 채널 추적 시작
+    document.getElementById('track-channels-btn').addEventListener('click', () => {
+        this.trackChannels();
+    });
 
-        // 날짜 범위 타입 변경
-        document.getElementById('date-range-type').addEventListener('change', (e) => {
-            const customDateRange = document.getElementById('custom-date-range');
-            customDateRange.style.display = e.target.value === 'custom' ? 'flex' : 'none';
-        });
+    // 영상 검색
+    document.getElementById('search-btn').addEventListener('click', () => {
+        this.searchVideos();
+    });
 
-        // 구독자 수 데이터 수집
-        document.getElementById('collect-subscriber-data-btn').addEventListener('click', () => {
-            this.collectSubscriberData();
-        });
+    // 날짜 범위 타입 변경
+    document.getElementById('date-range-type').addEventListener('change', (e) => {
+        const customDateRange = document.getElementById('custom-date-range');
+        customDateRange.style.display = e.target.value === 'custom' ? 'flex' : 'none';
+    });
 
-        // 썸네일 테스트
-        document.getElementById('start-test-btn').addEventListener('click', () => {
-            this.startThumbnailTest();
-        });
+    // 구독자 수 데이터 수집
+    document.getElementById('collect-subscriber-data-btn').addEventListener('click', () => {
+        this.collectSubscriberData();
+    });
 
-        document.getElementById('view-records-btn').addEventListener('click', () => {
-            this.showTestRecords();
-        });
+    // 썸네일 테스트
+    document.getElementById('start-test-btn').addEventListener('click', () => {
+        this.startThumbnailTest();
+    });
 
-        document.getElementById('close-records-btn').addEventListener('click', () => {
-            this.hideTestRecords();
-        });
+    document.getElementById('view-records-btn').addEventListener('click', () => {
+        this.showTestRecords();
+    });
 
-        document.getElementById('restart-test-btn').addEventListener('click', () => {
-            this.restartThumbnailTest();
-        });
+    document.getElementById('close-records-btn').addEventListener('click', () => {
+        this.hideTestRecords();
+    });
 
-        document.getElementById('new-test-btn').addEventListener('click', () => {
-            this.newThumbnailTest();
-        });
+    document.getElementById('restart-test-btn').addEventListener('click', () => {
+        this.restartThumbnailTest();
+    });
 
-        // 구독자 범위 변경
-        document.getElementById('subscriber-range').addEventListener('change', (e) => {
-            const customRange = document.getElementById('custom-subscriber-range');
-            customRange.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        });
+    document.getElementById('new-test-btn').addEventListener('click', () => {
+        this.newThumbnailTest();
+    });
 
-        // 전역 함수들
-        window.selectAllTrackingChannels = () => this.selectAllTrackingChannels();
-        window.deselectAllTrackingChannels = () => this.deselectAllTrackingChannels();
-        window.selectThumbnail = (option) => this.selectThumbnail(option);
-        window.toggleChannelManagementSection = (type) => this.toggleChannelManagementSection(type);
-    }
+    // 구독자 범위 변경
+    document.getElementById('subscriber-range').addEventListener('change', (e) => {
+        const customRange = document.getElementById('custom-subscriber-range');
+        customRange.style.display = e.target.value === 'custom' ? 'block' : 'none';
+    });
+
+    // 전역 함수들
+    window.selectAllTrackingChannels = () => this.selectAllTrackingChannels();
+    window.deselectAllTrackingChannels = () => this.deselectAllTrackingChannels();
+    window.selectThumbnail = (option) => this.selectThumbnail(option);
+    window.toggleChannelManagementSection = (type) => this.toggleChannelManagementSection(type);
+}
 
     // 탭 설정
     setupTabs() {
@@ -1209,15 +1315,79 @@ class YouTubeMonitor {
         lastCollectionInfo.textContent = `마지막 수집: ${now}`;
     }
 
-    // 구독자 수 차트 업데이트
-    updateSubscriberChart() {
-        const data = JSON.parse(localStorage.getItem('subscriber_data') || '[]');
-        const selectedChannels = this.getSelectedTrackingChannels();
-        
-        // 차트 업데이트 로직 (Chart.js 사용)
-        // 여기서는 간단한 구현만 제공
-        console.log('구독자 수 차트 업데이트:', data);
+// 구독자 수 차트 업데이트
+updateSubscriberChart() {
+    const canvas = document.getElementById('subscriber-chart');
+    const ctx = canvas.getContext('2d');
+    
+    // 기존 차트 제거
+    if (this.chart) {
+        this.chart.destroy();
     }
+    
+    const data = JSON.parse(localStorage.getItem('subscriber_data') || '[]');
+    const selectedChannels = this.getSelectedTrackingChannels();
+    
+    if (data.length === 0 || selectedChannels.length === 0) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#666';
+        ctx.textAlign = 'center';
+        ctx.fillText('데이터가 없습니다.', canvas.width / 2, canvas.height / 2);
+        return;
+    }
+    
+    // 데이터 가공
+    const filteredData = data.filter(item => selectedChannels.includes(item.channelId));
+    const dates = [...new Set(filteredData.map(item => item.date))].sort();
+    const channels = [...new Set(filteredData.map(item => item.channelId))];
+    
+    const datasets = channels.map((channelId, index) => {
+        const channelData = dates.map(date => {
+            const item = filteredData.find(d => d.date === date && d.channelId === channelId);
+            return item ? item.subscriberCount : null;
+        });
+        
+        const channel = this.trackingChannels.find(c => c.id === channelId);
+        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+        
+        return {
+            label: channel ? channel.title : channelId,
+            data: channelData,
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '20',
+            fill: false,
+            tension: 0.1
+        };
+    });
+    
+    this.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates.map(date => new Date(date).toLocaleDateString('ko-KR')),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString() + '명';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            }
+        }
+    });
+}
 
     // 구독자 수 데이터 목록 표시
     displaySubscriberDataList() {
