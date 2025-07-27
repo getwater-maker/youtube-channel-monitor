@@ -242,6 +242,11 @@ setupEventListeners() {
         const customRange = document.getElementById('custom-subscriber-range');
         customRange.style.display = e.target.value === 'custom' ? 'block' : 'none';
     });
+	
+	// 채널 선택 모달 숨기기
+	hideChannelSelectionModal() {
+		document.getElementById('channel-selection-modal').style.display = 'none';
+	}
 
     // 전역 함수들
     window.selectAllTrackingChannels = () => this.selectAllTrackingChannels();
