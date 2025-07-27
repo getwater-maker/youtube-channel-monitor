@@ -113,6 +113,8 @@ resetApiRotation() {
         this.renderTrackingChannels();
         this.updateTrackingChannelSelection();
         this.loadThumbnailTestRecords();
+		this.displaySubscriberDataList();
+		this.updateLastCollectionInfoOnLoad();
     }
 
     // 로컬 데이터 로드
@@ -134,6 +136,20 @@ resetApiRotation() {
         
         this.currentApiIndex = parseInt(localStorage.getItem('current_api_index')) || 0;
     }
+
+// 페이지 로드 시 마지막 수집 정보 업데이트
+updateLastCollectionInfoOnLoad() {
+    const data = JSON.parse(localStorage.getItem('subscriber_data') || '[]');
+    if (data.length > 0) {
+        // 가장 최근 데이터의 날짜 찾기
+        const latestDate = data.reduce((latest, item) => {
+            return new Date(item.date) > new Date(latest) ? item.date : latest;
+        }, data[0].date);
+        
+        const lastCollectionInfo = document.getElementById('last-collection-info');
+        lastCollectionInfo.textContent = `마지막 수집: ${new Date(latestDate).toLocaleDateString('ko-KR')}`;
+    }
+}
 
     // 로컬 데이터 저장
     saveLocalData() {
