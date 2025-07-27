@@ -1483,9 +1483,6 @@ updateSubscriberChart() {
     // 썸네일 테스트용 영상 수집
     async collectThumbnailTestVideos(keyword, subscriberRange) {
         const videos = [];
-        const now = new Date();
-        const start48Hours = new Date(now.getTime() - (48 * 60 * 60 * 1000));
-        const start50Hours = new Date(now.getTime() - (50 * 60 * 60 * 1000));
 
         // 구독자 수 범위 설정
         const { minSubs, maxSubs } = this.getSubscriberRange(subscriberRange);
