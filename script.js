@@ -656,7 +656,7 @@ class YouTubeMonitor {
                             
                             // 롱폼 영상인지 확인 (60초 이상)
                             const duration = this.parseDuration(video.contentDetails.duration);
-                            if (duration >= 60 && ratio >= hotRatio && ratio > highestRatio) {
+                            if (duration >= 181 && ratio >= hotRatio && ratio > highestRatio) {
                                 highestRatio = ratio;
                                 mutationVideo = {
                                     id: video.id,
@@ -937,7 +937,7 @@ class YouTubeMonitor {
                 const duration = this.parseDuration(video.contentDetails.duration);
                 
                 // 필터 적용
-                if (duration >= 60 && 
+                if (duration >= 181 && 
                     subscriberCount >= subFilter && 
                     viewCount >= viewFilter) {
                     
@@ -1346,7 +1346,7 @@ class YouTubeMonitor {
             const duration = this.parseDuration(video.contentDetails.duration);
             
             // 롱폼이고 구독자 수 조건에 맞는 영상만
-            if (duration >= 60 && subscriberCount >= minSubs && subscriberCount <= maxSubs) {
+            if (duration >= 181 && subscriberCount >= minSubs && subscriberCount <= maxSubs) {
                 videos.push({
                     id: video.id,
                     title: video.snippet.title,
