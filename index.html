@@ -183,9 +183,11 @@
                     <h2>구독자 수 추적</h2>
                     <div class="tab-controls">
                         <button id="collect-subscriber-data-btn" class="btn btn-primary">📊 오늘 구독자 수 수집</button>
+			<button id="input-watch-time-btn" class="btn btn-secondary">⏱️ 시청시간 입력</button>
                         <span id="last-collection-info" class="last-collection-info">마지막 수집: -</span>
                     </div>
                 </div>
+		    
 
                 <!-- 구독자수 추적 탭의 독립 채널 관리 -->
                 <div class="tracking-channel-management">
@@ -237,7 +239,19 @@
 		        </div>
 		    </div>
 		</div>
-		    
+<!-- 시청시간 입력 모달 -->
+<div id="watch-time-modal" class="modal">
+    <div class="modal-content">
+        <h3>시청시간 입력</h3>
+        <div id="watch-time-input-list">
+            <!-- 등록된 채널들의 시청시간 입력 필드가 여기에 생성됩니다 -->
+        </div>
+        <div class="modal-buttons">
+            <button id="save-watch-time-btn" class="btn btn-primary">저장</button>
+            <button id="cancel-watch-time-btn" class="btn btn-secondary">취소</button>
+        </div>
+    </div>
+</div>		    
                 <!-- 구독자수 데이터 목록 -->
                 <div class="data-list">
                     <h3 style="margin-bottom: 1rem; color: #333;">기록된 데이터</h3>
