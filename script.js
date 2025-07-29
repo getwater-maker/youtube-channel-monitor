@@ -115,6 +115,13 @@ resetApiRotation() {
         this.loadThumbnailTestRecords();
 		this.displaySubscriberDataList();
 		this.updateLastCollectionInfoOnLoad();
+	    // 로컬 스토리지에 저장 (실제로는 Firebase를 사용해야 함)
+this.saveSubscriberData(subscriberData);
+this.saveWatchTimeData(subscriberData); // 이 줄 추가
+this.updateLastCollectionInfo();
+this.updateSubscriberChart();
+this.displaySubscriberDataList();
+this.displayWatchTimeDataList(); // 이 줄 추가
     }
 
     // 로컬 데이터 로드
@@ -453,9 +460,9 @@ setupEventListeners() {
             // 채널 상세 정보 가져오기
             const channelIds = searchData.items.map(item => item.snippet.channelId).join(',');
             const channelData = await this.makeApiCall('channels', {
-                part: 'snippet,statistics',
-                id: channelIds
-            });
+	    part: 'statistics,contentDetails',
+	    id: channelId
+		});
 
             return channelData.items.map(item => ({
                 id: item.id,
@@ -1278,11 +1285,13 @@ setupEventListeners() {
                         const subscriberCount = parseInt(channelData.items[0].statistics.subscriberCount);
                         const channel = this.trackingChannels.find(c => c.id === channelId);
                         
-                        subscriberData.push({
-                            channelId: channelId,
-                            channelTitle: channel ? channel.title : 'Unknown',
-                            subscriberCount: subscriberCount,
-                            date: today
+                        const watchTimeMinutes = this.parseWatchTime(channelData.items[0].statistics.viewCount, channelData.items[0].contentDetails);
+			subscriberData.push({
+			    channelId: channelId,
+			    channelTitle: channel ? channel.title : 'Unknown',
+			    subscriberCount: subscriberCount,
+			    watchTimeMinutes: watchTimeMinutes,
+			    date: today
                         });
                     }
                 } catch (error) {
@@ -1311,6 +1320,84 @@ setupEventListeners() {
         return Array.from(checkboxes).map(checkbox => checkbox.value);
     }
 
+	// 시청시간 파싱 (대략적 계산)
+parseWatchTime(viewCount, contentDetails) {
+    // YouTube는 시청시간을 직접 제공하지 않으므로 추정값 계산
+    // 평균 시청 지속률을 40%로 가정
+    const avgDuration = 300; // 5분으로 가정
+    const estimatedWatchTime = Math.round(viewCount * avgDuration * 0.4 / 60); // 분 단위
+    return estimatedWatchTime;
+}
+
+// 시청시간 데이터 저장
+saveWatchTimeData(newData) {
+    const existingData = JSON.parse(localStorage.getItem('watch_time_data') || '[]');
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 오늘 날짜의 기존 데이터 제거
+    const filteredData = existingData.filter(item => item.date !== today);
+    
+    // 새 데이터 추가
+    const watchTimeData = newData.map(item => ({
+        channelId: item.channelId,
+        channelTitle: item.channelTitle,
+        watchTimeMinutes: item.watchTimeMinutes,
+        date: item.date
+    }));
+    
+    const updatedData = [...filteredData, ...watchTimeData];
+    localStorage.setItem('watch_time_data', JSON.stringify(updatedData));
+}
+
+// 시청시간 데이터 목록 표시
+displayWatchTimeDataList() {
+    const container = document.getElementById('watch-time-data-list');
+    const data = JSON.parse(localStorage.getItem('watch_time_data') || '[]');
+    
+    if (data.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>아직 기록된 시청시간 데이터가 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 날짜별로 그룹화
+    const groupedData = {};
+    data.forEach(item => {
+        if (!groupedData[item.date]) {
+            groupedData[item.date] = [];
+        }
+        groupedData[item.date].push(item);
+    });
+
+    // 날짜 내림차순으로 정렬
+    const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
+
+    container.innerHTML = sortedDates.map(date => `
+        <div class="data-item">
+            <div class="data-date">${new Date(date).toLocaleDateString('ko-KR')}</div>
+            <div class="data-details">
+                ${groupedData[date].map(item => `
+                    <div>${item.channelTitle}: ${this.formatWatchTime(item.watchTimeMinutes)}</div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+// 시청시간 포맷팅
+formatWatchTime(minutes) {
+    if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return `${hours}시간 ${remainingMinutes}분`;
+    }
+    return `${minutes}분`;
+}
+
+	
     // 구독자 수 데이터 저장
     saveSubscriberData(newData) {
         const existingData = JSON.parse(localStorage.getItem('subscriber_data') || '[]');
