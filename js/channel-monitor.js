@@ -9,9 +9,9 @@ import {
     fetchYouTubeApi,
     channels,
     saveChannelsToLocalStorage,
-    openModal,
+    openModal,        // ✅ main.js에 있는 함수만 import
     closeModal,
-    openChannelModal
+    channelModal      // ✅ main.js에서 export된 DOM 요소
 } from './main.js';
 
 // 이 모듈에서만 사용되는 DOM 요소들
@@ -84,14 +84,14 @@ export function setupEventListeners() {
     // '채널 모니터링' 탭의 '채널 추가' 버튼
     if (addMonitoringChannelBtn) {
         addMonitoringChannelBtn.addEventListener('click', () => {
-            openChannelModal('monitoring');
+            openModal(channelModal); // ✅ openChannelModal → openModal(channelModal)
         });
     }
 
     // '구독자 수 추적' 탭의 '채널 추가' 버튼
     if (addTrackingChannelBtn) {
         addTrackingChannelBtn.addEventListener('click', () => {
-            openChannelModal('tracking');
+            openModal(channelModal); // ✅ openChannelModal → openModal(channelModal)
         });
     }
 }
