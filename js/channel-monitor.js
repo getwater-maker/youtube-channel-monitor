@@ -43,16 +43,6 @@ function setupEventListeners() {
     // 채널 추가 모달 확인 버튼에 이벤트 리스너 추가
     // 이 부분은 main.js와 중복될 수 있으므로, main.js에서 통합 관리하는 것이 더 좋습니다.
     // 여기서는 일단 기능을 구현하는 방향으로 작성하겠습니다.
-    document.getElementById('add-channel-confirm-btn').addEventListener('click', async () => {
-        const input = channelInput.value.trim();
-        if (!input) {
-            alert('채널 정보를 입력해주세요.');
-            return;
-        }
-        await addChannel(input, 'monitoring');
-        closeModal(channelModal);
-    });
-    
     // 채널 삭제 이벤트 위임
     monitoringChannelGrid.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-channel-btn')) {
@@ -300,3 +290,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTrackingRecords();
     setupEventListeners();
 });
+
