@@ -31,16 +31,17 @@
         <main class="main-content">
 
             <div id="channel-monitor" class="tab-content active">
+                <!-- (생략없이 전체 코드) -->
                 <div class="tab-header">
                     <h2>관심 채널 영상</h2>
                     <div class="tab-controls">
                         <select id="hot-video-ratio" class="tracking-sort-select compact-select" style="margin-right: 1rem;">
-							<option value="2">2배</option>
-							<option value="3">3배</option>
-							<option value="5">5배</option>
-							<option value="10">10배</option>
-							<option value="20">20배</option>
-						</select>
+                            <option value="2">2배</option>
+                            <option value="3">3배</option>
+                            <option value="5">5배</option>
+                            <option value="10">10배</option>
+                            <option value="20">20배</option>
+                        </select>
                         <button id="start-monitoring-btn" class="btn btn-primary">📈 채널 추적 시작</button>
                         <select id="tracking-sort-order" class="tracking-sort-select compact-select">
                             <option value="ratio">돌연변이</option>
@@ -59,18 +60,18 @@
                 </div>
 
                 <div class="monitoring-channel-management">
-				  <div class="management-header" data-section="monitoring">
-					<div class="management-title-section">
-					  <h3>등록된 채널 관리 (모니터링)</h3>
-					  <button class="collapse-btn" id="monitoring-collapse-btn">▼</button>
-					</div>
-					<div class="management-controls" onclick="event.stopPropagation()">
-					  <button id="add-monitoring-channel-btn" class="btn btn-primary">+ 채널 추가</button>
-					  <span class="channel-count">총 <span id="monitoring-channel-count">0</span>개 채널</span>
-					</div>
-				  </div>
-				  <div id="monitoring-channel-grid"></div>
-				</div>
+                    <div class="management-header" data-section="monitoring">
+                        <div class="management-title-section">
+                            <h3>등록된 채널 관리 (모니터링)</h3>
+                            <button class="collapse-btn" id="monitoring-collapse-btn">▼</button>
+                        </div>
+                        <div class="management-controls" onclick="event.stopPropagation()">
+                            <button id="add-monitoring-channel-btn" class="btn btn-primary">+ 채널 추가</button>
+                            <span class="channel-count">총 <span id="monitoring-channel-count">0</span>개 채널</span>
+                        </div>
+                    </div>
+                    <div id="monitoring-channel-grid"></div>
+                </div>
 
                 <div class="tracking-records" id="tracking-records">
                     <div class="empty-state">
@@ -92,302 +93,67 @@
             </div>
 
             <div id="video-search" class="tab-content">
-                <div class="tab-header">
-                    <h2>영상 검색</h2>
-                </div>
-                <div class="search-form">
-                    <div class="search-input-group">
-                        <input type="text" id="search-keyword" placeholder="검색 키워드를 입력하세요" class="search-input">
-                        <button id="search-btn" class="btn btn-primary">검색</button>
-                    </div>
-                    <div class="filter-options">
-                        <div class="filter-group">
-                            <label>구독자 수</label>
-                            <select id="sub-filter">
-                                <option value="0">전체</option>
-                                <option value="1000">1천명 이상</option>
-                                <option value="10000">1만명 이상</option>
-                                <option value="100000">10만명 이상</option>
-                                <option value="1000000">100만명 이상</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>조회수</label>
-                            <select id="view-filter">
-                                <option value="0">전체</option>
-                                <option value="1000">1천회 이상</option>
-                                <option value="10000">1만회 이상</option>
-                                <option value="100000">10만회 이상</option>
-                                <option value="1000000">100만회 이상</option>
-                                <option value="10000000">1천만회 이상</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>업로드 날짜</label>
-                            <div class="date-range-group">
-                                <select id="date-range-type">
-                                    <option value="preset">미리 설정된 기간</option>
-                                    <option value="custom">직접 설정</option>
-                                </select>
-                                <select id="date-range">
-                                    <option value="hour">최근 1시간</option>
-                                    <option value="hour3">최근 3시간</option>
-                                    <option value="hour12">최근 12시간</option>
-                                    <option value="day">최근 1일</option>
-                                    <option value="day3">최근 3일</option>
-                                    <option value="week">최근 1주일</option>
-                                    <option value="week2">최근 2주일</option>
-                                    <option value="month">최근 1개월</option>
-                                    <option value="month3">최근 3개월</option>
-                                    <option value="month6">최근 6개월</option>
-                                    <option value="year">최근 1년</option>
-                                </select>
-                                <div class="custom-date-range" id="custom-date-range" style="display: none;">
-                                    <input type="date" id="start-date" placeholder="시작일">
-                                    <input type="date" id="end-date" placeholder="종료일">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-group">
-                            <label>정렬 기준</label>
-                            <select id="sort-order">
-                                <option value="ratio">돌연변이</option>
-                                <option value="viewCount">조회수</option>
-                                <option value="subscriberCount">구독자 수</option>
-                                <option value="publishedAt">최근 업로드</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="search-results" id="search-results">
-                    <div class="empty-state">
-                        <p>검색 조건을 설정하고 검색해보세요.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="subscriber-tracking" class="tab-content">
-                <div class="tab-header">
-                    <h2>구독자 수 추적</h2>
-                    <div class="tab-controls">
-                        <button id="collect-subscriber-data-btn" class="btn btn-primary">📊 오늘 구독자 수 수집</button>
-			<button id="input-watch-time-btn" class="btn btn-secondary">⏱️ 시청시간 입력</button>
-                        <span id="last-collection-info" class="last-collection-info">마지막 수집: -</span>
-                    </div>
-                </div>
-
-
-                <div class="tracking-channel-management">
-				  <div class="management-header" onclick="toggleChannelManagementSection('tracking')">
-					<div class="management-title-section">
-					  <h3>등록된 채널 관리 (구독자수 추적)</h3>
-					  <button class="collapse-btn" id="tracking-collapse-btn">▼</button>
-					</div>
-					<div class="management-controls" onclick="event.stopPropagation()">
-					  <button id="add-tracking-channel-btn" class="btn btn-primary">+ 채널 추가</button>
-					  <span class="channel-count">총 <span id="tracking-channel-count">0</span>개 채널</span>
-					</div>
-				  </div>
-				  <div id="tracking-channel-grid"></div>
-				</div>
-
-                <div class="subscriber-management">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3 style="margin: 0; color: #333;">추적 대상 채널 선택</h3>
-                        <div style="display: flex; gap: 0.5rem;">
-			    <button class="btn btn-secondary btn-small" id="selectAllTrackingChannels">전체선택</button>
-			    <button class="btn btn-secondary btn-small" id="deselectAllTrackingChannels">전체해제</button>
-			</div>
-                    </div>
-                    <div class="tracking-channels-selection" id="tracking-channels-selection">
-                        </div>
-                </div>
-                <div class="chart-container">
-                    <div class="chart-header">
-                        <h3 style="margin-bottom: 1rem; color: #333;">구독자 수 변화</h3>
-                        <select id="chart-channel-select" class="chart-channel-select">
-                            <option value="all">전체 채널 비교</option>
-                            </select>
-                    </div>
-                    <canvas id="subscriber-chart" width="400" height="200"></canvas>
-                </div>
-
-		<div class="data-list">
-		    <h3 style="margin-bottom: 1rem; color: #333;">시청시간 변화</h3>
-		    <div id="watch-time-data-list">
-		        <div class="empty-state" style="color: #666;">
-		            <p>아직 기록된 시청시간 데이터가 없습니다.</p>
-		            <p>상단의 "오늘 구독자 수 수집" 버튼을 눌러 시작해보세요.</p>
-		        </div>
-		    </div>
-		</div>
-<div id="watch-time-modal" class="modal">
-    <div class="modal-content">
-        <h3>시청시간 입력</h3>
-        <div id="watch-time-input-list">
-            </div>
-        <div class="modal-buttons">
-            <button id="save-watch-time-btn" class="btn btn-primary">저장</button>
-            <button id="cancel-watch-time-btn" class="btn btn-secondary">취소</button>
+    <div class="tab-header">
+        <h2>영상 검색</h2>
+    </div>
+    <div class="search-form">
+        <input type="text" id="search-keyword" placeholder="검색 키워드를 입력하세요">
+        <button id="search-btn" class="btn btn-primary">검색</button>
+    </div>
+    <div class="search-results" id="search-results">
+        <div class="empty-state">
+            <p>검색 조건을 입력하고 검색해보세요.</p>
         </div>
     </div>
 </div>
-                <div class="data-list">
-                    <h3 style="margin-bottom: 1rem; color: #333;">기록된 데이터</h3>
-                    <div id="subscriber-data-list">
-                        <div class="empty-state" style="color: #666;">
-                            <p>아직 기록된 데이터가 없습니다.</p>
-                            <p>상단의 "오늘 구독자 수 수집" 버튼을 눌러 시작해보세요.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <div id="thumbnail-test" class="tab-content">
-                <div class="tab-header">
-                    <h2>썸네일 테스트</h2>
-                    <div class="tab-controls">
-                        <input type="text" id="test-keyword" placeholder="키워드 입력 (선택사항)" class="search-input" style="width: 200px; margin-right: 1rem;">
-                        <select id="subscriber-range" class="search-input" style="width: 200px; margin-right: 1rem;">
-                            <option value="all">전체 (제한 없음)</option>
-                            <option value="micro">1천 ~ 1만명</option>
-                            <option value="small">1만 ~ 10만명</option>
-                            <option value="medium">10만 ~ 100만명</option>
-                            <option value="large">100만 ~ 1000만명</option>
-                            <option value="mega">1000만명 이상</option>
-                            <option value="custom">사용자 정의</option>
-                        </select>
-			    <select id="question-count" class="search-input" style="width: 120px; margin-right: 1rem;">
-			    <option value="10">10문제</option>
-			    <option value="25">25문제</option>
-			    <option value="50" selected>50문제</option>
-			</select>
-                        <div id="custom-subscriber-range" style="display: none; margin-right: 1rem;">
-                            <input type="number" id="min-subscribers" placeholder="최소 구독자" style="width: 120px; margin-right: 0.5rem;">
-                            <input type="number" id="max-subscribers" placeholder="최대 구독자" style="width: 120px;">
-                        </div>
-                        <button id="start-test-btn" class="btn btn-primary">테스트 시작</button>
-                        <button id="view-records-btn" class="btn btn-secondary">기록 보기</button>
-                    </div>
-                </div>
-
-                <div id="test-intro" class="test-section">
-                    <div class="test-intro-content">
-                        <h3>썸네일 테스트 게임</h3>
-                        <p>48시간 후 어떤 썸네일이 더 많은 조회수를 기록했는지 맞춰보세요!</p>
-                        <ul>
-                            <li>총 50문제가 출제됩니다</li>
-                            <li>48-50시간 전에 업로드된 롱폼 영상(3분 1초 이상)만 사용됩니다</li>
-                            <li>구독자 수 범위를 설정해서 비슷한 규모의 채널끼리 비교할 수 있습니다</li>
-                            <li>키워드를 입력하면 해당 주제의 영상만, 비워두면 다양한 주제의 영상이 출제됩니다</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div id="test-game" class="test-section" style="display: none;">
-                    <div class="test-progress">
-                        <span id="question-counter">1 / 50</span>
-                        <span id="score-counter">정답: 0개</span>
-                    </div>
-
-                    <div class="test-question">
-                        <h3>어떤 썸네일이 더 많은 조회수를 받았을까요?</h3>
-
-                        <div class="thumbnail-options">
-                            <div class="thumbnail-option" id="option-a" onclick="selectThumbnail('a')">
-                                <img id="thumbnail-a" src="" alt="썸네일 A">
-                                <div class="thumbnail-info">
-                                    <div class="video-title" id="title-a"></div>
-                                    <div class="channel-name" id="channel-a"></div>
-                                </div>
-                            </div>
-
-                            <div class="thumbnail-option" id="option-b" onclick="selectThumbnail('b')">
-                                <img id="thumbnail-b" src="" alt="썸네일 B">
-                                <div class="thumbnail-info">
-                                    <div class="video-title" id="title-b"></div>
-                                    <div class="channel-name" id="channel-b"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="test-result" class="test-section" style="display: none;">
-                    <div class="test-result-content">
-                        <h3>테스트 완료!</h3>
-                        <div class="final-score">
-                            <span id="final-score-text">50문제 중 0문제 정답</span>
-                            <span id="final-percentage">(0%)</span>
-                        </div>
-                        <button id="restart-test-btn" class="btn btn-primary">다시 시작</button>
-                        <button id="new-test-btn" class="btn btn-secondary">새 키워드로 시작</button>
-                    </div>
-                </div>
-
-                <div id="test-records" class="test-section" style="display: none;">
-                    <div class="records-header">
-                        <h3>테스트 기록</h3>
-                        <button id="close-records-btn" class="btn btn-secondary">닫기</button>
-                    </div>
-                    <div id="records-list">
-                        </div>
-                </div>
-            </div>
-        </main>
-
-        <div id="api-modal" class="modal">
-            <div class="modal-content api-modal-content">
-                <h3>YouTube API 키 설정</h3>
-                <p class="api-description">API 키를 직접 입력하거나 파일에서 불러올 수 있습니다. 할당량 초과 시 자동으로 다음 키를 사용합니다.</p>
-
-                <div class="api-file-section" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: #333;">파일에서 가져오기</h4>
-                    <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: #666;">
-                        .txt, .json, .csv 파일을 지원합니다. 한 줄에 하나씩 또는 쉼표로 구분하여 저장하세요.
-                    </p>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button id="import-api-keys-btn" class="btn btn-primary btn-small">📁 파일에서 가져오기</button>
-                        <button id="export-api-keys-btn" class="btn btn-secondary btn-small">💾 파일로 내보내기</button>
-                        <button id="test-all-api-keys-btn" class="btn btn-secondary btn-small">🧪 전체 키 테스트</button>
-                    </div>
-                </div>
-
-                <div class="api-inputs">
-                    <div class="api-input-group">
-                        <label>API 키 #1 (주)</label>
-                        <input type="password" id="api-key-1" placeholder="첫 번째 API 키">
-                    </div>
-                    <div class="api-input-group">
-                        <label>API 키 #2</label>
-                        <input type="password" id="api-key-2" placeholder="두 번째 API 키 (선택)">
-                    </div>
-                    <div class="api-input-group">
-                        <label>API 키 #3</label>
-                        <input type="password" id="api-key-3" placeholder="세 번째 API 키 (선택)">
-                    </div>
-                    <div class="api-input-group">
-                        <label>API 키 #4</label>
-                        <input type="password" id="api-key-4" placeholder="네 번째 API 키 (선택)">
-                    </div>
-                    <div class="api-input-group">
-                        <label>API 키 #5</label>
-                        <input type="password" id="api-key-5" placeholder="다섯 번째 API 키 (선택)">
-                    </div>
-                    </div>
-
-                <div class="api-status-info">
-                    <p>현재 사용 중인 API: <span id="current-api-index">-</span></p>
-                    <p id="api-stats-info" style="font-size: 0.8rem; color: #666; margin: 0.5rem 0 0 0;"></p>
-                    <button id="reset-api-rotation" class="btn btn-secondary btn-small">순환 초기화</button>
-                </div>
-
-                <div class="modal-buttons">
-                    <button id="save-api-btn" class="btn btn-primary">저장</button>
-                    <button id="cancel-api-btn" class="btn btn-secondary">취소</button>
-                </div>
+		<div id="subscriber-tracking" class="tab-content">
+    <div class="tab-header">
+        <h2>구독자 수 추적</h2>
+        <button id="collect-subscriber-data-btn" class="btn btn-primary">📊 오늘 구독자 수 수집</button>
+    </div>
+    <div class="tracking-channel-management">
+        <button id="add-tracking-channel-btn" class="btn btn-primary">+ 채널 추가</button>
+        <span class="channel-count">총 <span id="tracking-channel-count">0</span>개 채널</span>
+        <div id="tracking-channel-grid"></div>
+    </div>
+    <div class="subscriber-management">
+        <div id="subscriber-data-list">
+            <div class="empty-state">
+                <p>아직 기록된 데이터가 없습니다.</p>
+                <p>상단의 "오늘 구독자 수 수집" 버튼을 눌러 시작해보세요.</p>
             </div>
         </div>
+    </div>
+    <div class="chart-container">
+        <canvas id="subscriber-chart"></canvas>
+    </div>
+</div>
+
+		<div id="thumbnail-test" class="tab-content">
+    <div class="tab-header">
+        <h2>썸네일 테스트</h2>
+        <input type="text" id="test-keyword" placeholder="키워드 입력 (선택사항)">
+        <button id="start-test-btn" class="btn btn-primary">테스트 시작</button>
+    </div>
+    <div id="test-intro">
+        <p>썸네일 테스트 게임 안내...</p>
+    </div>
+    <div id="test-game" style="display:none;">
+        <!-- 문제 및 선택지 UI가 JS에서 동적으로 추가됩니다 -->
+    </div>
+    <div id="test-result" style="display:none;">
+        <!-- 최종 결과 UI가 JS에서 동적으로 추가됩니다 -->
+    </div>
+</div>
+
+		
+
+        </main>
+
+        <!-- === 모달(검색 포함) === -->
+
+        <!-- 채널 추가 모달 -->
         <div id="channel-modal" class="modal">
             <div class="modal-content">
                 <h3>채널 추가</h3>
@@ -407,10 +173,12 @@
             </div>
         </div>
 
+        <!-- *** 채널 검색 결과(선택) 모달 *** -->
         <div id="channel-selection-modal" class="modal">
             <div class="modal-content channel-selection-content">
                 <h3>채널 선택</h3>
                 <p class="channel-selection-description">여러 개의 채널이 검색되었습니다. 추가할 채널을 선택해주세요:</p>
+                <!-- 반드시 이 div의 id/class를 유지하세요! -->
                 <div class="channel-selection-list" id="channel-selection-list"></div>
                 <div class="modal-buttons">
                     <button id="cancel-channel-selection-btn" class="btn btn-secondary">취소</button>
@@ -423,14 +191,12 @@
             <p>데이터를 불러오는 중...</p>
         </div>
     </div>
-   <script type="module" src="js/main.js"></script>
-   <script type="module" src="js/channel-monitor.js"></script>
-   <script type="module" src="js/video-search.js"></script>
-   <script type="module" src="js/subscriber-tracking.js"></script>
-   <script type="module" src="js/thumbnail-test.js"></script>
+
+    <!-- 메인 JS -->
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/channel-monitor.js"></script>
+    <script type="module" src="js/video-search.js"></script>
+    <script type="module" src="js/subscriber-tracking.js"></script>
+    <script type="module" src="js/thumbnail-test.js"></script>
 </body>
-
 </html>
-
-
-
