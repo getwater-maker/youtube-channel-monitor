@@ -69,8 +69,19 @@ function setupEventListeners() {
     cancelWatchTimeBtn.addEventListener('click', () => closeModal(watchTimeModal));
     
     // 전체 선택/해제 버튼 이벤트
-    document.getElementById('selectAllTrackingChannels').addEventListener('click', () => toggleAllChannelSelection(true));
-    document.getElementById('deselectAllTrackingChannels').addEventListener('click', () => toggleAllChannelSelection(false));
+    const selectAllBtn = document.getElementById('selectAllTrackingChannels');
+    const deselectAllBtn = document.getElementById('deselectAllTrackingChannels');
+    
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => toggleAllChannelSelection(true));
+    }
+    
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', () => toggleAllChannelSelection(false));
+    }
+
+    // 채널 선택 체크박스 변경 시 차트 렌더링
+    trackingChannelsSelection.addEventListener('change', renderChart);
 }
 
 // =====================================================================================================
@@ -384,4 +395,5 @@ document.addEventListener('DOMContentLoaded', () => {
     renderWatchTimeDataList();
     setupEventListeners();
 });
+
 
