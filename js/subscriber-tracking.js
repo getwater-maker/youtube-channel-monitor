@@ -87,26 +87,35 @@ function setupEventListeners() {
 // =====================================================================================================
 // 채널 관리 및 렌더링 함수
 // =====================================================================================================
+// 채널 ID로 채널 정보를 가져와서 로컬 스토리지에 저장
 async function addChannel(input, type) {
     showLoading('채널 정보를 가져오는 중...');
     let params = { part: 'snippet,statistics' };
+    
+    // 채널 핸들(@채널명)을 입력했을 때, '@' 기호를 제거하고 API를 호출합니다.
     if (input.startsWith('UC')) {
         params.id = input;
+    } else if (input.startsWith('@')) {
+        params.forHandle = input.slice(1);
     } else {
-        params.forHandle = input.startsWith('@') ? input : `@${input}`;
+        // '@' 기호가 없는 경우, 그대로 핸들로 간주합니다.
+        params.forHandle = input;
     }
 
     const data = await fetchYouTubeApi('channels', params);
-    hideLoading();
     
-    if (!data || data.items.length === 0) {
+    // 에러 방지를 위해 data와 data.items의 존재 여부를 모두 확인합니다.
+    if (!data || !data.items || data.items.length === 0) {
+        hideLoading();
         alert('채널을 찾을 수 없습니다.');
         return;
     }
+
     const channel = data.items[0];
     const channelId = channel.id;
     
     if (channels[channelId]) {
+        hideLoading();
         alert('이미 추가된 채널입니다.');
         return;
     }
@@ -115,12 +124,13 @@ async function addChannel(input, type) {
         id: channelId,
         name: channel.snippet.title,
         thumbnail: channel.snippet.thumbnails.default.url,
-        type: type
+        type: type,
+        subscriberCount: channel.statistics.subscriberCount
     };
     
     saveChannelsToLocalStorage();
     renderTrackingChannels();
-    // 다른 탭의 채널 목록도 업데이트 필요
+    hideLoading();
 }
 
 function removeChannel(channelId) {
@@ -395,5 +405,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderWatchTimeDataList();
     setupEventListeners();
 });
+
 
 
