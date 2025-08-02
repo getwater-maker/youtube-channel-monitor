@@ -88,7 +88,7 @@ function setupEventListeners() {
 // 채널 관리 및 렌더링 함수
 // =====================================================================================================
 // 채널 ID로 채널 정보를 가져와서 로컬 스토리지에 저장
-async function addChannel(input, type) {
+export async function addChannel(input, type) {
     showLoading('채널 정보를 가져오는 중...');
     let params = { part: 'snippet,statistics' };
     
@@ -405,6 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderWatchTimeDataList();
     setupEventListeners();
 });
+
 
 
 
