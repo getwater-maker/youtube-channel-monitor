@@ -10,11 +10,13 @@ import {
     channels,
     saveChannelsToLocalStorage,
     openModal,
-    closeModal
+    closeModal,
+    openChannelModal
 } from './main.js';
 
 // 이 모듈에서만 사용되는 DOM 요소들
 const addMonitoringChannelBtn = document.getElementById('add-monitoring-channel-btn');
+const addTrackingChannelBtn = document.getElementById('add-tracking-channel-btn');
 const monitoringChannelGrid = document.getElementById('monitoring-channel-grid');
 const trackingRecords = document.getElementById('tracking-records');
 const latestVideosContainer = document.getElementById('latest-videos-container');
@@ -78,15 +80,11 @@ export function setupEventListeners() {
     trackingSortOrderSelect.addEventListener('change', renderTrackingRecords);
     hotVideoRatioSelect.addEventListener('change', renderTrackingRecords);
     showAllChannelsCheckbox.addEventListener('change', renderTrackingRecords);
-}
 
     // '채널 모니터링' 탭의 '채널 추가' 버튼
     if (addMonitoringChannelBtn) {
         addMonitoringChannelBtn.addEventListener('click', () => {
-            // 이 함수는 main.js에 구현되어 있어야 합니다.
-            // main.js의 openChannelModal 함수를 직접 임포트하여 사용하거나
-            // 전역 이벤트로 처리해야 합니다.
-            openChannelModal('monitoring'); 
+            openChannelModal('monitoring');
         });
     }
 
@@ -96,6 +94,7 @@ export function setupEventListeners() {
             openChannelModal('tracking');
         });
     }
+}
 
 // =====================================================================================================
 // 채널 관리 및 렌더링
@@ -356,7 +355,7 @@ function renderTrackingRecords() {
         videoCard.innerHTML = `
             <img src="${video.thumbnail}" alt="${video.title}">
             <div class="video-info">
-                <h4><a href="http://googleusercontent.com/youtube.com/watch?v=${videoId}" target="_blank">${video.title}</a></h4>
+                <h4><a href="http://youtube.com/watch?v=${video.id}" target="_blank">${video.title}</a></h4>
                 <p><strong>채널:</strong> ${video.channelTitle}</p>
                 <p><strong>조회수:</strong> ${formatNumber(video.statistics.viewCount)}회</p>
                 <p><strong>구독자:</strong> ${video.channelStats ? formatNumber(video.channelStats.subscriberCount) : '정보 없음'}</p>
@@ -438,7 +437,7 @@ async function fetchAndRenderLatestVideos(channelId) {
         videoCard.innerHTML = `
             <img src="${video.snippet.thumbnails.medium.url}" alt="${video.snippet.title}">
             <div class="video-info">
-                <h4><a href="http://googleusercontent.com/youtube.com/watch?v=${video.id}" target="_blank">${video.snippet.title}</a></h4>
+                <h4><a href="http://youtube.com/watch?v=${video.id}" target="_blank">${video.snippet.title}</a></h4>
                 <p><strong>조회수:</strong> ${formatNumber(video.statistics.viewCount)}회</p>
                 <p><strong>업로드:</strong> ${new Date(video.snippet.publishedAt).toLocaleDateString()}</p>
             </div>
@@ -488,4 +487,3 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLatestVideos();
     setupEventListeners();
 });
-
