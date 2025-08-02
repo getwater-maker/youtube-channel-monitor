@@ -195,9 +195,9 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3 style="margin: 0; color: #333;">추적 대상 채널 선택</h3>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-secondary btn-small" onclick="selectAllTrackingChannels()">전체선택</button>
-                            <button class="btn btn-secondary btn-small" onclick="deselectAllTrackingChannels()">전체해제</button>
-                        </div>
+			    <button class="btn btn-secondary btn-small" id="selectAllTrackingChannels">전체선택</button>
+			    <button class="btn btn-secondary btn-small" id="deselectAllTrackingChannels">전체해제</button>
+			</div>
                     </div>
                     <div class="tracking-channels-selection" id="tracking-channels-selection">
                         </div>
@@ -429,4 +429,5 @@
    <script type="module" src="js/subscriber-tracking.js"></script>
    <script type="module" src="js/thumbnail-test.js"></script>
 </body>
+
 </html>
