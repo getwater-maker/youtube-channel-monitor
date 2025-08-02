@@ -9,9 +9,7 @@ import {
     saveChannelsToLocalStorage,
     openModal,
     closeModal,
-    channelModal,
-    channelInput,
-    updateApiStatus
+    channelModal
 } from './main.js';
 
 // 이 모듈에서만 사용되는 DOM 요소들
@@ -36,7 +34,6 @@ const trackingChannelsSelection = document.getElementById('tracking-channels-sel
 // 로컬 스토리지에 저장될 데이터
 let subscriberData = JSON.parse(localStorage.getItem('subscriberData')) || {};
 let watchTimeData = JSON.parse(localStorage.getItem('watchTimeData')) || {};
-let trackingChannels = Object.values(channels).filter(c => c.type === 'tracking');
 
 // Chart.js 인스턴스
 let subscriberChart = null;
@@ -145,7 +142,7 @@ function removeChannel(channelId) {
 }
 
 // 등록된 추적 채널 목록을 화면에 렌더링
-function renderTrackingChannels() {
+export function renderTrackingChannels() {
     trackingChannelGrid.innerHTML = '';
     const trackingChannels = Object.values(channels).filter(c => c.type === 'tracking');
     
@@ -275,7 +272,7 @@ export function renderChart() {
 }
 
 // 구독자 데이터 목록 렌더링
-function renderSubscriberDataList() {
+export function renderSubscriberDataList() {
     subscriberDataList.innerHTML = '';
     const dates = Object.keys(subscriberData).sort((a, b) => new Date(b) - new Date(a));
     
@@ -349,7 +346,7 @@ function saveWatchTime() {
     renderWatchTimeDataList();
 }
 
-function renderWatchTimeDataList() {
+export function renderWatchTimeDataList() {
     watchTimeDataList.innerHTML = '';
     const dates = Object.keys(watchTimeData).sort((a, b) => new Date(b) - new Date(a));
 
@@ -398,16 +395,5 @@ function getRandomColor() {
 // 초기화
 // =====================================================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    loadSettings(); // 먼저 호출!
-    renderTrackingChannels();
-    renderChart();
-    renderSubscriberDataList();
-    renderWatchTimeDataList();
     setupEventListeners();
 });
-
-
-
-
-
-
