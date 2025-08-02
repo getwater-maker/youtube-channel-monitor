@@ -2,6 +2,8 @@
 // main.js: 애플리케이션의 공통 로직 및 상태 관리를 담당하는 모듈
 // 이 파일은 다른 모듈에서 필요한 함수와 데이터를 export하여 공유합니다.
 // =====================================================================================================
+import { addChannel as addMonitoringChannel } from './channel-monitor.js';
+import { addChannel as addTrackingChannel } from './subscriber-tracking.js';
 
 // 공통으로 사용되는 DOM 요소들을 export하여 다른 모듈에서 직접 접근 가능하도록 합니다.
 export const appContainer = document.querySelector('.app-container');
@@ -14,16 +16,17 @@ export const tabContents = document.querySelectorAll('.tab-content');
 export const apiModal = document.getElementById('api-modal');
 export const channelModal = document.getElementById('channel-modal');
 export const channelSelectionModal = document.getElementById('channel-selection-modal');
+
 export const channelInput = document.getElementById('channel-input');
 export const addChannelConfirmBtn = document.getElementById('add-channel-confirm-btn');
-
 
 // API 키 및 기타 전역 상태 변수
 export let apiKeys = [];
 export let currentApiKeyIndex = 0;
-export let channels = {};
-export let lastApiCheck = 0;
-export let apiStats = {};
+export let channels = JSON.parse(localStorage.getItem('channels')) || {};
+export let lastApiCheck = localStorage.getItem('lastApiCheck') || 0;
+export let apiStats = JSON.parse(localStorage.getItem('apiStats')) || {};
+
 
 // =====================================================================================================
 // 로컬 스토리지 관리 함수
@@ -34,18 +37,6 @@ export function loadSettings() {
     if (storedApiKeys) {
         apiKeys = JSON.parse(storedApiKeys);
         updateApiStatus();
-    }
-    const storedChannels = localStorage.getItem('channels');
-    if (storedChannels) {
-        channels = JSON.parse(storedChannels);
-    }
-    const storedApiStats = localStorage.getItem('apiStats');
-    if (storedApiStats) {
-        apiStats = JSON.parse(storedApiStats);
-    }
-    const storedLastApiCheck = localStorage.getItem('lastApiCheck');
-    if (storedLastApiCheck) {
-        lastApiCheck = parseInt(storedLastApiCheck);
     }
 }
 
@@ -111,7 +102,8 @@ export function updateApiStatus() {
 // =====================================================================================================
 // 이벤트 리스너 설정
 // =====================================================================================================
-// 탭 전환 이벤트 리스너를 설정합니다.
+let currentTabForChannelAdd = ''; // 채널을 추가할 탭을 추적하는 변수
+
 function setupTabEvents() {
     tabButtons.forEach(button => {
         button.addEventListener('click', (e) => {
@@ -131,7 +123,6 @@ function switchTab(tabName) {
 }
 
 // 모달 관련 이벤트 리스너 설정
-// js/main.js
 function setupModalEvents() {
     const apiSettingsBtn = document.getElementById('api-settings-btn');
     const saveApiBtn = document.getElementById('save-api-btn');
@@ -175,9 +166,9 @@ function setupModalEvents() {
         }
 
         if (currentTabForChannelAdd === 'monitoring') {
-            await addMonitoringChannel(input);
+            await addMonitoringChannel(input, 'monitoring');
         } else if (currentTabForChannelAdd === 'tracking') {
-            await addTrackingChannel(input);
+            await addTrackingChannel(input, 'tracking');
         }
         
         closeModal(channelModal);
@@ -243,5 +234,3 @@ document.addEventListener('DOMContentLoaded', () => {
     setupTabEvents();
     setupModalEvents();
 });
-
-
