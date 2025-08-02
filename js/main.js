@@ -2,6 +2,7 @@
 // main.js: 애플리케이션의 공통 로직 및 상태 관리를 담당하는 모듈
 // 이 파일은 다른 모듈에서 필요한 함수와 데이터를 export하여 공유합니다.
 // =====================================================================================================
+// 다른 모듈에서 addChannel 함수를 가져와 별칭을 지정합니다.
 import { addChannel as addMonitoringChannel } from './channel-monitor.js';
 import { addChannel as addTrackingChannel } from './subscriber-tracking.js';
 
@@ -26,7 +27,6 @@ export let currentApiKeyIndex = 0;
 export let channels = JSON.parse(localStorage.getItem('channels')) || {};
 export let lastApiCheck = localStorage.getItem('lastApiCheck') || 0;
 export let apiStats = JSON.parse(localStorage.getItem('apiStats')) || {};
-
 
 // =====================================================================================================
 // 로컬 스토리지 관리 함수
