@@ -49,17 +49,6 @@ function setupEventListeners() {
         openModal(channelModal);
     });
 
-    // 채널 추가 모달 확인 버튼에 이벤트 리스너 추가
-    document.getElementById('add-channel-confirm-btn').addEventListener('click', async () => {
-        const input = channelInput.value.trim();
-        if (!input) {
-            alert('채널 정보를 입력해주세요.');
-            return;
-        }
-        await addChannel(input, 'tracking');
-        closeModal(channelModal);
-    });
-
     // 채널 삭제 이벤트 위임
     trackingChannelGrid.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-channel-btn')) {
@@ -395,3 +384,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderWatchTimeDataList();
     setupEventListeners();
 });
+
