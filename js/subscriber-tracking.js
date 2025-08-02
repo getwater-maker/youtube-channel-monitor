@@ -229,7 +229,7 @@ async function collectSubscriberData() {
     renderSubscriberDataList();
 }
 
-function renderChart() {
+export function renderChart() {
     if (subscriberChart) {
         subscriberChart.destroy();
     }
@@ -398,13 +398,15 @@ function getRandomColor() {
 // 초기화
 // =====================================================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // main.js의 loadSettings()가 먼저 실행되어야 합니다.
+    loadSettings(); // 먼저 호출!
     renderTrackingChannels();
     renderChart();
     renderSubscriberDataList();
     renderWatchTimeDataList();
     setupEventListeners();
 });
+
+
 
 
 
