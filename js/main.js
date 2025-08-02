@@ -131,16 +131,59 @@ function switchTab(tabName) {
 }
 
 // 모달 관련 이벤트 리스너 설정
+// js/main.js
 function setupModalEvents() {
     const apiSettingsBtn = document.getElementById('api-settings-btn');
     const saveApiBtn = document.getElementById('save-api-btn');
     const cancelApiBtn = document.getElementById('cancel-api-btn');
+    const cancelChannelBtn = document.getElementById('cancel-channel-btn');
+    const cancelChannelSelectionBtn = document.getElementById('cancel-channel-selection-btn');
 
+    // API 모달 관련
     apiSettingsBtn.addEventListener('click', () => openModal(apiModal));
     saveApiBtn.addEventListener('click', saveApiKeys);
     cancelApiBtn.addEventListener('click', () => closeModal(apiModal));
-}
+    
+    // 채널 추가 모달 관련 (취소 버튼)
+    if (cancelChannelBtn) {
+        cancelChannelBtn.addEventListener('click', () => closeModal(channelModal));
+    }
+    
+    // 채널 선택 모달 관련 (취소 버튼)
+    if (cancelChannelSelectionBtn) {
+        cancelChannelSelectionBtn.addEventListener('click', () => closeModal(channelSelectionModal));
+    }
+    
+    // 채널 추가 모달을 여는 모든 버튼에 이벤트 리스너 위임
+    document.body.addEventListener('click', (e) => {
+        if (e.target.id === 'add-monitoring-channel-btn') {
+            currentTabForChannelAdd = 'monitoring';
+            channelInput.value = '';
+            openModal(channelModal);
+        } else if (e.target.id === 'add-tracking-channel-btn') {
+            currentTabForChannelAdd = 'tracking';
+            channelInput.value = '';
+            openModal(channelModal);
+        }
+    });
 
+    addChannelConfirmBtn.addEventListener('click', async () => {
+        const input = channelInput.value.trim();
+        if (!input) {
+            alert('채널 정보를 입력해주세요.');
+            return;
+        }
+
+        if (currentTabForChannelAdd === 'monitoring') {
+            await addMonitoringChannel(input);
+        } else if (currentTabForChannelAdd === 'tracking') {
+            await addTrackingChannel(input);
+        }
+        
+        closeModal(channelModal);
+        channelInput.value = '';
+    });
+}
 // =====================================================================================================
 // YouTube API 호출 함수
 // 이 함수는 API 호출 로직과 할당량 초과 시 키 순환 로직을 포함합니다.
@@ -200,4 +243,5 @@ document.addEventListener('DOMContentLoaded', () => {
     setupTabEvents();
     setupModalEvents();
 });
+
 
