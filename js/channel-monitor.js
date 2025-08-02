@@ -1,27 +1,21 @@
-// =====================================================================================================
-// channel-monitor.js: '채널 모니터링' 탭의 모든 로직을 담당하는 모듈
-// 이 파일은 채널 추가, 목록 렌더링, 영상 목록 업데이트 등 기능을 담당합니다.
-// =====================================================================================================
-
 import {
     showLoading,
     hideLoading,
     fetchYouTubeApi,
     channels,
     saveChannelsToLocalStorage,
-    openModal,        // ✅ main.js에 있는 함수만 import
+    openModal,
     closeModal,
-    channelModal      // ✅ main.js에서 export된 DOM 요소
+    channelModal,
+    channelSelectionModal,
+    channelSelectionList
 } from './main.js';
 
-// 이 모듈에서만 사용되는 DOM 요소들
+// DOM 요소
 const addMonitoringChannelBtn = document.getElementById('add-monitoring-channel-btn');
-const addTrackingChannelBtn = document.getElementById('add-tracking-channel-btn');
 const monitoringChannelGrid = document.getElementById('monitoring-channel-grid');
 const trackingRecords = document.getElementById('tracking-records');
 const latestVideosContainer = document.getElementById('latest-videos-container');
-const channelSelectionModal = document.getElementById('channel-selection-modal');
-const channelSelectionList = document.getElementById('channel-selection-list');
 const startMonitoringBtn = document.getElementById('start-monitoring-btn');
 const monitoringChannelCountSpan = document.getElementById('monitoring-channel-count');
 const hotVideoRatioSelect = document.getElementById('hot-video-ratio');
@@ -31,19 +25,18 @@ const backupTrackingDataBtn = document.getElementById('backup-tracking-data-btn'
 const restoreTrackingDataBtn = document.getElementById('restore-tracking-data-btn');
 const restoreTrackingDataInput = document.getElementById('restore-tracking-data-input');
 const monitoringCollapseBtn = document.getElementById('monitoring-collapse-btn');
+const cancelChannelSelectionBtn = document.getElementById('cancel-channel-selection-btn');
 
-// 전역 변수
 let selectedChannelsToMonitor = new Set();
 let monitoringIntervalId = null;
-let allTrackingData = {}; // 채널별 영상 데이터를 저장할 객체
-const UPDATE_INTERVAL = 5 * 60 * 1000; // 5분마다 업데이트
+let allTrackingData = {};
+const UPDATE_INTERVAL = 5 * 60 * 1000; // 5분
 
 // =====================================================================================================
-// 이벤트 리스너 설정
+// 이벤트 리스너
 // =====================================================================================================
 export function setupEventListeners() {
     startMonitoringBtn.addEventListener('click', () => {
-        // 모니터링 시작/중지 버튼 토글
         if (monitoringIntervalId) {
             stopMonitoring();
             startMonitoringBtn.textContent = '📈 채널 추적 시작';
@@ -81,47 +74,72 @@ export function setupEventListeners() {
     hotVideoRatioSelect.addEventListener('change', renderTrackingRecords);
     showAllChannelsCheckbox.addEventListener('change', renderTrackingRecords);
 
-    // '채널 모니터링' 탭의 '채널 추가' 버튼
+    // 채널 추가 버튼
     if (addMonitoringChannelBtn) {
         addMonitoringChannelBtn.addEventListener('click', () => {
-            openModal(channelModal); // ✅ openChannelModal → openModal(channelModal)
+            openModal(channelModal);
         });
     }
 
-    // '구독자 수 추적' 탭의 '채널 추가' 버튼
-    if (addTrackingChannelBtn) {
-        addTrackingChannelBtn.addEventListener('click', () => {
-            openModal(channelModal); // ✅ openChannelModal → openModal(channelModal)
+    // 검색 결과 선택 모달 닫기
+    if (cancelChannelSelectionBtn) {
+        cancelChannelSelectionBtn.addEventListener('click', () => {
+            closeModal(channelSelectionModal);
         });
     }
 }
 
 // =====================================================================================================
-// 채널 관리 및 렌더링
+// 채널 추가 (검색 및 선택)
 // =====================================================================================================
 export async function addChannel(input, type) {
     showLoading('채널 정보를 가져오는 중...');
     let params = { part: 'snippet,statistics' };
 
+    let searchItems = [];
+
+    // 입력값이 UC로 시작하면 채널ID
     if (input.startsWith('UC')) {
         params.id = input;
-    } else if (input.startsWith('@')) {
-        params.forHandle = input.slice(1);
-    } else {
-        // 채널명으로 검색
-        const searchData = await fetchYouTubeApi('search', { q: input, type: 'channel', maxResults: 1 });
-        if (!searchData || !searchData.items || searchData.items.length === 0) {
-            hideLoading();
-            alert('채널을 찾을 수 없습니다.');
-            return;
-        }
-        params.id = searchData.items[0].id.channelId;
     }
-    
-    const data = await fetchYouTubeApi('channels', params);
-    
-    if (!data || !data.items || data.items.length === 0) {
+    // 입력값이 @로 시작하면 핸들
+    else if (input.startsWith('@')) {
+        params.forHandle = input.slice(1);
+    }
+    // URL 입력 시
+    else if (input.includes('youtube.com')) {
+        // URL 파싱
+        const handleMatch = input.match(/youtube\.com\/(@[A-Za-z0-9_\-]+)/);
+        const idMatch = input.match(/youtube\.com\/channel\/(UC[\w-]+)/);
+        if (handleMatch) {
+            params.forHandle = handleMatch[1].replace('@', '');
+        } else if (idMatch) {
+            params.id = idMatch[1];
+        } else {
+            // URL이지만 못찾음 → fallback to 검색
+            const searchData = await fetchYouTubeApi('search', { q: input, type: 'channel', maxResults: 5 });
+            searchItems = searchData?.items || [];
+        }
+    }
+    // 나머지(채널명): 검색
+    else {
+        const searchData = await fetchYouTubeApi('search', { q: input, type: 'channel', maxResults: 5 });
+        searchItems = searchData?.items || [];
+    }
+
+    // 검색 결과(채널명 등)
+    if (searchItems.length > 0) {
         hideLoading();
+        showChannelSearchResults(searchItems, type);
+        return;
+    }
+
+    // ID/핸들로 API 직접 조회
+    const data = await fetchYouTubeApi('channels', params);
+
+    hideLoading();
+
+    if (!data || !data.items || data.items.length === 0) {
         alert('채널을 찾을 수 없습니다.');
         return;
     }
@@ -130,7 +148,6 @@ export async function addChannel(input, type) {
     const channelId = channel.id;
 
     if (channels[channelId]) {
-        hideLoading();
         alert('이미 추가된 채널입니다.');
         return;
     }
@@ -141,13 +158,61 @@ export async function addChannel(input, type) {
         thumbnail: channel.snippet.thumbnails.default.url,
         type: type,
     };
-    
+
     saveChannelsToLocalStorage();
     renderMonitoringChannels();
     renderLatestVideos();
-    hideLoading();
 }
 
+// =====================================================================================================
+// 검색 결과 선택 모달
+// =====================================================================================================
+function showChannelSearchResults(items, type) {
+    channelSelectionList.innerHTML = '';
+
+    if (!items.length) {
+        channelSelectionList.innerHTML = '<div style="padding:16px">검색 결과가 없습니다.</div>';
+        openModal(channelSelectionModal);
+        return;
+    }
+
+    items.forEach(item => {
+        const channelId = item.id.channelId || item.id;
+        const channelTitle = item.snippet.title;
+        const thumbnail = item.snippet.thumbnails.default.url;
+        const description = item.snippet.description || '';
+        const isDuplicate = channels[channelId];
+        const div = document.createElement('div');
+        div.className = 'channel-search-result';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.cursor = isDuplicate ? 'not-allowed' : 'pointer';
+        div.style.opacity = isDuplicate ? 0.4 : 1;
+        div.style.padding = '8px 4px';
+
+        div.innerHTML = `
+            <img src="${thumbnail}" width="36" height="36" style="margin-right:8px; border-radius:18px;">
+            <div>
+                <div style="font-weight:bold">${channelTitle}</div>
+                <div style="font-size:12px;color:#666;">${description.slice(0, 32)}${description.length > 32 ? '...' : ''}</div>
+            </div>
+        `;
+
+        if (!isDuplicate) {
+            div.addEventListener('click', async () => {
+                closeModal(channelSelectionModal);
+                await addChannel(channelId, type);
+            });
+        }
+        channelSelectionList.appendChild(div);
+    });
+
+    openModal(channelSelectionModal);
+}
+
+// =====================================================================================================
+// 채널 삭제
+// =====================================================================================================
 function removeChannel(channelId) {
     if (confirm('정말로 이 채널을 삭제하시겠습니까?')) {
         delete channels[channelId];
@@ -158,6 +223,9 @@ function removeChannel(channelId) {
     }
 }
 
+// =====================================================================================================
+// 채널 목록 렌더링
+// =====================================================================================================
 export function renderMonitoringChannels() {
     monitoringChannelGrid.innerHTML = '';
     const monitoringChannels = Object.values(channels).filter(c => c.type === 'monitoring');
@@ -187,8 +255,10 @@ export function renderMonitoringChannels() {
     });
 }
 
+// =====================================================================================================
+// 채널 관리 UI 접기/펼치기
+// =====================================================================================================
 function toggleChannelManagementSection(type) {
-    const section = document.querySelector(`.${type}-channel-management`);
     const grid = document.getElementById(`${type}-channel-grid`);
     const collapseBtn = document.getElementById(`${type}-collapse-btn`);
     if (grid && collapseBtn) {
@@ -203,7 +273,7 @@ function toggleChannelManagementSection(type) {
 }
 
 // =====================================================================================================
-// 모니터링 로직
+// 모니터링 시작/정지/영상 데이터 갱신
 // =====================================================================================================
 async function startMonitoring() {
     stopMonitoring();
@@ -228,7 +298,7 @@ async function fetchVideos() {
         stopMonitoring();
         return;
     }
-    
+
     showLoading('새 영상을 확인하는 중...');
 
     const channelIds = Array.from(selectedChannelsToMonitor);
@@ -278,14 +348,14 @@ async function fetchVideos() {
                     likeCount: video.statistics.likeCount,
                     commentCount: video.statistics.commentCount,
                 },
-                channelStats: null // 채널 구독자 수는 별도로 가져와야 함
+                channelStats: null
             };
         }
     });
 
     // 채널 통계 가져오기
     const uniqueChannelIds = [...new Set(allVideos.map(v => v.snippet.channelId))];
-    const channelStatsPromises = uniqueChannelIds.map(id => 
+    const channelStatsPromises = uniqueChannelIds.map(id =>
         fetchYouTubeApi('channels', { id: id, part: 'statistics' })
     );
     const channelStatsResults = await Promise.all(channelStatsPromises);
@@ -297,13 +367,11 @@ async function fetchVideos() {
         }
     });
 
-    // 모든 영상 데이터에 채널 통계 병합
     Object.keys(allTrackingData).forEach(videoId => {
         const video = allTrackingData[videoId];
         const channelStats = channelStatsMap[video.channelId];
         if (channelStats) {
             video.channelStats = channelStats;
-            // 돌연변이 비율 계산 (조회수 / 구독자 수)
             const viewCount = parseInt(video.statistics.viewCount, 10) || 0;
             const subscriberCount = parseInt(channelStats.subscriberCount, 10) || 1;
             video.ratio = (viewCount / subscriberCount) * 100;
@@ -314,6 +382,9 @@ async function fetchVideos() {
     hideLoading();
 }
 
+// =====================================================================================================
+// 영상 데이터 렌더링
+// =====================================================================================================
 function renderTrackingRecords() {
     trackingRecords.innerHTML = '';
     const videoData = Object.values(allTrackingData);
@@ -377,6 +448,9 @@ function formatNumber(num) {
     return n.toLocaleString();
 }
 
+// =====================================================================================================
+// 최신 영상 섹션 렌더링
+// =====================================================================================================
 export function renderLatestVideos() {
     latestVideosContainer.innerHTML = '';
     const monitoringChannels = Object.values(channels).filter(c => c.type === 'monitoring');
@@ -446,6 +520,9 @@ async function fetchAndRenderLatestVideos(channelId) {
     });
 }
 
+// =====================================================================================================
+// 데이터 백업/복원
+// =====================================================================================================
 function backupData() {
     const dataStr = JSON.stringify(allTrackingData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -477,7 +554,6 @@ function restoreData(event) {
     };
     reader.readAsText(file);
 }
-
 
 // =====================================================================================================
 // 초기화
