@@ -80,6 +80,23 @@ export function setupEventListeners() {
     showAllChannelsCheckbox.addEventListener('change', renderTrackingRecords);
 }
 
+    // '채널 모니터링' 탭의 '채널 추가' 버튼
+    if (addMonitoringChannelBtn) {
+        addMonitoringChannelBtn.addEventListener('click', () => {
+            // 이 함수는 main.js에 구현되어 있어야 합니다.
+            // main.js의 openChannelModal 함수를 직접 임포트하여 사용하거나
+            // 전역 이벤트로 처리해야 합니다.
+            openChannelModal('monitoring'); 
+        });
+    }
+
+    // '구독자 수 추적' 탭의 '채널 추가' 버튼
+    if (addTrackingChannelBtn) {
+        addTrackingChannelBtn.addEventListener('click', () => {
+            openChannelModal('tracking');
+        });
+    }
+
 // =====================================================================================================
 // 채널 관리 및 렌더링
 // =====================================================================================================
@@ -471,3 +488,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLatestVideos();
     setupEventListeners();
 });
+
