@@ -14,6 +14,9 @@ export const tabContents = document.querySelectorAll('.tab-content');
 export const apiModal = document.getElementById('api-modal');
 export const channelModal = document.getElementById('channel-modal');
 export const channelSelectionModal = document.getElementById('channel-selection-modal');
+export const channelInput = document.getElementById('channel-input');
+export const addChannelConfirmBtn = document.getElementById('add-channel-confirm-btn');
+
 
 // API 키 및 기타 전역 상태 변수
 export let apiKeys = [];
@@ -197,3 +200,4 @@ document.addEventListener('DOMContentLoaded', () => {
     setupTabEvents();
     setupModalEvents();
 });
+
