@@ -19,7 +19,7 @@ const monitoringChannelGrid = document.getElementById('monitoring-channel-grid')
 const videoList = document.getElementById('video-list');
 const channelSelectionModal = document.getElementById('channel-selection-modal');
 const channelSelectionList = document.getElementById('channel-selection-list');
-const monitorBtn = document.getElementById('monitor-btn');
+const monitorBtn = document.getElementById('start-monitoring-btn');
 
 // 전역 변수
 let selectedChannelsToMonitor = new Set();
@@ -269,3 +269,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderMonitoringChannels();
     setupEventListeners();
 });
+
