@@ -3,8 +3,8 @@
 // 이 파일은 다른 모듈에서 필요한 함수와 데이터를 export하여 공유합니다.
 // =====================================================================================================
 // 다른 모듈에서 addChannel 함수를 가져와 별칭을 지정합니다.
-import { addChannel as addMonitoringChannel } from './channel-monitor.js';
-import { addChannel as addTrackingChannel } from './subscriber-tracking.js';
+import { addChannel as addMonitoringChannel, renderMonitoringChannels } from './channel-monitor.js';
+import { addChannel as addTrackingChannel, renderTrackingChannels, renderChart, renderSubscriberDataList, renderWatchTimeDataList } from './subscriber-tracking.js';
 
 // 공통으로 사용되는 DOM 요소들을 export하여 다른 모듈에서 직접 접근 가능하도록 합니다.
 export const appContainer = document.querySelector('.app-container');
@@ -21,12 +21,12 @@ export const channelSelectionModal = document.getElementById('channel-selection-
 export const channelInput = document.getElementById('channel-input');
 export const addChannelConfirmBtn = document.getElementById('add-channel-confirm-btn');
 
-// API 키 및 기타 전역 상태 변수
+// API 키 및 기타 전역 상태 변수 (초기화는 loadSettings에서 진행)
 export let apiKeys = [];
 export let currentApiKeyIndex = 0;
-export let channels = JSON.parse(localStorage.getItem('channels')) || {};
-export let lastApiCheck = localStorage.getItem('lastApiCheck') || 0;
-export let apiStats = JSON.parse(localStorage.getItem('apiStats')) || {};
+export let channels = {}; // 초기값을 빈 객체로 설정
+export let lastApiCheck = 0;
+export let apiStats = {};
 
 // =====================================================================================================
 // 로컬 스토리지 관리 함수
@@ -36,8 +36,17 @@ export function loadSettings() {
     const storedApiKeys = localStorage.getItem('apiKeys');
     if (storedApiKeys) {
         apiKeys = JSON.parse(storedApiKeys);
-        updateApiStatus();
     }
+
+    const storedChannels = localStorage.getItem('channels');
+    if (storedChannels) {
+        channels = JSON.parse(storedChannels);
+    }
+    
+    lastApiCheck = localStorage.getItem('lastApiCheck') || 0;
+    apiStats = JSON.parse(localStorage.getItem('apiStats')) || {};
+    
+    updateApiStatus();
 }
 
 // API 키를 로컬 스토리지에 저장합니다.
@@ -131,7 +140,13 @@ function setupModalEvents() {
     const cancelChannelSelectionBtn = document.getElementById('cancel-channel-selection-btn');
 
     // API 모달 관련
-    apiSettingsBtn.addEventListener('click', () => openModal(apiModal));
+    apiSettingsBtn.addEventListener('click', () => {
+        const apiInputs = document.querySelectorAll('#api-modal .api-inputs input');
+        apiInputs.forEach((input, index) => {
+            input.value = apiKeys[index] || '';
+        });
+        openModal(apiModal);
+    });
     saveApiBtn.addEventListener('click', saveApiKeys);
     cancelApiBtn.addEventListener('click', () => closeModal(apiModal));
     
@@ -231,6 +246,11 @@ export async function fetchYouTubeApi(endpoint, params) {
 // =====================================================================================================
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
+    renderMonitoringChannels();
+    renderTrackingChannels();
+    renderChart();
+    renderSubscriberDataList();
+    renderWatchTimeDataList();
     setupTabEvents();
     setupModalEvents();
 });
