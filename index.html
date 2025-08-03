@@ -3,200 +3,841 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube 채널 모니터</title>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <title>YouTube 채널 분석기</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .header-container {
+            background-color: #fff;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-container h1 {
+            font-size: 2rem;
+            margin: 0;
+            color: #212529;
+        }
+
+        .tab-menu {
+            display: flex;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .tab-menu button {
+            padding: 10px 20px;
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+            border-right: 1px solid #ccc;
+        }
+
+        .tab-menu button:last-child {
+            border-right: none;
+        }
+
+        .tab-menu button.active {
+            background-color: #007bff;
+            color: #fff;
+        }
+
+        .tab-content {
+            padding: 20px;
+            background-color: #fff;
+            margin-top: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .channel-management {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .channel-card {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .channel-card img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+
+        .channel-info h4 {
+            font-size: 1rem;
+            margin: 0 0 5px 0;
+        }
+
+        .monitoring-channel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .video-card {
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .video-card img {
+            width: 120px;
+            height: auto;
+            border-radius: 5px;
+        }
+
+        .video-info h4 {
+            font-size: 1rem;
+            margin-top: 0;
+        }
+
+        .video-info p {
+            font-size: 0.9rem;
+            margin: 0;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6c757d;
+            padding: 50px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .loading-message {
+            color: white;
+            margin-top: 10px;
+        }
+
+        .modal-dialog {
+            margin-top: 10%;
+        }
+    </style>
 </head>
 <body>
-    <div class="app-container">
-        <header class="header">
-            <div class="header-content">
-                <h1>YouTube 채널 모니터</h1>
-                <div class="api-status">
-                    <span id="api-status-text">API 키 설정 필요</span>
-                    <button id="api-settings-btn" class="settings-btn">⚙️</button>
-                </div>
-            </div>
-        </header>
 
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="channel-monitor">채널 모니터링</button>
-            <button class="tab-btn" data-tab="video-search">영상 검색</button>
-            <button class="tab-btn" data-tab="subscriber-tracking">구독자 수 추적</button>
-            <button class="tab-btn" data-tab="thumbnail-test">썸네일테스트</button>
-        </nav>
-
-        <main class="main-content">
-
-            <div id="channel-monitor" class="tab-content active">
-                <!-- (생략없이 전체 코드) -->
-                <div class="tab-header">
-                    <h2>관심 채널 영상</h2>
-                    <div class="tab-controls">
-                        <select id="hot-video-ratio" class="tracking-sort-select compact-select" style="margin-right: 1rem;">
-                            <option value="2">2배</option>
-                            <option value="3">3배</option>
-                            <option value="5">5배</option>
-                            <option value="10">10배</option>
-                            <option value="20">20배</option>
-                        </select>
-                        <button id="start-monitoring-btn" class="btn btn-primary">📈 채널 추적 시작</button>
-                        <select id="tracking-sort-order" class="tracking-sort-select compact-select">
-                            <option value="ratio">돌연변이</option>
-                            <option value="publishedAt">최근 업로드</option>
-                            <option value="subscriberCount">구독자 수</option>
-                            <option value="viewCount">조회수</option>
-                        </select>
-                        <label class="show-all-toggle">
-                            <input type="checkbox" id="show-all-channels">
-                            <span>전체 채널 보기</span>
-                        </label>
-                        <button id="backup-tracking-data-btn" class="btn btn-secondary">💾 데이터 백업</button>
-                        <input type="file" id="restore-tracking-data-input" accept=".txt,.json" style="display: none;">
-                        <button id="restore-tracking-data-btn" class="btn btn-secondary">📁 데이터 복원</button>
-                    </div>
-                </div>
-
-                <div class="monitoring-channel-management">
-                    <div class="management-header" data-section="monitoring">
-                        <div class="management-title-section">
-                            <h3>등록된 채널 관리 (모니터링)</h3>
-                            <button class="collapse-btn" id="monitoring-collapse-btn">▼</button>
-                        </div>
-                        <div class="management-controls" onclick="event.stopPropagation()">
-                            <button id="add-monitoring-channel-btn" class="btn btn-primary">+ 채널 추가</button>
-                            <span class="channel-count">총 <span id="monitoring-channel-count">0</span>개 채널</span>
-                        </div>
-                    </div>
-                    <div id="monitoring-channel-grid"></div>
-                </div>
-
-                <div class="tracking-records" id="tracking-records">
-                    <div class="empty-state">
-                        <p>채널을 추가하고 추적을 시작해보세요.</p>
-                        <button class="btn btn-primary" onclick="document.getElementById('add-monitoring-channel-btn').click()">
-                            첫 번째 채널 추가하기
-                        </button>
-                    </div>
-                </div>
-
-                <div class="subscriber-management">
-                    <h3 style="margin-bottom: 1rem; color: #333;">등록된 채널 최신 영상</h3>
-                    <div class="search-results" id="latest-videos-container">
-                        <div class="empty-state">
-                            <p>등록된 채널이 없습니다.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="video-search" class="tab-content">
-    <div class="tab-header">
-        <h2>영상 검색</h2>
-    </div>
-    <div class="search-form">
-        <input type="text" id="search-keyword" placeholder="검색 키워드를 입력하세요">
-        <button id="search-btn" class="btn btn-primary">검색</button>
-    </div>
-    <div class="search-results" id="search-results">
-        <div class="empty-state">
-            <p>검색 조건을 입력하고 검색해보세요.</p>
+<div id="loading-overlay">
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
         </div>
+        <p id="loading-message" class="loading-message">로딩 중...</p>
     </div>
 </div>
 
-		<div id="subscriber-tracking" class="tab-content">
-    <div class="tab-header">
-        <h2>구독자 수 추적</h2>
-        <button id="collect-subscriber-data-btn" class="btn btn-primary">📊 오늘 구독자 수 수집</button>
+<div class="container py-4">
+    <div class="header-container">
+        <h1>YouTube 채널 분석기</h1>
+        <div class="tab-menu">
+            <button class="tab-btn active" data-tab="monitoring">채널 모니터링</button>
+            <button class="tab-btn" data-tab="tracking">돌연변이 추적</button>
+        </div>
     </div>
-    <div class="tracking-channel-management">
-        <button id="add-tracking-channel-btn" class="btn btn-primary">+ 채널 추가</button>
-        <span class="channel-count">총 <span id="tracking-channel-count">0</span>개 채널</span>
-        <div id="tracking-channel-grid"></div>
-    </div>
-    <div class="subscriber-management">
-        <div id="subscriber-data-list">
+
+    <div id="monitoring-tab" class="tab-content">
+        <h2>모니터링 중인 채널 (<span id="monitoring-channel-count">0</span>개)
+            <button id="monitoring-collapse-btn" class="btn btn-secondary btn-sm ml-2">▲</button>
+        </h2>
+        <div class="channel-management monitoring-channel-management">
+            <button id="add-monitoring-channel-btn" class="btn btn-primary">첫 번째 채널 추가하기</button>
+            <div id="monitoring-channel-grid" class="monitoring-channel-grid mt-3">
+                <div class="empty-state">
+                    <p>모니터링할 채널을 추가해주세요.</p>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-4">
+
+        <h2>최신 영상 목록</h2>
+        <div id="latest-videos-container" class="mt-3">
             <div class="empty-state">
-                <p>아직 기록된 데이터가 없습니다.</p>
-                <p>상단의 "오늘 구독자 수 수집" 버튼을 눌러 시작해보세요.</p>
+                <p>등록된 채널이 없습니다.</p>
             </div>
         </div>
     </div>
-    <div class="chart-container">
-        <canvas id="subscriber-chart"></canvas>
+
+    <div id="tracking-tab" class="tab-content" style="display: none;">
+        <h2>돌연변이 추적</h2>
+        <p>
+            '돌연변이' 영상이란, 채널 구독자 수 대비 조회수가 비정상적으로 높은 영상을 의미합니다.
+            채널 추적을 통해 빠르게 인기 급상승 영상을 발견할 수 있습니다.
+        </p>
+
+        <div class="d-flex align-items-center mb-3">
+            <button id="start-monitoring-btn" class="btn btn-primary mr-3">📈 채널 추적 시작</button>
+            <div class="form-group mb-0 mr-3">
+                <label for="hot-video-ratio" class="mr-2">돌연변이 비율 (%):</label>
+                <select id="hot-video-ratio" class="form-control d-inline-block w-auto">
+                    <option value="10">10%</option>
+                    <option value="20">20%</option>
+                    <option value="30" selected>30%</option>
+                    <option value="40">40%</option>
+                    <option value="50">50%</option>
+                </select>
+            </div>
+            <div class="form-group mb-0 mr-3">
+                <label for="tracking-sort-order" class="mr-2">정렬 기준:</label>
+                <select id="tracking-sort-order" class="form-control d-inline-block w-auto">
+                    <option value="ratio">돌연변이 비율</option>
+                    <option value="publishedAt" selected>최신순</option>
+                    <option value="viewCount">조회수</option>
+                    <option value="subscriberCount">구독자수</option>
+                </select>
+            </div>
+            <div class="form-check mr-3">
+                <input class="form-check-input" type="checkbox" id="show-all-channels">
+                <label class="form-check-label" for="show-all-channels">모두 표시</label>
+            </div>
+            <button id="add-tracking-channel-btn" class="btn btn-secondary mr-3">채널 추가</button>
+            <button id="backup-tracking-data-btn" class="btn btn-info mr-3">백업</button>
+            <button id="restore-tracking-data-btn" class="btn btn-warning">복원</button>
+            <input type="file" id="restore-tracking-data-input" style="display:none;">
+        </div>
+
+        <div id="tracking-records" class="mt-3">
+            <div class="empty-state">
+                <p>채널 추적을 시작하면 최신 영상이 여기에 표시됩니다.</p>
+            </div>
+        </div>
     </div>
 </div>
 
-		<div id="thumbnail-test" class="tab-content">
-    <div class="tab-header">
-        <h2>썸네일 테스트</h2>
-        <input type="text" id="test-keyword" placeholder="키워드 입력 (선택사항)">
-        <button id="start-test-btn" class="btn btn-primary">테스트 시작</button>
-    </div>
-    <div id="test-intro">
-        <p>썸네일 테스트 게임 안내...</p>
-    </div>
-    <div id="test-game" style="display:none;">
-        <!-- 문제 및 선택지 UI가 JS에서 동적으로 추가됩니다 -->
-    </div>
-    <div id="test-result" style="display:none;">
-        <!-- 최종 결과 UI가 JS에서 동적으로 추가됩니다 -->
+<div class="modal" id="channel-modal" tabindex="-1" role="dialog" aria-labelledby="channelModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="channelModalLabel">채널 추가하기</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="closeModal(document.getElementById('channel-modal'))">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="channel-input">YouTube 채널 ID, URL, 핸들(@) 또는 이름을 입력하세요.</label>
+                    <input type="text" class="form-control" id="channel-input" placeholder="@channle_name 또는 UC... 또는 채널명">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal(document.getElementById('channel-modal'))">닫기</button>
+                <button type="button" class="btn btn-primary" id="add-channel-confirm-btn">추가</button>
+            </div>
+        </div>
     </div>
 </div>
 
-		
+<script>
+    // =====================================================================================================
+    // 모든 코드
+    // =====================================================================================================
 
-        </main>
+    // 전역 상태 및 공통 기능
+    const API_KEY = 'YOUR_YOUTUBE_API_KEY'; // 여기에 실제 API 키를 넣으세요
+    const BASE_URL = 'https://www.googleapis.com/youtube/v3/';
+    
+    let channels = JSON.parse(localStorage.getItem('youtubeChannels')) || {};
+    let currentChannelType = '';
+    
+    // DOM 요소
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const channelModal = document.getElementById('channel-modal');
+    const channelInput = document.getElementById('channel-input');
+    const addChannelConfirmBtn = document.getElementById('add-channel-confirm-btn');
 
-        <!-- === 모달(검색 포함) === -->
+    // '채널 모니터링' 탭 관련 DOM 요소
+    const addMonitoringChannelBtn = document.getElementById('add-monitoring-channel-btn');
+    const addTrackingChannelBtn = document.getElementById('add-tracking-channel-btn');
+    const monitoringChannelGrid = document.getElementById('monitoring-channel-grid');
+    const trackingRecords = document.getElementById('tracking-records');
+    const latestVideosContainer = document.getElementById('latest-videos-container');
+    const channelSelectionModal = document.getElementById('channel-selection-modal');
+    const channelSelectionList = document.getElementById('channel-selection-list');
+    const startMonitoringBtn = document.getElementById('start-monitoring-btn');
+    const monitoringChannelCountSpan = document.getElementById('monitoring-channel-count');
+    const hotVideoRatioSelect = document.getElementById('hot-video-ratio');
+    const trackingSortOrderSelect = document.getElementById('tracking-sort-order');
+    const showAllChannelsCheckbox = document.getElementById('show-all-channels');
+    const backupTrackingDataBtn = document.getElementById('backup-tracking-data-btn');
+    const restoreTrackingDataBtn = document.getElementById('restore-tracking-data-btn');
+    const restoreTrackingDataInput = document.getElementById('restore-tracking-data-input');
+    const monitoringCollapseBtn = document.getElementById('monitoring-collapse-btn');
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
 
-        <!-- 채널 추가 모달 -->
-        <div id="channel-modal" class="modal">
-            <div class="modal-content">
-                <h3>채널 추가</h3>
-                <div class="channel-input-info">
-                    <p>다음 중 하나를 입력하세요:</p>
-                    <ul>
-                        <li>채널명 (예: "채널이름")</li>
-                        <li>채널 URL (예: youtube.com/@channelname)</li>
-                        <li>채널 ID (예: UC...)</li>
-                    </ul>
+    // 전역 변수 (channel-monitor.js에서 사용되던 것들)
+    let selectedChannelsToMonitor = new Set();
+    let monitoringIntervalId = null;
+    let allTrackingData = {};
+    const UPDATE_INTERVAL = 5 * 60 * 1000;
+
+    // 로딩 상태 표시
+    function showLoading(message = '처리 중...') {
+        loadingOverlay.style.display = 'flex';
+        document.getElementById('loading-message').textContent = message;
+    }
+
+    // 로딩 상태 숨기기
+    function hideLoading() {
+        loadingOverlay.style.display = 'none';
+    }
+
+    // 로컬 스토리지에 채널 저장
+    function saveChannelsToLocalStorage() {
+        localStorage.setItem('youtubeChannels', JSON.stringify(channels));
+    }
+
+    // 모달 열기
+    function openModal(modal) {
+        modal.style.display = 'block';
+    }
+
+    // 모달 닫기
+    function closeModal(modal) {
+        modal.style.display = 'none';
+    }
+
+    // 채널 추가 모달 열기
+    function openChannelModal(type) {
+        currentChannelType = type;
+        channelInput.value = '';
+        openModal(channelModal);
+    }
+
+    // YouTube API 호출
+    async function fetchYouTubeApi(endpoint, params) {
+        const url = new URL(BASE_URL + endpoint);
+        url.searchParams.append('key', API_KEY);
+        for (const key in params) {
+            url.searchParams.append(key, params[key]);
+        }
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`API 요청 실패: ${response.statusText}`);
+            }
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('API Error:', error);
+            alert('API 호출 중 오류가 발생했습니다. API 키를 확인하거나 할당량을 초과했는지 확인해주세요.');
+            return null;
+        }
+    }
+
+    // =====================================================================================================
+    // 채널 관리 및 렌더링 (channel-monitor.js)
+    // =====================================================================================================
+    async function addChannel(input, type) {
+        showLoading('채널 정보를 가져오는 중...');
+        let params = { part: 'snippet,statistics' };
+
+        if (input.startsWith('UC')) {
+            params.id = input;
+        } else if (input.startsWith('@')) {
+            params.forHandle = input.slice(1);
+        } else {
+            const searchData = await fetchYouTubeApi('search', { q: input, type: 'channel', maxResults: 1 });
+            if (!searchData || !searchData.items || searchData.items.length === 0) {
+                hideLoading();
+                alert('채널을 찾을 수 없습니다.');
+                return;
+            }
+            params.id = searchData.items[0].id.channelId;
+        }
+        
+        const data = await fetchYouTubeApi('channels', params);
+        
+        if (!data || !data.items || data.items.length === 0) {
+            hideLoading();
+            alert('채널을 찾을 수 없습니다.');
+            return;
+        }
+
+        const channel = data.items[0];
+        const channelId = channel.id;
+
+        if (channels[channelId]) {
+            hideLoading();
+            alert('이미 추가된 채널입니다.');
+            return;
+        }
+
+        channels[channelId] = {
+            id: channelId,
+            name: channel.snippet.title,
+            thumbnail: channel.snippet.thumbnails.default.url,
+            type: type,
+        };
+        
+        saveChannelsToLocalStorage();
+        renderMonitoringChannels();
+        renderLatestVideos();
+        hideLoading();
+    }
+
+    function removeChannel(channelId) {
+        if (confirm('정말로 이 채널을 삭제하시겠습니까?')) {
+            delete channels[channelId];
+            saveChannelsToLocalStorage();
+            renderMonitoringChannels();
+            renderLatestVideos();
+            stopMonitoring();
+        }
+    }
+
+    function renderMonitoringChannels() {
+        monitoringChannelGrid.innerHTML = '';
+        const monitoringChannels = Object.values(channels).filter(c => c.type === 'monitoring');
+
+        if (monitoringChannelCountSpan) {
+            monitoringChannelCountSpan.textContent = monitoringChannels.length;
+        }
+
+        if (monitoringChannels.length === 0) {
+            monitoringChannelGrid.innerHTML = `<div class="empty-state">
+                <p>모니터링할 채널을 추가해주세요.</p>
+            </div>`;
+            return;
+        }
+
+        monitoringChannels.forEach(channel => {
+            const channelCard = document.createElement('div');
+            channelCard.className = 'channel-card';
+            channelCard.innerHTML = `
+                <img src="${channel.thumbnail}" alt="${channel.name}">
+                <div class="channel-info">
+                    <h4>${channel.name}</h4>
+                    <button class="btn btn-danger btn-small remove-channel-btn" data-channel-id="${channel.id}">삭제</button>
                 </div>
-                <input type="text" id="channel-input" placeholder="채널명, 채널 URL, 또는 채널 ID를 입력하세요">
-                <div class="modal-buttons">
-                    <button id="add-channel-confirm-btn" class="btn btn-primary">추가</button>
-                    <button id="cancel-channel-btn" class="btn btn-secondary">취소</button>
+            `;
+            monitoringChannelGrid.appendChild(channelCard);
+        });
+    }
+
+    function toggleChannelManagementSection(type) {
+        const grid = document.getElementById(`${type}-channel-grid`);
+        const collapseBtn = document.getElementById(`${type}-collapse-btn`);
+        if (grid && collapseBtn) {
+            if (grid.style.display === 'none') {
+                grid.style.display = 'grid';
+                collapseBtn.textContent = '▲';
+            } else {
+                grid.style.display = 'none';
+                collapseBtn.textContent = '▼';
+            }
+        }
+    }
+
+    // 모니터링 로직 (channel-monitor.js)
+    async function startMonitoring() {
+        stopMonitoring();
+        showLoading('채널 모니터링 시작...');
+        selectedChannelsToMonitor = new Set(Object.values(channels).filter(c => c.type === 'monitoring').map(c => c.id));
+        await fetchVideos();
+        hideLoading();
+        monitoringIntervalId = setInterval(fetchVideos, UPDATE_INTERVAL);
+    }
+
+    function stopMonitoring() {
+        if (monitoringIntervalId) {
+            clearInterval(monitoringIntervalId);
+            monitoringIntervalId = null;
+            trackingRecords.innerHTML = `<div class="empty-state"><p>채널 추적을 시작하면 최신 영상이 여기에 표시됩니다.</p></div>`;
+        }
+    }
+
+    async function fetchVideos() {
+        if (selectedChannelsToMonitor.size === 0) {
+            stopMonitoring();
+            return;
+        }
+        
+        showLoading('새 영상을 확인하는 중...');
+
+        const channelIds = Array.from(selectedChannelsToMonitor);
+        const channelDataPromises = channelIds.map(channelId => {
+            return fetchYouTubeApi('search', {
+                channelId: channelId,
+                part: 'snippet',
+                order: 'date',
+                maxResults: 50,
+                type: 'video'
+            });
+        });
+
+        const searchResults = await Promise.all(channelDataPromises);
+        const videoIds = searchResults.flatMap(result => result && result.items ? result.items.map(item => item.id.videoId) : []);
+
+        if (videoIds.length === 0) {
+            hideLoading();
+            trackingRecords.innerHTML = `<div class="empty-state"><p>최신 영상을 찾을 수 없습니다.</p></div>`;
+            return;
+        }
+
+        const videoData = await fetchYouTubeApi('videos', {
+            id: videoIds.join(','),
+            part: 'snippet,statistics'
+        });
+
+        if (!videoData || videoData.items.length === 0) {
+            hideLoading();
+            trackingRecords.innerHTML = `<div class="empty-state"><p>영상 정보를 가져오는 데 실패했습니다.</p></div>`;
+            return;
+        }
+
+        const allVideos = videoData.items;
+
+        allVideos.forEach(video => {
+            if (!allTrackingData[video.id]) {
+                allTrackingData[video.id] = {
+                    title: video.snippet.title,
+                    channelId: video.snippet.channelId,
+                    channelTitle: video.snippet.channelTitle,
+                    thumbnail: video.snippet.thumbnails.medium.url,
+                    publishedAt: video.snippet.publishedAt,
+                    statistics: {
+                        viewCount: video.statistics.viewCount,
+                        likeCount: video.statistics.likeCount,
+                        commentCount: video.statistics.commentCount,
+                    },
+                    channelStats: null
+                };
+            }
+        });
+
+        const uniqueChannelIds = [...new Set(allVideos.map(v => v.snippet.channelId))];
+        const channelStatsPromises = uniqueChannelIds.map(id => 
+            fetchYouTubeApi('channels', { id: id, part: 'statistics' })
+        );
+        const channelStatsResults = await Promise.all(channelStatsPromises);
+
+        const channelStatsMap = {};
+        channelStatsResults.forEach(result => {
+            if (result && result.items && result.items.length > 0) {
+                channelStatsMap[result.items[0].id] = result.items[0].statistics;
+            }
+        });
+
+        Object.keys(allTrackingData).forEach(videoId => {
+            const video = allTrackingData[videoId];
+            const channelStats = channelStatsMap[video.channelId];
+            if (channelStats) {
+                video.channelStats = channelStats;
+                const viewCount = parseInt(video.statistics.viewCount, 10) || 0;
+                const subscriberCount = parseInt(channelStats.subscriberCount, 10) || 1;
+                video.ratio = (viewCount / subscriberCount) * 100;
+            }
+        });
+
+        renderTrackingRecords();
+        hideLoading();
+    }
+
+    function renderTrackingRecords() {
+        trackingRecords.innerHTML = '';
+        const videoData = Object.values(allTrackingData);
+
+        if (videoData.length === 0) {
+            trackingRecords.innerHTML = `<div class="empty-state"><p>추적된 영상이 없습니다.</p></div>`;
+            return;
+        }
+
+        const showAll = showAllChannelsCheckbox.checked;
+        const hotVideoRatio = parseFloat(hotVideoRatioSelect.value);
+
+        const filteredVideos = videoData.filter(video => {
+            if (showAll) {
+                return true;
+            }
+            return video.ratio && video.ratio >= hotVideoRatio;
+        });
+
+        const sortBy = trackingSortOrderSelect.value;
+        filteredVideos.sort((a, b) => {
+            if (sortBy === 'ratio') {
+                return (b.ratio || 0) - (a.ratio || 0);
+            } else if (sortBy === 'publishedAt') {
+                return new Date(b.publishedAt) - new Date(a.publishedAt);
+            } else if (sortBy === 'viewCount') {
+                return (parseInt(b.statistics.viewCount) || 0) - (parseInt(a.statistics.viewCount) || 0);
+            } else if (sortBy === 'subscriberCount') {
+                return (parseInt(b.channelStats.subscriberCount) || 0) - (parseInt(a.channelStats.subscriberCount) || 0);
+            }
+            return 0;
+        });
+
+        filteredVideos.forEach(video => {
+            const videoCard = document.createElement('div');
+            videoCard.className = 'video-card tracking-card';
+            videoCard.innerHTML = `
+                <img src="${video.thumbnail}" alt="${video.title}">
+                <div class="video-info">
+                    <h4><a href="http://googleusercontent.com/youtube.com/watch?v=${video.id}" target="_blank">${video.title}</a></h4>
+                    <p><strong>채널:</strong> ${video.channelTitle}</p>
+                    <p><strong>조회수:</strong> ${formatNumber(video.statistics.viewCount)}회</p>
+                    <p><strong>구독자:</strong> ${video.channelStats ? formatNumber(video.channelStats.subscriberCount) : '정보 없음'}</p>
+                    ${video.ratio ? `<p><strong>돌연변이 비율:</strong> ${video.ratio.toFixed(2)}%</p>` : ''}
+                    <p><strong>업로드:</strong> ${new Date(video.publishedAt).toLocaleDateString()}</p>
                 </div>
-            </div>
-        </div>
+            `;
+            trackingRecords.appendChild(videoCard);
+        });
+    }
 
-        <!-- *** 채널 검색 결과(선택) 모달 *** -->
-        <div id="channel-selection-modal" class="modal">
-            <div class="modal-content channel-selection-content">
-                <h3>채널 선택</h3>
-                <p class="channel-selection-description">여러 개의 채널이 검색되었습니다. 추가할 채널을 선택해주세요:</p>
-                <!-- 반드시 이 div의 id/class를 유지하세요! -->
-                <div class="channel-selection-list" id="channel-selection-list"></div>
-                <div class="modal-buttons">
-                    <button id="cancel-channel-selection-btn" class="btn btn-secondary">취소</button>
+    function formatNumber(num) {
+        if (num === null || num === undefined) {
+            return '0';
+        }
+        const n = parseInt(num, 10);
+        if (n >= 100000000) return (n / 100000000).toFixed(1) + '억';
+        if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+        return n.toLocaleString();
+    }
+
+    function renderLatestVideos() {
+        latestVideosContainer.innerHTML = '';
+        const monitoringChannels = Object.values(channels).filter(c => c.type === 'monitoring');
+
+        if (monitoringChannels.length === 0) {
+            latestVideosContainer.innerHTML = `<div class="empty-state">
+                <p>등록된 채널이 없습니다.</p>
+            </div>`;
+            return;
+        }
+
+        monitoringChannels.forEach(channel => {
+            const channelSection = document.createElement('div');
+            channelSection.className = 'channel-latest-videos';
+            channelSection.innerHTML = `
+                <h3>${channel.name}의 최신 영상</h3>
+                <div id="latest-videos-${channel.id}" class="latest-video-list">
+                    <p>로딩 중...</p>
                 </div>
-            </div>
-        </div>
+            `;
+            latestVideosContainer.appendChild(channelSection);
+            fetchAndRenderLatestVideos(channel.id);
+        });
+    }
 
-        <div id="loading-overlay" class="loading-overlay">
-            <div class="loading-spinner"></div>
-            <p>데이터를 불러오는 중...</p>
-        </div>
-    </div>
+    async function fetchAndRenderLatestVideos(channelId) {
+        const listContainer = document.getElementById(`latest-videos-${channelId}`);
+        listContainer.innerHTML = '<p>로딩 중...</p>';
 
-    <!-- 메인 JS -->
-    <script type="module" src="js/main.js"></script>
-    <script type="module" src="js/channel-monitor.js"></script>
-    <script type="module" src="js/video-search.js"></script>
-    <script type="module" src="js/subscriber-tracking.js"></script>
-    <script type="module" src="js/thumbnail-test.js"></script>
+        const searchData = await fetchYouTubeApi('search', {
+            channelId: channelId,
+            part: 'snippet',
+            order: 'date',
+            maxResults: 5,
+            type: 'video'
+        });
+
+        if (!searchData || searchData.items.length === 0) {
+            listContainer.innerHTML = '<p>최신 영상을 찾을 수 없습니다.</p>';
+            return;
+        }
+
+        const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+        const videoData = await fetchYouTubeApi('videos', {
+            id: videoIds,
+            part: 'snippet,statistics'
+        });
+
+        listContainer.innerHTML = '';
+        if (!videoData || videoData.items.length === 0) {
+            listContainer.innerHTML = '<p>영상 정보를 가져오는 데 실패했습니다.</p>';
+            return;
+        }
+
+        videoData.items.forEach(video => {
+            const videoCard = document.createElement('div');
+            videoCard.className = 'video-card';
+            videoCard.innerHTML = `
+                <img src="${video.snippet.thumbnails.medium.url}" alt="${video.snippet.title}">
+                <div class="video-info">
+                    <h4><a href="http://googleusercontent.com/youtube.com/watch?v=${video.id}" target="_blank">${video.snippet.title}</a></h4>
+                    <p><strong>조회수:</strong> ${formatNumber(video.statistics.viewCount)}회</p>
+                    <p><strong>업로드:</strong> ${new Date(video.snippet.publishedAt).toLocaleDateString()}</p>
+                </div>
+            `;
+            listContainer.appendChild(videoCard);
+        });
+    }
+
+    function backupData() {
+        const dataStr = JSON.stringify(allTrackingData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'youtube_tracking_data.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert('데이터가 성공적으로 백업되었습니다.');
+    }
+
+    function restoreData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const restoredData = JSON.parse(e.target.result);
+                allTrackingData = restoredData;
+                renderTrackingRecords();
+                alert('데이터가 성공적으로 복원되었습니다.');
+            } catch (error) {
+                alert('파일 형식이 올바르지 않습니다. JSON 파일을 선택해주세요.');
+            }
+        };
+        reader.readAsText(file);
+    }
+    
+    // =====================================================================================================
+    // 이벤트 리스너 설정
+    // =====================================================================================================
+    function setupEventListeners() {
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tab = button.dataset.tab;
+                tabContents.forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.getElementById(`${tab}-tab`).style.display = 'block';
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+            });
+        });
+
+        startMonitoringBtn.addEventListener('click', () => {
+            if (monitoringIntervalId) {
+                stopMonitoring();
+                startMonitoringBtn.textContent = '📈 채널 추적 시작';
+                startMonitoringBtn.classList.add('btn-primary');
+                startMonitoringBtn.classList.remove('btn-danger');
+            } else {
+                if (Object.values(channels).filter(c => c.type === 'monitoring').length === 0) {
+                    alert('먼저 모니터링할 채널을 추가해주세요.');
+                    return;
+                }
+                startMonitoringBtn.textContent = '⏸️ 채널 추적 중지';
+                startMonitoringBtn.classList.remove('btn-primary');
+                startMonitoringBtn.classList.add('btn-danger');
+                startMonitoring();
+            }
+        });
+
+        monitoringChannelGrid.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-channel-btn')) {
+                const channelId = e.target.dataset.channelId;
+                removeChannel(channelId);
+            }
+        });
+
+        monitoringCollapseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleChannelManagementSection('monitoring');
+        });
+
+        backupTrackingDataBtn.addEventListener('click', backupData);
+        restoreTrackingDataBtn.addEventListener('click', () => restoreTrackingDataInput.click());
+        restoreTrackingDataInput.addEventListener('change', restoreData);
+
+        trackingSortOrderSelect.addEventListener('change', renderTrackingRecords);
+        hotVideoRatioSelect.addEventListener('change', renderTrackingRecords);
+        showAllChannelsCheckbox.addEventListener('change', renderTrackingRecords);
+
+        if (addMonitoringChannelBtn) {
+            addMonitoringChannelBtn.addEventListener('click', () => {
+                openChannelModal('monitoring');
+            });
+        }
+
+        if (addTrackingChannelBtn) {
+            addTrackingChannelBtn.addEventListener('click', () => {
+                openChannelModal('tracking');
+            });
+        }
+        
+        // 모달의 '추가' 버튼 이벤트 리스너
+        addChannelConfirmBtn.addEventListener('click', async () => {
+            const inputValue = channelInput.value.trim();
+            if (inputValue) {
+                await addChannel(inputValue, currentChannelType);
+                channelInput.value = '';
+                closeModal(channelModal);
+            } else {
+                alert('채널 정보를 입력해주세요.');
+            }
+        });
+    }
+
+    // =====================================================================================================
+    // 초기화
+    // =====================================================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        setupEventListeners();
+        renderMonitoringChannels();
+        renderLatestVideos();
+    });
+</script>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
