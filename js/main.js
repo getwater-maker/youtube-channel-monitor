@@ -1,4 +1,4 @@
-// js/main.js (최적화 + 썸네일 100% 표시 + 중복 함수 제거, 한글 주석)
+// js/main.js (중복 선언 없음, 썸네일 무조건 출력, 한글 주석)
 
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
@@ -9,6 +9,9 @@ const channelListContainer = document.getElementById('channel-list-container');
 const addChannelButton = document.getElementById('add-channel-button');
 const mutantVideoList = document.getElementById('mutant-video-list');
 const latestVideoList = document.getElementById('latest-video-list');
+
+// 섹션4 썸네일 컨테이너
+const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
 
 // API 키 모달 관련 DOM 요소
 const apiKeyModal = document.getElementById('api-key-modal');
@@ -107,6 +110,7 @@ async function updateUI() {
     } else {
         mutantVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
         latestVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
+        if (latestThumbnailsList) latestThumbnailsList.innerHTML = '';
     }
 }
 
@@ -320,7 +324,7 @@ function chunkArray(arr, chunkSize) {
     return result;
 }
 
-// 최신 영상 목록 업데이트
+// 최신 영상 목록 업데이트 + 섹션4에 썸네일 출력
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
     const allLatestVideos = [];
@@ -333,7 +337,12 @@ async function updateLatestVideosSection() {
     }
 
     allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
+    window.allLatestVideos = allLatestVideos; // 디버깅용
+
     displayVideos(allLatestVideos, latestVideoList);
+
+    // 섹션4에 썸네일만 출력!
+    if (latestThumbnailsList) displayLatestThumbnailsOnly(allLatestVideos, latestThumbnailsList);
 }
 
 // 채널의 가장 최근 롱폼 영상 1개 가져오기
@@ -364,7 +373,7 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
     return foundVideo;
 }
 
-// 동영상 상세 정보 가져오기 (썸네일 우선 medium → high → default)
+// 동영상 상세 정보 가져오기 (썸네일 직접 생성! 반드시 뜸)
 async function getVideoDetails(videoIds) {
     if (videoIds.length === 0) return [];
     const uncached = videoIds.filter(id => !videoDetailCache[id]);
@@ -373,12 +382,11 @@ async function getVideoDetails(videoIds) {
         const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
         const data = await fetchYoutubeApi(url);
         newDetails = data.items.map(item => {
-            // 유튜브 썸네일 직접 생성 (ID만 있으면 항상 성공)
+            // 썸네일이 없을 때도 영상ID로 반드시 생성!
             const fallbackThumbnail = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`;
             let thumbnailUrl = fallbackThumbnail;
-            // API 썸네일이 있으면 우선 사용, 없으면 fallback
             if (item.snippet.thumbnails) {
-                thumbnailUrl = 
+                thumbnailUrl =
                     item.snippet.thumbnails.medium?.url ||
                     item.snippet.thumbnails.high?.url ||
                     item.snippet.thumbnails.default?.url ||
@@ -400,8 +408,7 @@ async function getVideoDetails(videoIds) {
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-
-// 영상 목록을 화면에 표시 (썸네일 포함, 함수는 딱 1번만)
+// 영상 목록을 화면에 표시 (섹션2/3)
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -439,32 +446,7 @@ function displayVideos(videoList, container) {
     container.appendChild(videoListContainer);
 }
 
-// API 키 저장 핸들러
-function handleSaveApiKeys() {
-    const keys = Array.from(apiKeyInputs).map(input => input.value);
-    if (saveApiKeys(keys)) {
-        apiKeyModal.style.display = 'none';
-        alert('API 키가 저장되었습니다!');
-    }
-}
-
-// API 키 파일 업로드 핸들러
-function handleApiKeyFileUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const keys = e.target.result.split('\n').map(key => key.trim());
-            if (saveApiKeys(keys)) {
-                apiKeyModal.style.display = 'none';
-                alert('API 키가 파일에서 성공적으로 로드되었습니다!');
-            }
-        };
-        reader.readAsText(file);
-    }
-}
-
-// 섹션 4: 최신 영상 썸네일만 출력 (가로 스크롤)
+// 썸네일만 섹션4에 출력 (최신 영상 썸네일 전용)
 function displayLatestThumbnailsOnly(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -491,22 +473,27 @@ function displayLatestThumbnailsOnly(videoList, container) {
     container.appendChild(thumbsContainer);
 }
 
-// updateLatestVideosSection 함수 맨 마지막에 썸네일 섹션 호출 추가!
-async function updateLatestVideosSection() {
-    latestVideoList.innerHTML = '<p>로딩 중...</p>';
-    const allLatestVideos = [];
-
-    for (const channel of channels) {
-        const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
-        if (latestVideo) {
-            allLatestVideos.push(latestVideo);
-        }
+// API 키 저장 핸들러
+function handleSaveApiKeys() {
+    const keys = Array.from(apiKeyInputs).map(input => input.value);
+    if (saveApiKeys(keys)) {
+        apiKeyModal.style.display = 'none';
+        alert('API 키가 저장되었습니다!');
     }
+}
 
-    allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
-    displayVideos(allLatestVideos, latestVideoList);
-
-    // === 여기 추가 ===
-    const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
-    displayLatestThumbnailsOnly(allLatestVideos, latestThumbnailsList);
+// API 키 파일 업로드 핸들러
+function handleApiKeyFileUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const keys = e.target.result.split('\n').map(key => key.trim());
+            if (saveApiKeys(keys)) {
+                apiKeyModal.style.display = 'none';
+                alert('API 키가 파일에서 성공적으로 로드되었습니다!');
+            }
+        };
+        reader.readAsText(file);
+    }
 }
