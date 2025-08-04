@@ -3,94 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>유튜브 도우미 - 채널 모니터</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <title>채널 모니터 | 유튜브 도우미</title>
+    <link rel="stylesheet" href="css/styles-monitor.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <!-- moment.js 및 moment-timezone -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-timezone-with-data.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- 메뉴바 -->
-        <nav class="top-nav" style="display:flex; justify-content:flex-end; gap:16px; margin-bottom:16px;">
-            <a href="index.html" class="nav-link active">채널 모니터</a>
-            <a href="my-channel-manager.html" class="nav-link">내 채널 관리</a>
-        </nav>
-        <h1>유튜브 도우미</h1>
-        
-        <!-- API키 버튼 (오른쪽 상단으로) -->
-        <button id="open-api-key-popup" style="position:absolute; top:32px; right:32px;">API 키 입력</button>
+<div class="container">
+    <header class="header">
+        <h1>유튜브 도우미 <span class="monitor-title">채널 모니터</span></h1>
+        <button id="open-api-key-popup" class="api-key-btn">API 키 입력</button>
+    </header>
+    <nav class="tabs">
+        <a href="index.html" class="tab-button active">채널 모니터</a>
+        <a href="내채널관리.html" class="tab-button">내채널관리</a>
+        <a href="#" class="tab-button" style="pointer-events:none;opacity:0.4;">다른 기능 (예정)</a>
+    </nav>
 
-        <!-- 채널 모니터 탭 (섹션 1~3) -->
-        <div id="channel-monitor" class="tab-content active">
-            <section class="section-add-channel">
-                <h2>채널 추가</h2>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="text-align:right;">
-                        <span class="channel-count-text">
-                            현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.
-                        </span>
-                        <button id="add-channel-button" class="add-channel-btn">채널 추가</button>
-                    </div>
-                </div>
-                <div id="channel-list-container" class="channel-list"></div>
-            </section>
-
-            <section class="section-mutant-videos">
-                <h2>돌연변이 영상</h2>
-                <div class="date-range-controls">
-                    <button data-period="1m">1개월</button>
-                    <button data-period="3m">3개월</button>
-                    <button class="active" data-period="6m">6개월</button>
-                    <button data-period="all">전체</button>
-                </div>
-                <div id="mutant-video-list">
-                    <p>채널을 추가하여 영상을 분석해주세요.</p>
-                </div>
-            </section>
-
-            <section class="section-latest-videos">
-                <h2>최신 영상</h2>
-                <div id="latest-video-list">
-                    <p>채널을 추가하여 영상을 분석해주세요.</p>
-                </div>
-            </section>
-        </div>
-    </div>
-    
-    <!-- API 키 입력 모달 -->
-    <div id="api-key-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">×</span>
-            <h2>API 키 입력</h2>
-            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
-            <div id="api-key-inputs">
-                <input type="text" class="api-key-input" placeholder="API Key 1">
-                <input type="text" class="api-key-input" placeholder="API Key 2">
-                <input type="text" class="api-key-input" placeholder="API Key 3">
-                <input type="text" class="api-key-input" placeholder="API Key 4">
-                <input type="text" class="api-key-input" placeholder="API Key 5">
+    <section class="section-add-channel">
+        <h2>채널 추가</h2>
+        <div class="add-channel-bar">
+            <div class="channel-count-box">
+                <span>현재 <span id="channel-count">0</span>개의 채널이 등록됨</span>
             </div>
-            <label for="api-key-file-upload" class="file-upload-label">
-                텍스트 파일로 업로드
-                <input type="file" id="api-key-file-upload" accept=".txt">
-            </label>
-            <button id="save-api-keys">저장</button>
-            <button id="download-api-keys">API 키 다운로드</button>
+            <button id="add-channel-button" class="add-channel-btn">채널 추가</button>
         </div>
-    </div>
-    
-    <!-- 채널 검색 결과 모달 -->
-    <div id="channel-select-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button channel-select-close">×</span>
-            <h2>검색 결과</h2>
-            <p>추가할 채널을 선택하세요.</p>
-            <div id="channel-search-results"></div>
+        <div id="channel-list-container" class="channel-list"></div>
+    </section>
+
+    <section class="section-mutant-videos">
+        <h2>돌연변이 영상</h2>
+        <div class="date-range-controls">
+            <button data-period="1m">1개월</button>
+            <button data-period="3m">3개월</button>
+            <button class="active" data-period="6m">6개월</button>
+            <button data-period="all">전체</button>
         </div>
+        <div id="mutant-video-list" class="video-list"></div>
+    </section>
+
+    <section class="section-latest-videos">
+        <h2>최신 영상</h2>
+        <div id="latest-video-list" class="video-list"></div>
+    </section>
+</div>
+
+<!-- API키 모달 -->
+<div id="api-key-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">×</span>
+        <h2>API 키 입력</h2>
+        <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+        <div id="api-key-inputs">
+            <input type="text" class="api-key-input" placeholder="API Key 1">
+            <input type="text" class="api-key-input" placeholder="API Key 2">
+            <input type="text" class="api-key-input" placeholder="API Key 3">
+            <input type="text" class="api-key-input" placeholder="API Key 4">
+            <input type="text" class="api-key-input" placeholder="API Key 5">
+        </div>
+        <label for="api-key-file-upload" class="file-upload-label">
+            텍스트 파일로 업로드
+            <input type="file" id="api-key-file-upload" accept=".txt">
+        </label>
+        <button id="save-api-keys">저장</button>
+        <button id="download-api-keys">API 키 다운로드</button>
     </div>
-    
-    <script type="module" src="js/main.js"></script>
+</div>
+
+<!-- 채널 검색 모달 -->
+<div id="channel-select-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-button channel-select-close">×</span>
+        <h2>검색 결과</h2>
+        <p>추가할 채널을 선택하세요.</p>
+        <div id="channel-search-results"></div>
+    </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
