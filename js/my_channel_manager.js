@@ -9,7 +9,7 @@ const DB_NAME = 'myChannelDB';
 const DB_VERSION = 1;
 let db = null;
 
-// 탭 제어
+// 탭 제어 (중복 이벤트 없이 한 번만)
 const tabButtons = document.querySelectorAll('.tab-button');
 const tabContents = document.querySelectorAll('.tab-content');
 tabButtons.forEach(btn => {
@@ -422,8 +422,5 @@ function extractChannelId(input) {
 if (document.querySelector('.tab-button.active')?.dataset.tab === 'my-channel-manager') {
     renderMyChannels();
 }
-
-// 탭 이동시에도 다시 렌더링 필요
-// mutantPeriodSelect는 탭 내 period select
 
 export {};
