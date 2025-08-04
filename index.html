@@ -1,18 +1,53 @@
-<!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>유튜브 도우미</title>
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>유튜브 도우미</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <!-- moment.js & locale -->
     <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/locale/ko.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- API키 입력 버튼 (오른쪽 상단) -->
+<div class="container">
+        <h1>유튜브 도우미</h1>
+        <div class="tabs">
+            <button class="tab-button active" data-tab="channel-monitor">채널 모니터</button>
+            <button class="tab-button" data-tab="another-feature">다른 기능 (구현 예정)</button>
+        </div>
+        
+        <button id="open-api-key-popup">API 키 입력</button>
+        
+        <div id="channel-monitor" class="tab-content active">
+            <section class="section-add-channel">
+                <h2>섹션 1: 채널 추가</h2>
+                <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
+                <button id="add-channel-button">채널 추가</button>
+                <div id="channel-list-container">
+                </div>
+            </section>
+
+            <section class="section-mutant-videos">
+                <h2>섹션 2: 돌연변이 영상</h2>
+                <div class="date-range-controls">
+                    <button data-period="1m">1개월</button>
+                    <button data-period="3m">3개월</button>
+                    <button class="active" data-period="6m">6개월</button>
+                    <button data-period="all">전체</button>
+                </div>
+                <div id="mutant-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
+                </div>
+            </section>
+        <!-- API키 입력 버튼(오른쪽 상단에 표시) -->
         <button id="open-api-key-popup" class="api-key-btn">API키 입력</button>
 
+            <section class="section-latest-videos">
+                <h2>섹션 3: 최신 영상</h2>
+                <div id="latest-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
         <!-- 채널 상태/추가/접기 바 -->
         <div class="channel-section">
             <div class="channel-section-header">
@@ -20,51 +55,74 @@
                     <span id="channel-count-message"></span>
                     <button id="add-channel-button" class="add-channel-btn">+ 채널 추가</button>
                     <button class="toggle-channel-list-btn" id="toggle-channel-list-btn">▶</button>
-                </div>
+</div>
+            </section>
             </div>
             <div id="channel-list-container" class="channel-list"></div>
-        </div>
+</div>
 
-        <!-- 날짜 선택 버튼 (돌연변이 영상용) -->
+       
+        <div id="another-feature" class="tab-content">
+            <p>이곳에 다른 기능이 추가될 예정입니다.</p>
+        <!-- 날짜 버튼 컨트롤(돌연변이) -->
         <div class="date-range-controls">
             <button data-period="1m" class="active">1개월</button>
             <button data-period="3m">3개월</button>
             <button data-period="6m">6개월</button>
             <button data-period="all">전체</button>
-        </div>
-
-        <!-- 돌연변이 영상 리스트 -->
+</div>
+        <!-- 돌연변이 영상, 최신 영상 -->
         <div id="mutant-video-list"></div>
-
-        <!-- 최신 영상 리스트 -->
         <div id="latest-video-list"></div>
-    </div>
+</div>
+    
 
-    <!-- API 키 입력 모달 -->
-    <div id="api-key-modal" class="modal">
-        <div class="modal-content">
+    <!-- 모달: API키 입력/파일 업로드 -->
+<div id="api-key-modal" class="modal">
+<div class="modal-content">
+            <span class="close-button">×</span>
             <span class="close-button">&times;</span>
-            <h2>API 키 입력</h2>
+<h2>API 키 입력</h2>
+            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+            <div id="api-key-inputs">
+                <input type="text" class="api-key-input" placeholder="API Key 1">
+                <input type="text" class="api-key-input" placeholder="API Key 2">
+                <input type="text" class="api-key-input" placeholder="API Key 3">
+                <input type="text" class="api-key-input" placeholder="API Key 4">
+                <input type="text" class="api-key-input" placeholder="API Key 5">
+            </div>
+            <label for="api-key-file-upload" class="file-upload-label">
+                텍스트 파일로 업로드
+                <input type="file" id="api-key-file-upload" accept=".txt">
+            </label>
             <input type="text" class="api-key-input" placeholder="API 키 #1"><br>
             <input type="text" class="api-key-input" placeholder="API 키 #2"><br>
             <input type="text" class="api-key-input" placeholder="API 키 #3"><br>
-            <button id="save-api-keys">저장</button>
+<button id="save-api-keys">저장</button>
+            <button id="download-api-keys">API 키 다운로드</button>
             <label for="api-key-file-upload" class="file-upload-label">파일에서 불러오기</label>
             <input type="file" id="api-key-file-upload" accept=".txt">
             <button id="download-api-keys">API키 파일로 저장</button>
-        </div>
-    </div>
+</div>
+</div>
+    
 
-    <!-- 채널 검색/선택 모달 -->
-    <div id="channel-select-modal" class="modal">
-        <div class="modal-content">
+    <!-- 모달: 채널 검색/선택 -->
+<div id="channel-select-modal" class="modal">
+<div class="modal-content">
+            <span class="close-button channel-select-close">×</span>
+            <h2>검색 결과</h2>
+            <p>추가할 채널을 선택하세요.</p>
             <span class="close-button channel-select-close">&times;</span>
             <h2>채널 검색 결과</h2>
-            <div id="channel-search-results"></div>
-        </div>
-    </div>
+<div id="channel-search-results"></div>
+</div>
+</div>
+    
+    <script type="module" src="js/main.js"></script>
 
-    <!-- 필수 JS: utils.js, api_keys.js, main.js, channel-monitor.js -->
+    <!-- 필수 JS -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
+
