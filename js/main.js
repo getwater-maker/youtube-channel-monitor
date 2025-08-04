@@ -223,7 +223,7 @@ function displayChannelList() {
     });
 }
 
-// 채널의 최신 영상 목록을 가져오는 함수 (수정)
+// 채널의 최신 영상 목록을 가져오는 함수
 async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&pageToken=${pageToken || ''}`;
     const data = await fetchYoutubeApi(url);
@@ -243,37 +243,57 @@ async function updateMutantVideosSection() {
         let nextPageToken = null;
         let videoIds = [];
         let hasMoreVideos = true;
+        let totalVideoIds = [];
 
         while (hasMoreVideos) {
             const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
-            videoIds = videoIds.concat(playlistData.items.map(item => item.contentDetails.videoId));
-            nextPageToken = playlistData.nextPageToken;
-
-            // 기간 필터링
-            if (minDate && playlistData.items.length > 0) {
-                const lastVideoDate = moment(playlistData.items[playlistData.items.length - 1].snippet.publishedAt);
-                if (lastVideoDate.isBefore(minDate)) {
-                    hasMoreVideos = false;
-                    const filteredVideoIds = playlistData.items.filter(item => moment(item.snippet.publishedAt).isAfter(minDate)).map(item => item.contentDetails.videoId);
-                    videoIds = videoIds.filter(id => filteredVideoIds.includes(id));
+            
+            // 기간 필터링 로직
+            const recentItems = playlistData.items.filter(item => {
+                if (minDate) {
+                    return moment(item.snippet.publishedAt).isAfter(minDate);
                 }
-            }
-            if (!nextPageToken) {
+                return true;
+            });
+            
+            videoIds = videoIds.concat(recentItems.map(item => item.contentDetails.videoId));
+            
+            if (minDate && recentItems.length < playlistData.items.length) {
+                // 더 이상 가져올 필요가 없음 (필터링된 영상이 전체 영상보다 적으면)
                 hasMoreVideos = false;
+            } else {
+                nextPageToken = playlistData.nextPageToken;
+                if (!nextPageToken) {
+                    hasMoreVideos = false;
+                }
             }
         }
         
-        if (videoIds.length === 0) continue;
+        if (videoIds.length === 0) {
+            const countSpan = document.getElementById(`mutant-count-${channel.id}`);
+            if (countSpan) {
+                countSpan.textContent = '0';
+            }
+            continue;
+        }
 
-        const videoDetails = await getVideoDetails(videoIds);
+        // 50개씩 묶어서 getVideoDetails를 호출
+        const chunkedVideoIds = chunkArray(videoIds, 50);
+        let videoDetails = [];
+        for (const chunk of chunkedVideoIds) {
+            const details = await getVideoDetails(chunk);
+            videoDetails = videoDetails.concat(details);
+        }
+        
         const mutantVideosForChannel = [];
         
         for (const video of videoDetails) {
             const mutantIndex = calculateMutantIndex(video.viewCount, channel.subscriberCount);
-            if (parseFloat(mutantIndex) >= 2.0 && isLongform(video.duration) && (!minDate || moment(video.publishedAt).isAfter(minDate))) {
+            if (parseFloat(mutantIndex) >= 2.0 && isLongform(video.duration)) {
                 mutantVideosForChannel.push({ ...video, mutantIndex });
             }
         }
+        
         allMutantVideos = allMutantVideos.concat(mutantVideosForChannel);
 
         const countSpan = document.getElementById(`mutant-count-${channel.id}`);
@@ -286,25 +306,32 @@ async function updateMutantVideosSection() {
     displayVideos(allMutantVideos, mutantVideoList);
 }
 
+// 배열을 지정된 크기로 묶는 유틸리티 함수
+function chunkArray(arr, chunkSize) {
+    const result = [];
+    for (let i = 0; i < arr.length; i += chunkSize) {
+        result.push(arr.slice(i, i + chunkSize));
+    }
+    return result;
+}
+
 // 섹션 3: 최신 영상 목록 업데이트
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
     const allLatestVideos = [];
     
     for (const channel of channels) {
-        // 각 채널에서 가장 최근 롱폼 영상 1개만 가져옵니다.
         const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
         if (latestVideo) {
             allLatestVideos.push(latestVideo);
         }
     }
 
-    // 돌연변이 지수 높은 순으로 정렬
     allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
     displayVideos(allLatestVideos, latestVideoList);
 }
 
-// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수 (기존과 동일)
+// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수
 async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
     let foundVideo = null;
@@ -318,17 +345,14 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
 
         const videoDetails = await getVideoDetails(videoIds);
         
-        // 가져온 영상 목록에서 롱폼 영상을 찾습니다.
         for (const video of videoDetails) {
             if (isLongform(video.duration)) {
-                // 롱폼 영상이면 돌연변이 지수 계산 후 반환
                 const mutantIndex = calculateMutantIndex(video.viewCount, subscriberCount);
                 foundVideo = { ...video, mutantIndex };
                 break;
             }
         }
         
-        // 롱폼 영상을 찾지 못했다면 다음 페이지로 이동
         nextPageToken = data.nextPageToken;
         if (!nextPageToken) break;
     }
@@ -337,8 +361,10 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
 }
 
 
-// 동영상 상세 정보 가져오는 함수 (기존과 동일)
+// 동영상 상세 정보 가져오는 함수
 async function getVideoDetails(videoIds) {
+    if (videoIds.length === 0) return [];
+    
     const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`;
     const data = await fetchYoutubeApi(url);
 
@@ -353,7 +379,7 @@ async function getVideoDetails(videoIds) {
 }
 
 
-// 영상 목록을 화면에 표시하는 함수 (기존과 동일)
+// 영상 목록을 화면에 표시하는 함수
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -391,7 +417,7 @@ function displayVideos(videoList, container) {
     container.appendChild(videoListContainer);
 }
 
-// API 키 저장 핸들러 (기존과 동일)
+// API 키 저장 핸들러
 function handleSaveApiKeys() {
     const keys = Array.from(apiKeyInputs).map(input => input.value);
     if (saveApiKeys(keys)) {
@@ -400,7 +426,7 @@ function handleSaveApiKeys() {
     }
 }
 
-// API 키 파일 업로드 핸들러 (기존과 동일)
+// API 키 파일 업로드 핸들러
 function handleApiKeyFileUpload(event) {
     const file = event.target.files[0];
     if (file) {
