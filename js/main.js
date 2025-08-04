@@ -1,4 +1,4 @@
-// js/main.js (중복 선언 없음, 썸네일 무조건 출력, 한글 주석)
+// js/main.js (불필요 코드 제거, 썸네일 무조건 출력, 한글 주석 포함)
 
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
@@ -107,7 +107,6 @@ async function updateUI() {
     } else {
         mutantVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
         latestVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
-        if (latestThumbnailsList) latestThumbnailsList.innerHTML = '';
     }
 }
 
@@ -247,7 +246,7 @@ async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
     return data;
 }
 
-// 돌연변이 영상 목록 업데이트
+// 돌연변이 영상 목록 업데이트 (섹션2)
 async function updateMutantVideosSection() {
     mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
@@ -319,6 +318,27 @@ function chunkArray(arr, chunkSize) {
         result.push(arr.slice(i, i + chunkSize));
     }
     return result;
+}
+
+// 최신 영상 목록 업데이트 (섹션3)
+async function updateLatestVideosSection() {
+    latestVideoList.innerHTML = '<p>로딩 중...</p>';
+    const allLatestVideos = [];
+
+    for (const channel of channels) {
+        const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
+        if (latestVideo) {
+            allLatestVideos.push(latestVideo);
+        }
+    }
+
+    if (allLatestVideos.length === 0) {
+        latestVideoList.innerHTML = '<p>등록된 채널에 영상이 없습니다.</p>';
+        return;
+    }
+
+    allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
+    displayVideos(allLatestVideos, latestVideoList);
 }
 
 // 채널의 가장 최근 롱폼 영상 1개 가져오기
@@ -420,33 +440,6 @@ function displayVideos(videoList, container) {
     });
 
     container.appendChild(videoListContainer);
-}
-
-// 썸네일만 섹션4에 출력 (최신 영상 썸네일 전용)
-function displayLatestThumbnailsOnly(videoList, container) {
-    container.innerHTML = '';
-    if (videoList.length === 0) {
-        container.innerHTML = '<p>썸네일이 없습니다.</p>';
-        return;
-    }
-
-    const thumbsContainer = document.createElement('div');
-    thumbsContainer.style.display = 'flex';
-    thumbsContainer.style.gap = '12px';
-    thumbsContainer.style.overflowX = 'auto';
-    thumbsContainer.style.padding = '8px 0';
-
-    videoList.forEach(video => {
-        const thumb = document.createElement('a');
-        thumb.href = `https://www.youtube.com/watch?v=${video.id}`;
-        thumb.target = '_blank';
-        thumb.innerHTML = `
-            <img src="${video.thumbnail}" alt="썸네일" style="width:180px; height:100px; object-fit:cover; border-radius:10px; box-shadow:0 2px 8px #0001;">
-        `;
-        thumbsContainer.appendChild(thumb);
-    });
-
-    container.appendChild(thumbsContainer);
 }
 
 // API 키 저장 핸들러
