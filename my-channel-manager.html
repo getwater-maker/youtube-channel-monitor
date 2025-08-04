@@ -1,29 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내 채널 관리</title>
+    <link rel="stylesheet" href="css/my-channel-manager.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <!-- moment.js & timezone -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-timezone-with-data.min.js"></script>
+</head>
 <body>
 <div class="container">
-    <!-- 상단 헤더(로고/키입력) -->
+
+    <!-- 상단 헤더(로고/탭/키입력) -->
     <div class="header-bar">
         <h1 class="main-logo">유튜브 도우미</h1>
         <div class="header-actions">
             <button id="open-api-key-popup" class="api-key-btn">API 키 입력</button>
         </div>
     </div>
-    <!-- 탭 -->
     <div class="tabs">
         <button class="tab-button" data-tab="channel-monitor" onclick="location.href='index.html'">채널 모니터</button>
         <button class="tab-button active" data-tab="my-channel-manager">내 채널 관리</button>
         <button class="tab-button" data-tab="another-feature">다른 기능(예정)</button>
     </div>
 
-    <div class="mychannel-topbar">
+    <!-- 내 채널 관리 메인 -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin:32px 0 8px 0;">
         <h2>내 채널 등록/관리</h2>
-        <div class="mychannel-topbar-right">
-            <span>현재 <span id="my-channel-count">0</span>개의 채널이 등록되었습니다.</span>
-            <button id="my-add-channel-btn" class="my-add-btn">채널 추가</button>
-        </div>
     </div>
-    <button id="my-track-btn" class="my-track-btn">추적시작</button>
-
-    <!-- 채널 카드 컨테이너 -->
+    <div style="margin-bottom:20px;">
+        현재 <span id="my-channel-count">0</span>개의 채널이 등록되었습니다.
+        <button id="my-add-channel-btn" class="my-add-btn">채널 추가</button>
+    </div>
     <div id="my-channel-list" class="my-channel-list"></div>
 
     <!-- 채널 검색 모달 -->
@@ -36,7 +46,7 @@
         </div>
     </div>
 
-    <!-- 공통 API키 입력 모달 -->
+    <!-- API키 입력 모달 (공통) -->
     <div id="api-key-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -54,3 +64,4 @@
 </div>
 <script type="module" src="js/my-channel-manager.js"></script>
 </body>
+</html>
