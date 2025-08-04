@@ -1,4 +1,5 @@
 // js/main.js
+
 import { isLongform, calculateMutantIndex, isWithinLastMonths } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi } from './api_keys.js';
 
@@ -12,10 +13,15 @@ const latestVideoList = document.getElementById('latest-video-list');
 // API 키 모달 관련 DOM 요소
 const apiKeyModal = document.getElementById('api-key-modal');
 const openApiKeyPopupButton = document.getElementById('open-api-key-popup');
-const closeButton = document.querySelector('.modal .close-button');
+const closeButton = document.querySelector('#api-key-modal .close-button');
 const saveApiKeysButton = document.getElementById('save-api-keys');
 const apiKeyInputs = document.querySelectorAll('.api-key-input');
 const apiKeyFileUpload = document.getElementById('api-key-file-upload');
+
+// 채널 선택 모달 관련 DOM 요소
+const channelSelectModal = document.getElementById('channel-select-modal');
+const channelSearchResults = document.getElementById('channel-search-results');
+const channelSelectCloseButton = document.querySelector('#channel-select-modal .close-button');
 
 // 로컬 스토리지에 저장된 채널 목록을 관리
 let channels = [];
@@ -44,6 +50,14 @@ function setupEventListeners() {
     saveApiKeysButton.addEventListener('click', handleSaveApiKeys);
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
 
+    // 채널 선택 모달 이벤트
+    channelSelectCloseButton.addEventListener('click', () => channelSelectModal.style.display = 'none');
+    window.addEventListener('click', (event) => {
+        if (event.target === channelSelectModal) {
+            channelSelectModal.style.display = 'none';
+        }
+    });
+
     // 돌연변이 영상 기간 설정 버튼 이벤트
     document.querySelector('.date-range-controls').addEventListener('click', (event) => {
         if (event.target.tagName === 'BUTTON') {
@@ -51,6 +65,14 @@ function setupEventListeners() {
             event.target.classList.add('active');
             currentMutantPeriod = event.target.dataset.period;
             updateMutantVideosSection();
+        }
+    });
+    
+    // 채널 목록 컨테이너에 이벤트 위임 (삭제 버튼 처리를 위해)
+    channelListContainer.addEventListener('click', (event) => {
+        if (event.target.classList.contains('delete-channel-button')) {
+            const channelIdToDelete = event.target.dataset.channelId;
+            deleteChannel(channelIdToDelete);
         }
     });
 }
@@ -90,27 +112,69 @@ async function handleAddChannel() {
             alert('채널을 찾을 수 없습니다.');
             return;
         }
-
-        const channelData = data.items[0];
-        const channelId = channelData.id.channelId;
-        const channelTitle = channelData.snippet.title;
-
-        // 이미 등록된 채널인지 확인
-        if (channels.some(c => c.id === channelId)) {
-            alert('이미 등록된 채널입니다.');
-            return;
+        
+        if (data.items.length > 1) {
+            displaySearchResults(data.items);
+        } else {
+            addChannel(data.items[0].id.channelId);
         }
-        
-        // 채널 상세 정보 가져오기
-        const channelDetails = await getChannelDetails(channelId);
-        
-        channels.push(channelDetails);
-        saveChannels();
-        updateUI();
         
     } catch (error) {
         console.error('채널 추가 중 오류:', error);
         alert('채널을 추가하는 중 오류가 발생했습니다. API 키를 확인해주세요.');
+    }
+}
+
+// 검색 결과를 팝업창에 표시하는 함수
+function displaySearchResults(results) {
+    channelSearchResults.innerHTML = '';
+    results.forEach(item => {
+        const channelId = item.id.channelId;
+        const channelTitle = item.snippet.title;
+        const channelLogo = item.snippet.thumbnails.default.url;
+        
+        const channelEl = document.createElement('div');
+        channelEl.classList.add('channel-item');
+        channelEl.innerHTML = `
+            <div class="channel-info-wrapper">
+                <img src="${channelLogo}" alt="${channelTitle} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
+                <span>${channelTitle}</span>
+            </div>
+        `;
+        channelEl.addEventListener('click', () => {
+            addChannel(channelId);
+            channelSelectModal.style.display = 'none';
+        });
+        channelSearchResults.appendChild(channelEl);
+    });
+    
+    channelSelectModal.style.display = 'block';
+}
+
+// 채널 추가 로직
+async function addChannel(channelId) {
+    if (channels.some(c => c.id === channelId)) {
+        alert('이미 등록된 채널입니다.');
+        return;
+    }
+    
+    try {
+        const channelDetails = await getChannelDetails(channelId);
+        channels.push(channelDetails);
+        saveChannels();
+        updateUI();
+    } catch (error) {
+        console.error('채널 정보 가져오기 실패:', error);
+        alert('채널 정보를 가져오는 중 오류가 발생했습니다.');
+    }
+}
+
+// 채널 삭제 함수
+function deleteChannel(channelId) {
+    if (confirm('이 채널을 삭제하시겠습니까?')) {
+        channels = channels.filter(channel => channel.id !== channelId);
+        saveChannels();
+        updateUI();
     }
 }
 
@@ -129,7 +193,7 @@ async function getChannelDetails(channelId) {
         subscriberCount: item.statistics.subscriberCount,
         latestUploadDate: item.snippet.publishedAt,
         uploadsPlaylistId: uploadsPlaylistId,
-        mutantVideosCount: 0 // 초기값
+        mutantVideosCount: 0
     };
 }
 
@@ -142,13 +206,18 @@ function displayChannelList() {
         const channelEl = document.createElement('div');
         channelEl.classList.add('channel-item');
         channelEl.innerHTML = `
-            <a href="https://www.youtube.com/channel/${channel.id}" target="_blank">
-                <img src="${channel.logo}" alt="${channel.name} 로고">
-            </a>
-            <h3><a href="https://www.youtube.com/channel/${channel.id}" target="_blank">${channel.name}</a></h3>
-            <p>구독자: ${parseInt(channel.subscriberCount).toLocaleString()}명</p>
-            <p>최근 업로드: ${moment(channel.latestUploadDate).format('YYYY-MM-DD')}</p>
-            <p>돌연변이 영상: <span id="mutant-count-${channel.id}">...</span>개</p>
+            <div class="channel-info-wrapper">
+                <a href="https://www.youtube.com/channel/${channel.id}" target="_blank">
+                    <img src="${channel.logo}" alt="${channel.name} 로고">
+                </a>
+                <div>
+                    <h3><a href="https://www.youtube.com/channel/${channel.id}" target="_blank">${channel.name}</a></h3>
+                    <p>구독자: ${parseInt(channel.subscriberCount).toLocaleString()}명</p>
+                    <p>최근 업로드: ${moment(channel.latestUploadDate).format('YYYY-MM-DD')}</p>
+                    <p>돌연변이 영상: <span id="mutant-count-${channel.id}">...</span>개</p>
+                </div>
+            </div>
+            <button class="delete-channel-button" data-channel-id="${channel.id}">삭제</button>
         `;
         channelListContainer.appendChild(channelEl);
     });
@@ -157,7 +226,7 @@ function displayChannelList() {
 
 // 섹션 2: 돌연변이 영상 목록 업데이트
 async function updateMutantVideosSection() {
-    mutantVideoList.innerHTML = '로딩 중...';
+    mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
     const minDate = currentMutantPeriod === 'all' ? null : moment().subtract(parseInt(currentMutantPeriod), 'months');
 
@@ -166,37 +235,33 @@ async function updateMutantVideosSection() {
         const mutantVideosForChannel = [];
         
         for (const video of videos) {
-            // 기간 필터링
             if (minDate && moment(video.publishedAt).isBefore(minDate)) {
                 continue;
             }
 
-            // 돌연변이 지수 계산
             const mutantIndex = calculateMutantIndex(video.viewCount, channel.subscriberCount);
             if (parseFloat(mutantIndex) >= 2.0) {
                 mutantVideosForChannel.push({ ...video, mutantIndex });
             }
         }
         allMutantVideos = allMutantVideos.concat(mutantVideosForChannel);
-        // 채널별 돌연변이 영상 개수 업데이트
+
         const countSpan = document.getElementById(`mutant-count-${channel.id}`);
         if (countSpan) {
             countSpan.textContent = mutantVideosForChannel.length;
         }
     }
     
-    // 돌연변이 지수 높은 순으로 정렬
     allMutantVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
     displayVideos(allMutantVideos, mutantVideoList);
 }
 
 // 섹션 3: 최신 영상 목록 업데이트
 async function updateLatestVideosSection() {
-    latestVideoList.innerHTML = '로딩 중...';
+    latestVideoList.innerHTML = '<p>로딩 중...</p>';
     let allLatestVideos = [];
     
     for (const channel of channels) {
-        // 최근 영상 20개 가져오기
         const videos = await getChannelVideos(channel.uploadsPlaylistId, 20);
         
         const videosWithIndex = videos.map(video => ({
@@ -207,7 +272,6 @@ async function updateLatestVideosSection() {
         allLatestVideos = allLatestVideos.concat(videosWithIndex);
     }
 
-    // 돌연변이 지수 높은 순으로 정렬
     allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
     displayVideos(allLatestVideos, latestVideoList);
 }
@@ -222,12 +286,10 @@ async function getChannelVideos(playlistId, maxResults = 50) {
         const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&pageToken=${nextPageToken || ''}`;
         const data = await fetchYoutubeApi(url);
         
-        // 동영상 ID를 모아서 한번에 상세 정보 가져오기 (조회수, 재생시간 등)
         const videoIds = data.items.map(item => item.contentDetails.videoId);
         if (videoIds.length > 0) {
             const videoDetails = await getVideoDetails(videoIds);
 
-            // 롱폼 영상만 필터링
             const longformVideos = videoDetails.filter(video => isLongform(video.duration));
             videos.push(...longformVideos);
         }
@@ -253,7 +315,7 @@ async function getVideoDetails(videoIds) {
         thumbnail: item.snippet.thumbnails.medium.url,
         viewCount: item.statistics.viewCount,
         publishedAt: item.snippet.publishedAt,
-        duration: item.contentDetails.duration // ISO 8601 형식
+        duration: item.contentDetails.duration
     }));
 }
 
@@ -277,7 +339,7 @@ function displayVideos(videoList, container) {
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
                     <img src="${video.thumbnail}" alt="${video.title} 썸네일">
-                    </div>
+                </div>
             </a>
             <div class="video-info">
                 <h3><a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">${video.title}</a></h3>
