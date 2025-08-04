@@ -1,6 +1,6 @@
-// js/main.js
+// js/main.js (중복 선언 없음, 썸네일 무조건 출력, 한글 주석)
 
-import { isLongform, calculateMutantIndex, isWithinLastMonths } from './utils.js';
+import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
 
 // DOM 요소 캐싱
@@ -9,6 +9,9 @@ const channelListContainer = document.getElementById('channel-list-container');
 const addChannelButton = document.getElementById('add-channel-button');
 const mutantVideoList = document.getElementById('mutant-video-list');
 const latestVideoList = document.getElementById('latest-video-list');
+
+// 섹션4 썸네일 컨테이너
+const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
 
 // API 키 모달 관련 DOM 요소
 const apiKeyModal = document.getElementById('api-key-modal');
@@ -24,13 +27,16 @@ const channelSelectModal = document.getElementById('channel-select-modal');
 const channelSearchResults = document.getElementById('channel-search-results');
 const channelSelectCloseButton = document.querySelector('#channel-select-modal .close-button');
 
-// 로컬 스토리지에 저장된 채널 목록을 관리
+// 로컬 스토리지에 저장된 채널 목록 관리
 let channels = [];
 let currentMutantPeriod = '6m';
 
+// API 데이터 캐싱 임시 저장소
+const playlistCache = {};
+const videoDetailCache = {};
+
 // 초기 로딩
 document.addEventListener('DOMContentLoaded', () => {
-    // moment.js 한국어 설정
     moment.locale('ko');
     loadChannels();
     setupEventListeners();
@@ -40,10 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // 이벤트 리스너 설정
 function setupEventListeners() {
     addChannelButton.addEventListener('click', handleAddChannel);
-    
-    // API 키 모달 이벤트
+
     openApiKeyPopupButton.addEventListener('click', () => {
-        // loadApiKeys()는 이제 키 배열을 반환합니다.
         const storedKeys = loadApiKeys();
         apiKeyInputs.forEach((input, index) => {
             input.value = storedKeys[index] || '';
@@ -58,10 +62,8 @@ function setupEventListeners() {
     });
     saveApiKeysButton.addEventListener('click', handleSaveApiKeys);
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
-    
     downloadApiKeysButton.addEventListener('click', downloadApiKeys);
 
-    // 채널 선택 모달 이벤트
     channelSelectCloseButton.addEventListener('click', () => channelSelectModal.style.display = 'none');
     window.addEventListener('click', (event) => {
         if (event.target === channelSelectModal) {
@@ -69,7 +71,6 @@ function setupEventListeners() {
         }
     });
 
-    // 돌연변이 영상 기간 설정 버튼 이벤트
     document.querySelector('.date-range-controls').addEventListener('click', (event) => {
         if (event.target.tagName === 'BUTTON') {
             document.querySelectorAll('.date-range-controls button').forEach(btn => btn.classList.remove('active'));
@@ -78,8 +79,7 @@ function setupEventListeners() {
             updateMutantVideosSection();
         }
     });
-    
-    // 채널 목록 컨테이너에 이벤트 위임 (삭제 버튼 처리를 위해)
+
     channelListContainer.addEventListener('click', (event) => {
         if (event.target.classList.contains('delete-channel-button')) {
             const channelIdToDelete = event.target.dataset.channelId;
@@ -88,7 +88,7 @@ function setupEventListeners() {
     });
 }
 
-// 로컬 스토리지에서 채널 목록 로드
+// 채널 목록 로드
 function loadChannels() {
     const storedChannels = localStorage.getItem('registeredChannels');
     if (storedChannels) {
@@ -96,21 +96,25 @@ function loadChannels() {
     }
 }
 
-// 채널 목록을 로컬 스토리지에 저장
+// 채널 목록 저장
 function saveChannels() {
     localStorage.setItem('registeredChannels', JSON.stringify(channels));
 }
 
-// UI 업데이트 함수
+// UI 업데이트
 async function updateUI() {
     displayChannelList();
     if (channels.length > 0) {
         await updateMutantVideosSection();
         await updateLatestVideosSection();
+    } else {
+        mutantVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
+        latestVideoList.innerHTML = '<p>채널을 추가하여 영상을 분석해주세요.</p>';
+        if (latestThumbnailsList) latestThumbnailsList.innerHTML = '';
     }
 }
 
-// 섹션 1: 채널 추가 및 목록 표시
+// 채널 추가 및 검색
 async function handleAddChannel() {
     const channelName = prompt('추가할 채널명을 입력하세요:');
     if (!channelName) return;
@@ -123,27 +127,26 @@ async function handleAddChannel() {
             alert('채널을 찾을 수 없습니다.');
             return;
         }
-        
+
         if (data.items.length > 1) {
             displaySearchResults(data.items);
         } else {
             addChannel(data.items[0].id.channelId);
         }
-        
+
     } catch (error) {
-        console.error('채널 추가 중 오류:', error);
         alert('채널을 추가하는 중 오류가 발생했습니다. API 키를 확인해주세요.');
     }
 }
 
-// 검색 결과를 팝업창에 표시하는 함수
+// 채널 검색 결과 표시 (모달)
 function displaySearchResults(results) {
     channelSearchResults.innerHTML = '';
     results.forEach(item => {
         const channelId = item.id.channelId;
         const channelTitle = item.snippet.title;
         const channelLogo = item.snippet.thumbnails.default.url;
-        
+
         const channelEl = document.createElement('div');
         channelEl.classList.add('channel-item');
         channelEl.innerHTML = `
@@ -158,29 +161,28 @@ function displaySearchResults(results) {
         });
         channelSearchResults.appendChild(channelEl);
     });
-    
+
     channelSelectModal.style.display = 'block';
 }
 
-// 채널 추가 로직
+// 채널 실제 추가
 async function addChannel(channelId) {
     if (channels.some(c => c.id === channelId)) {
         alert('이미 등록된 채널입니다.');
         return;
     }
-    
+
     try {
         const channelDetails = await getChannelDetails(channelId);
         channels.push(channelDetails);
         saveChannels();
         updateUI();
     } catch (error) {
-        console.error('채널 정보 가져오기 실패:', error);
         alert('채널 정보를 가져오는 중 오류가 발생했습니다.');
     }
 }
 
-// 채널 삭제 함수
+// 채널 삭제
 function deleteChannel(channelId) {
     if (confirm('이 채널을 삭제하시겠습니까?')) {
         channels = channels.filter(channel => channel.id !== channelId);
@@ -189,12 +191,14 @@ function deleteChannel(channelId) {
     }
 }
 
-// 채널 상세 정보 가져오는 함수
+// 채널 상세 정보 불러오기
 async function getChannelDetails(channelId) {
+    const exist = channels.find(c => c.id === channelId);
+    if (exist) return exist;
+
     const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelId}`;
     const data = await fetchYoutubeApi(url);
     const item = data.items[0];
-
     const uploadsPlaylistId = item.contentDetails.relatedPlaylists.uploads;
 
     return {
@@ -208,7 +212,7 @@ async function getChannelDetails(channelId) {
     };
 }
 
-// 채널 목록 UI에 표시
+// 채널 목록 UI 표시
 function displayChannelList() {
     channelListContainer.innerHTML = '';
     channelCountSpan.textContent = channels.length;
@@ -234,14 +238,19 @@ function displayChannelList() {
     });
 }
 
-// 채널의 최신 영상 목록을 가져오는 함수
+// playlistItems 요청 (중복 방지)
 async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
+    const cacheKey = `${playlistId}_${maxResults}_${pageToken || ''}`;
+    if (playlistCache[cacheKey]) {
+        return playlistCache[cacheKey];
+    }
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&pageToken=${pageToken || ''}`;
     const data = await fetchYoutubeApi(url);
+    playlistCache[cacheKey] = data;
     return data;
 }
 
-// 섹션 2: 돌연변이 영상 목록 업데이트
+// 돌연변이 영상 목록 업데이트
 async function updateMutantVideosSection() {
     mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
@@ -257,31 +266,26 @@ async function updateMutantVideosSection() {
 
         while (hasMoreVideos) {
             const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
-            
             const recentItems = playlistData.items.filter(item => {
                 if (minDate) {
                     return moment(item.snippet.publishedAt).isAfter(minDate);
                 }
                 return true;
             });
-            
+
             videoIds = videoIds.concat(recentItems.map(item => item.contentDetails.videoId));
-            
+
             if (minDate && recentItems.length < playlistData.items.length) {
                 hasMoreVideos = false;
             } else {
                 nextPageToken = playlistData.nextPageToken;
-                if (!nextPageToken) {
-                    hasMoreVideos = false;
-                }
+                if (!nextPageToken) hasMoreVideos = false;
             }
         }
-        
+
         if (videoIds.length === 0) {
             const countSpan = document.getElementById(`mutant-count-${channel.id}`);
-            if (countSpan) {
-                countSpan.textContent = '0';
-            }
+            if (countSpan) countSpan.textContent = '0';
             continue;
         }
 
@@ -291,29 +295,27 @@ async function updateMutantVideosSection() {
             const details = await getVideoDetails(chunk);
             videoDetails = videoDetails.concat(details);
         }
-        
+
         const mutantVideosForChannel = [];
-        
+
         for (const video of videoDetails) {
             const mutantIndex = calculateMutantIndex(video.viewCount, channel.subscriberCount);
             if (parseFloat(mutantIndex) >= 2.0 && isLongform(video.duration)) {
                 mutantVideosForChannel.push({ ...video, mutantIndex });
             }
         }
-        
+
         allMutantVideos = allMutantVideos.concat(mutantVideosForChannel);
 
         const countSpan = document.getElementById(`mutant-count-${channel.id}`);
-        if (countSpan) {
-            countSpan.textContent = mutantVideosForChannel.length;
-        }
+        if (countSpan) countSpan.textContent = mutantVideosForChannel.length;
     }
-    
+
     allMutantVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
     displayVideos(allMutantVideos, mutantVideoList);
 }
 
-// 배열을 지정된 크기로 묶는 유틸리티 함수
+// 배열을 지정된 크기로 묶는 함수
 function chunkArray(arr, chunkSize) {
     const result = [];
     for (let i = 0; i < arr.length; i += chunkSize) {
@@ -322,11 +324,11 @@ function chunkArray(arr, chunkSize) {
     return result;
 }
 
-// 섹션 3: 최신 영상 목록 업데이트
+// 최신 영상 목록 업데이트 + 섹션4에 썸네일 출력
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
     const allLatestVideos = [];
-    
+
     for (const channel of channels) {
         const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
         if (latestVideo) {
@@ -335,23 +337,27 @@ async function updateLatestVideosSection() {
     }
 
     allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
+    window.allLatestVideos = allLatestVideos; // 디버깅용
+
     displayVideos(allLatestVideos, latestVideoList);
+
+    // 섹션4에 썸네일만 출력!
+    if (latestThumbnailsList) displayLatestThumbnailsOnly(allLatestVideos, latestThumbnailsList);
 }
 
-// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수
+// 채널의 가장 최근 롱폼 영상 1개 가져오기
 async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
     let foundVideo = null;
 
     while (!foundVideo) {
-        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=10&pageToken=${nextPageToken || ''}`;
-        const data = await fetchYoutubeApi(url);
-        
+        const data = await getPlaylistItems(playlistId, 10, nextPageToken);
+
         const videoIds = data.items.map(item => item.contentDetails.videoId);
         if (videoIds.length === 0) break;
 
         const videoDetails = await getVideoDetails(videoIds);
-        
+
         for (const video of videoDetails) {
             if (isLongform(video.duration)) {
                 const mutantIndex = calculateMutantIndex(video.viewCount, subscriberCount);
@@ -359,34 +365,50 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
                 break;
             }
         }
-        
+
         nextPageToken = data.nextPageToken;
         if (!nextPageToken) break;
     }
-    
+
     return foundVideo;
 }
 
-
-// 동영상 상세 정보 가져오는 함수
+// 동영상 상세 정보 가져오기 (썸네일 직접 생성! 반드시 뜸)
 async function getVideoDetails(videoIds) {
     if (videoIds.length === 0) return [];
-    
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`;
-    const data = await fetchYoutubeApi(url);
-
-    return data.items.map(item => ({
-        id: item.id,
-        title: item.snippet.title,
-        thumbnail: item.snippet.thumbnails.medium.url,
-        viewCount: item.statistics.viewCount,
-        publishedAt: item.snippet.publishedAt,
-        duration: item.contentDetails.duration
-    }));
+    const uncached = videoIds.filter(id => !videoDetailCache[id]);
+    let newDetails = [];
+    if (uncached.length > 0) {
+        const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
+        const data = await fetchYoutubeApi(url);
+        newDetails = data.items.map(item => {
+            // 썸네일이 없을 때도 영상ID로 반드시 생성!
+            const fallbackThumbnail = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`;
+            let thumbnailUrl = fallbackThumbnail;
+            if (item.snippet.thumbnails) {
+                thumbnailUrl =
+                    item.snippet.thumbnails.medium?.url ||
+                    item.snippet.thumbnails.high?.url ||
+                    item.snippet.thumbnails.default?.url ||
+                    fallbackThumbnail;
+            }
+            return {
+                id: item.id,
+                title: item.snippet.title,
+                thumbnail: thumbnailUrl,
+                viewCount: item.statistics.viewCount,
+                publishedAt: item.snippet.publishedAt,
+                duration: item.contentDetails.duration
+            };
+        });
+        for (const item of newDetails) {
+            videoDetailCache[item.id] = item;
+        }
+    }
+    return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-
-// 영상 목록을 화면에 표시하는 함수
+// 영상 목록을 화면에 표시 (섹션2/3)
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -400,11 +422,11 @@ function displayVideos(videoList, container) {
     videoList.forEach(video => {
         const videoItem = document.createElement('div');
         videoItem.classList.add('video-item');
-        
+
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
-                    <img src="${video.thumbnail}" alt="${video.title} 썸네일">
+                    <img src="${video.thumbnail}" alt="${video.title} 썸네일" style="width:100%; border-radius:4px; max-height:160px; object-fit:cover;"/>
                 </div>
             </a>
             <div class="video-info">
@@ -413,7 +435,7 @@ function displayVideos(videoList, container) {
                     <p>조회수: ${parseInt(video.viewCount).toLocaleString()}회</p>
                     <p>업로드 날짜: ${moment(video.publishedAt).fromNow()}</p>
                 </div>
-                <div class="mutant-index">
+                <div class="mutant-index" style="color:#c4302b; font-weight:bold;">
                     돌연변이 지수: <strong>${video.mutantIndex}</strong>
                 </div>
             </div>
@@ -422,6 +444,33 @@ function displayVideos(videoList, container) {
     });
 
     container.appendChild(videoListContainer);
+}
+
+// 썸네일만 섹션4에 출력 (최신 영상 썸네일 전용)
+function displayLatestThumbnailsOnly(videoList, container) {
+    container.innerHTML = '';
+    if (videoList.length === 0) {
+        container.innerHTML = '<p>썸네일이 없습니다.</p>';
+        return;
+    }
+
+    const thumbsContainer = document.createElement('div');
+    thumbsContainer.style.display = 'flex';
+    thumbsContainer.style.gap = '12px';
+    thumbsContainer.style.overflowX = 'auto';
+    thumbsContainer.style.padding = '8px 0';
+
+    videoList.forEach(video => {
+        const thumb = document.createElement('a');
+        thumb.href = `https://www.youtube.com/watch?v=${video.id}`;
+        thumb.target = '_blank';
+        thumb.innerHTML = `
+            <img src="${video.thumbnail}" alt="썸네일" style="width:180px; height:100px; object-fit:cover; border-radius:10px; box-shadow:0 2px 8px #0001;">
+        `;
+        thumbsContainer.appendChild(thumb);
+    });
+
+    container.appendChild(thumbsContainer);
 }
 
 // API 키 저장 핸들러
