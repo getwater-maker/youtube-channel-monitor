@@ -373,12 +373,17 @@ async function getVideoDetails(videoIds) {
         const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
         const data = await fetchYoutubeApi(url);
         newDetails = data.items.map(item => {
-            const thumbnails = item.snippet.thumbnails;
-            let thumbnailUrl =
-                (thumbnails.medium && thumbnails.medium.url) ||
-                (thumbnails.high && thumbnails.high.url) ||
-                (thumbnails.default && thumbnails.default.url) ||
-                '';
+            // 유튜브 썸네일 직접 생성 (ID만 있으면 항상 성공)
+            const fallbackThumbnail = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`;
+            let thumbnailUrl = fallbackThumbnail;
+            // API 썸네일이 있으면 우선 사용, 없으면 fallback
+            if (item.snippet.thumbnails) {
+                thumbnailUrl = 
+                    item.snippet.thumbnails.medium?.url ||
+                    item.snippet.thumbnails.high?.url ||
+                    item.snippet.thumbnails.default?.url ||
+                    fallbackThumbnail;
+            }
             return {
                 id: item.id,
                 title: item.snippet.title,
@@ -394,6 +399,7 @@ async function getVideoDetails(videoIds) {
     }
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
+
 
 // 영상 목록을 화면에 표시 (썸네일 포함, 함수는 딱 1번만)
 function displayVideos(videoList, container) {
