@@ -55,24 +55,25 @@
     </div>
     
     <div id="api-key-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">×</span>
-            <h2>API 키 입력</h2>
-            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
-            <div id="api-key-inputs">
-                <input type="text" class="api-key-input" placeholder="API Key 1">
-                <input type="text" class="api-key-input" placeholder="API Key 2">
-                <input type="text" class="api-key-input" placeholder="API Key 3">
-                <input type="text" class="api-key-input" placeholder="API Key 4">
-                <input type="text" class="api-key-input" placeholder="API Key 5">
-            </div>
-            <label for="api-key-file-upload" class="file-upload-label">
-                텍스트 파일로 업로드
-                <input type="file" id="api-key-file-upload" accept=".txt">
-            </label>
-            <button id="save-api-keys">저장</button>
+    <div class="modal-content">
+        <span class="close-button">×</span>
+        <h2>API 키 입력</h2>
+        <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+        <div id="api-key-inputs">
+            <input type="text" class="api-key-input" placeholder="API Key 1">
+            <input type="text" class="api-key-input" placeholder="API Key 2">
+            <input type="text" class="api-key-input" placeholder="API Key 3">
+            <input type="text" class="api-key-input" placeholder="API Key 4">
+            <input type="text" class="api-key-input" placeholder="API Key 5">
         </div>
+        <label for="api-key-file-upload" class="file-upload-label">
+            텍스트 파일로 업로드
+            <input type="file" id="api-key-file-upload" accept=".txt">
+        </label>
+        <button id="save-api-keys">저장</button>
+        <button id="download-api-keys">API 키 다운로드</button>
     </div>
+</div>
     
     <div id="channel-select-modal" class="modal">
         <div class="modal-content">
@@ -89,4 +90,5 @@
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
+
 
