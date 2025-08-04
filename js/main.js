@@ -1,7 +1,7 @@
 // js/main.js
 
 import { isLongform, calculateMutantIndex, isWithinLastMonths } from './utils.js';
-import { loadApiKeys, saveApiKeys, fetchYoutubeApi } from './api_keys.js';
+import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
 
 // DOM 요소 캐싱
 const channelCountSpan = document.getElementById('channel-count');
@@ -17,6 +17,7 @@ const closeButton = document.querySelector('#api-key-modal .close-button');
 const saveApiKeysButton = document.getElementById('save-api-keys');
 const apiKeyInputs = document.querySelectorAll('.api-key-input');
 const apiKeyFileUpload = document.getElementById('api-key-file-upload');
+const downloadApiKeysButton = document.getElementById('download-api-keys');
 
 // 채널 선택 모달 관련 DOM 요소
 const channelSelectModal = document.getElementById('channel-select-modal');
@@ -40,7 +41,14 @@ function setupEventListeners() {
     addChannelButton.addEventListener('click', handleAddChannel);
     
     // API 키 모달 이벤트
-    openApiKeyPopupButton.addEventListener('click', () => apiKeyModal.style.display = 'block');
+    openApiKeyPopupButton.addEventListener('click', () => {
+        // 모달을 열 때, 현재 저장된 키를 입력 필드에 채워 넣습니다.
+        const storedKeys = loadApiKeys();
+        apiKeyInputs.forEach((input, index) => {
+            input.value = storedKeys[index] || '';
+        });
+        apiKeyModal.style.display = 'block';
+    });
     closeButton.addEventListener('click', () => apiKeyModal.style.display = 'none');
     window.addEventListener('click', (event) => {
         if (event.target === apiKeyModal) {
@@ -49,6 +57,9 @@ function setupEventListeners() {
     });
     saveApiKeysButton.addEventListener('click', handleSaveApiKeys);
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
+    
+    // API 키 다운로드 버튼 이벤트 리스너 추가
+    downloadApiKeysButton.addEventListener('click', downloadApiKeys);
 
     // 채널 선택 모달 이벤트
     channelSelectCloseButton.addEventListener('click', () => channelSelectModal.style.display = 'none');
@@ -248,7 +259,6 @@ async function updateMutantVideosSection() {
         while (hasMoreVideos) {
             const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
             
-            // 기간 필터링 로직
             const recentItems = playlistData.items.filter(item => {
                 if (minDate) {
                     return moment(item.snippet.publishedAt).isAfter(minDate);
@@ -259,7 +269,6 @@ async function updateMutantVideosSection() {
             videoIds = videoIds.concat(recentItems.map(item => item.contentDetails.videoId));
             
             if (minDate && recentItems.length < playlistData.items.length) {
-                // 더 이상 가져올 필요가 없음 (필터링된 영상이 전체 영상보다 적으면)
                 hasMoreVideos = false;
             } else {
                 nextPageToken = playlistData.nextPageToken;
@@ -277,7 +286,6 @@ async function updateMutantVideosSection() {
             continue;
         }
 
-        // 50개씩 묶어서 getVideoDetails를 호출
         const chunkedVideoIds = chunkArray(videoIds, 50);
         let videoDetails = [];
         for (const chunk of chunkedVideoIds) {
