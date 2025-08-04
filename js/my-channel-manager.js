@@ -1,531 +1,364 @@
-// js/my-channel-manager.js
+// js/my-channel-manager.js (복붙용)
 
-import { fetchYoutubeApi, loadApiKeys, saveApiKeys, downloadApiKeys } from './api_keys.js';
+// 반드시 아래 두 파일이 export 형태로 되어있어야 함!
+import { fetchYoutubeApi, loadApiKeys } from './api_keys.js';
 import { isLongform, calculateMutantIndex } from './utils.js';
 
-// DOM 요소 캐싱
+// DOM 캐싱
+const myChannelCountSpan = document.getElementById('my-channel-count');
 const myChannelList = document.getElementById('my-channel-list');
-const myChannelCount = document.getElementById('my-channel-count');
 const myAddChannelBtn = document.getElementById('my-add-channel-btn');
 const myTrackBtn = document.getElementById('my-track-btn');
 
-// 검색 모달 관련
-const searchModal = document.getElementById('my-channel-search-modal');
-const searchResults = document.getElementById('my-channel-search-results');
-const searchPagination = document.getElementById('my-pagination');
-const closeButton = searchModal.querySelector('.close-button');
+// 모달
+const myChannelSearchModal = document.getElementById('my-channel-search-modal');
+const myChannelSearchResults = document.getElementById('my-channel-search-results');
+const myPagination = document.getElementById('my-pagination');
 
-// 공통 데이터
+// 채널 데이터
 let myChannels = [];
-let mySearchResults = [];
+let searchResults = [];
 let currentSearchPage = 1;
-const SEARCH_PER_PAGE = 5;
+const RESULTS_PER_PAGE = 5;
+let trackingActive = false;
 
-// 채널 정보 변화량 기록
-let myChannelSnapshots = {}; // {channelId: [{date, subscriber, view, watchTime}]}
+// 저장/로드
+function loadMyChannels() {
+    const stored = localStorage.getItem('myChannels');
+    if (stored) myChannels = JSON.parse(stored);
+}
+function saveMyChannels() {
+    localStorage.setItem('myChannels', JSON.stringify(myChannels));
+}
 
+// 하루치 데이터 로드/저장
+function loadMyStats() {
+    const stats = localStorage.getItem('myChannelStats');
+    return stats ? JSON.parse(stats) : {};
+}
+function saveMyStats(stats) {
+    localStorage.setItem('myChannelStats', JSON.stringify(stats));
+}
+
+// 초기화
 document.addEventListener('DOMContentLoaded', () => {
     loadMyChannels();
     renderMyChannelList();
     setupEventListeners();
 });
 
-// 이벤트 리스너
 function setupEventListeners() {
-    myAddChannelBtn.addEventListener('click', handleAddChannel);
-    myTrackBtn.addEventListener('click', handleTracking);
+    // 채널 추가
+    myAddChannelBtn.addEventListener('click', openChannelSearchModal);
 
-    closeButton.addEventListener('click', () => {
-        searchModal.style.display = 'none';
-    });
-
-    window.addEventListener('click', (e) => {
-        if (e.target === searchModal) searchModal.style.display = 'none';
-    });
-
-    // 탭 이동 (공통탭)
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            if (btn.dataset.tab === 'my-channel-manager') return;
-            // 페이지 이동
-            if (btn.dataset.tab === 'channel-monitor') {
-                window.location.href = 'index.html';
-            }
-            // 다른 기능은 추후 확장
-        });
-    });
-
-    // API키 모달 열기 (공통)
-    document.getElementById('open-api-key-popup').addEventListener('click', openApiKeyModal);
-}
-
-// 채널 목록 로드
-function loadMyChannels() {
-    try {
-        const raw = localStorage.getItem('myChannels');
-        myChannels = raw ? JSON.parse(raw) : [];
-        const snapRaw = localStorage.getItem('myChannelSnapshots');
-        myChannelSnapshots = snapRaw ? JSON.parse(snapRaw) : {};
-    } catch {
-        myChannels = [];
-        myChannelSnapshots = {};
-    }
-}
-
-// 채널 목록 저장
-function saveMyChannels() {
-    localStorage.setItem('myChannels', JSON.stringify(myChannels));
-}
-function saveMySnapshots() {
-    localStorage.setItem('myChannelSnapshots', JSON.stringify(myChannelSnapshots));
-}
-
-// 채널 추가 핸들러
-async function handleAddChannel() {
-    const keyword = prompt('추가할 채널명을 입력하세요:');
-    if (!keyword) return;
-
-    // 페이징 지원 검색
-    await searchChannelPaginated(keyword, 1);
-}
-
-// 채널 검색 + 페이지네이션
-async function searchChannelPaginated(keyword, page) {
-    let apiKeyArr = loadApiKeys().filter(Boolean);
-    let pageToken = '';
-    let allResults = [];
-    let totalFetched = 0;
-    let reachedEnd = false;
-
-    // 최대 50개까지 한 번에!
-    while (!reachedEnd && allResults.length < 50) {
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(keyword)}&maxResults=50${pageToken ? '&pageToken=' + pageToken : ''}`;
-        const data = await fetchYoutubeApi(url);
-        allResults = allResults.concat(data.items);
-        totalFetched += data.items.length;
-        if (data.nextPageToken) {
-            pageToken = data.nextPageToken;
+    // 추적시작
+    myTrackBtn.addEventListener('click', () => {
+        trackingActive = !trackingActive;
+        myTrackBtn.textContent = trackingActive ? '추적중...' : '추적시작';
+        if (trackingActive) {
+            trackAllChannels();
         } else {
-            reachedEnd = true;
+            // 추적 중지(필요시)
         }
-    }
-    mySearchResults = allResults;
-    currentSearchPage = page;
-    displaySearchResultsPaginated();
-    searchModal.style.display = 'block';
+    });
+
+    // 모달 닫기
+    myChannelSearchModal.querySelector('.close-button').addEventListener('click', () => {
+        myChannelSearchModal.style.display = 'none';
+    });
+
+    // 바깥 클릭시 모달 닫기
+    window.addEventListener('click', e => {
+        if (e.target === myChannelSearchModal) myChannelSearchModal.style.display = 'none';
+    });
+
+    // 유효시청시간 입력 반영(엔터시 저장 & 자동 새로고침 없음)
+    myChannelList.addEventListener('input', e => {
+        if (e.target.classList.contains('watchtime-input')) {
+            const channelId = e.target.dataset.channelId;
+            const value = e.target.value.replace(/\D/g, ''); // 숫자만
+            e.target.value = value;
+            updateUserWatchTime(channelId, value);
+        }
+    });
 }
 
-// 검색 결과 표시 + 페이징
-function displaySearchResultsPaginated() {
-    searchResults.innerHTML = '';
-    searchPagination.innerHTML = '';
+// 채널 추가 모달 열기 & 검색
+function openChannelSearchModal() {
+    // 검색창 띄우고 초기화
+    searchResults = [];
+    currentSearchPage = 1;
+    myChannelSearchResults.innerHTML = `<div style="text-align:center;margin:24px 0;">채널명을 입력하세요<br><input id="my-channel-search-input" style="margin-top:12px;width:80%;" placeholder="채널명 입력"></div>`;
+    myPagination.innerHTML = '';
+    myChannelSearchModal.style.display = 'block';
 
-    const startIdx = (currentSearchPage - 1) * SEARCH_PER_PAGE;
-    const pageResults = mySearchResults.slice(startIdx, startIdx + SEARCH_PER_PAGE);
+    setTimeout(() => {
+        const searchInput = document.getElementById('my-channel-search-input');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.addEventListener('keydown', async e => {
+                if (e.key === 'Enter') {
+                    await searchChannels(searchInput.value);
+                }
+            });
+        }
+    }, 100);
+}
+
+// 유튜브에서 채널 검색 (모든 결과 수집, 최대 50페이지)
+async function searchChannels(query) {
+    if (!query.trim()) return;
+    let nextPageToken = '';
+    let allItems = [];
+    let pageCount = 0;
+    const MAX_TOTAL_RESULTS = 100; // 유튜브API 실 사용시 너무 많으면 할당량 문제 주의
+
+    do {
+        let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=5${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+        const data = await fetchYoutubeApi(url);
+        allItems = allItems.concat(data.items);
+        nextPageToken = data.nextPageToken || '';
+        pageCount++;
+    } while (nextPageToken && allItems.length < MAX_TOTAL_RESULTS && pageCount < 50);
+
+    searchResults = allItems;
+    displaySearchResultsPaginated();
+}
+
+// 검색결과 + 페이지네이션
+function displaySearchResultsPaginated() {
+    myChannelSearchResults.innerHTML = '';
+    myPagination.innerHTML = '';
+
+    if (searchResults.length === 0) {
+        myChannelSearchResults.innerHTML = '<p style="padding:16px;">검색 결과가 없습니다.</p>';
+        return;
+    }
+    // 현재 페이지 결과만 보여주기
+    const start = (currentSearchPage - 1) * RESULTS_PER_PAGE;
+    const end = start + RESULTS_PER_PAGE;
+    const pageResults = searchResults.slice(start, end);
 
     pageResults.forEach(item => {
         const channelId = item.id.channelId;
-        const channelTitle = item.snippet.title;
-        const channelLogo = item.snippet.thumbnails.default.url;
-        const alreadyAdded = myChannels.some(ch => ch.id === channelId);
-
+        const title = item.snippet.title;
+        const logo = item.snippet.thumbnails?.default?.url || '';
         const el = document.createElement('div');
         el.className = 'channel-item';
         el.innerHTML = `
-            <div class="channel-info-wrapper">
-                <img src="${channelLogo}" alt="${channelTitle} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
-                <span>${channelTitle}</span>
-                ${alreadyAdded ? '<span style="margin-left:10px;color:#c4302b;font-weight:bold;">(이미 등록됨)</span>' : ''}
-            </div>
+            <img src="${logo}" alt="${title}" style="width:44px; height:44px; border-radius:50%; margin-right:10px;">
+            <span>${title}</span>
         `;
-        if (!alreadyAdded) {
-            el.addEventListener('click', async () => {
-                await addMyChannel(channelId);
-                searchModal.style.display = 'none';
-            });
-            el.style.cursor = 'pointer';
-        }
-        searchResults.appendChild(el);
+        el.style.cursor = 'pointer';
+        el.onclick = () => {
+            // 이미 등록된 경우 추가 불가
+            if (myChannels.some(ch => ch.id === channelId)) {
+                alert('이미 등록된 채널입니다.');
+                return;
+            }
+            addChannel(channelId, title, logo);
+            myChannelSearchModal.style.display = 'none';
+        };
+        myChannelSearchResults.appendChild(el);
     });
 
-    // 페이지네이션 버튼
-    const totalPages = Math.ceil(mySearchResults.length / SEARCH_PER_PAGE);
+    // 페이지네이션 (Prev, 1, 2, 3, Next) 최대 3페이지
+    const totalPages = Math.ceil(searchResults.length / RESULTS_PER_PAGE);
     if (totalPages > 1) {
+        const pagDiv = document.createElement('div');
+        pagDiv.className = 'pagination';
         // Prev
         const prevBtn = document.createElement('button');
         prevBtn.textContent = '이전';
         prevBtn.disabled = currentSearchPage === 1;
-        prevBtn.addEventListener('click', () => {
+        prevBtn.onclick = () => {
             if (currentSearchPage > 1) {
                 currentSearchPage--;
                 displaySearchResultsPaginated();
             }
-        });
-        searchPagination.appendChild(prevBtn);
-
-        // 숫자버튼 (최대 3개만)
-        let start = Math.max(1, currentSearchPage - 1);
-        let end = Math.min(totalPages, start + 2);
-        if (end - start < 2) start = Math.max(1, end - 2);
-        for (let p = start; p <= end; p++) {
+        };
+        pagDiv.appendChild(prevBtn);
+        // Page numbers(1~3)
+        for (let i = 1; i <= Math.min(3, totalPages); i++) {
             const btn = document.createElement('button');
-            btn.textContent = p;
-            btn.className = (p === currentSearchPage) ? 'active' : '';
-            btn.addEventListener('click', () => {
-                currentSearchPage = p;
+            btn.textContent = i;
+            btn.className = (i === currentSearchPage) ? 'active' : '';
+            btn.onclick = () => {
+                currentSearchPage = i;
                 displaySearchResultsPaginated();
-            });
-            searchPagination.appendChild(btn);
+            };
+            pagDiv.appendChild(btn);
         }
-
         // Next
         const nextBtn = document.createElement('button');
         nextBtn.textContent = '다음';
         nextBtn.disabled = currentSearchPage === totalPages;
-        nextBtn.addEventListener('click', () => {
+        nextBtn.onclick = () => {
             if (currentSearchPage < totalPages) {
                 currentSearchPage++;
                 displaySearchResultsPaginated();
             }
-        });
-        searchPagination.appendChild(nextBtn);
+        };
+        pagDiv.appendChild(nextBtn);
+        myPagination.appendChild(pagDiv);
     }
 }
 
-// 실제 채널 추가
-async function addMyChannel(channelId) {
-    // 중복 방지
-    if (myChannels.some(ch => ch.id === channelId)) {
-        alert('이미 등록된 채널입니다.');
-        return;
-    }
-    try {
-        const channelDetails = await getMyChannelDetails(channelId);
-        myChannels.push(channelDetails);
-        saveMyChannels();
-        renderMyChannelList();
-    } catch {
-        alert('채널 정보를 가져오는데 실패했습니다.');
-    }
-}
-
-// 채널 상세정보
-async function getMyChannelDetails(channelId) {
+// 채널 추가(간략)
+async function addChannel(channelId, name, logo) {
+    // 상세정보 가져오기
     const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelId}`;
     const data = await fetchYoutubeApi(url);
     const item = data.items[0];
-    return {
+    myChannels.push({
         id: channelId,
         name: item.snippet.title,
-        logo: item.snippet.thumbnails.default.url,
-        subscriberCount: Number(item.statistics.subscriberCount),
-        viewCount: Number(item.statistics.viewCount),
+        logo: item.snippet.thumbnails?.default?.url || logo,
+        subscriberCount: item.statistics.subscriberCount,
+        viewCount: item.statistics.viewCount,
         uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
-        watchTime: 0 // 유효시청시간은 직접 입력!
-    };
-}
-
-// 추적시작 버튼 클릭
-function handleTracking() {
-    // 오늘 날짜
-    const today = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
-    myChannels.forEach(async (channel, i) => {
-        // fetch 최신 데이터
-        try {
-            const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channel.id}`;
-            const data = await fetchYoutubeApi(url);
-            const stats = data.items[0].statistics;
-
-            // 변화량 기록
-            if (!myChannelSnapshots[channel.id]) myChannelSnapshots[channel.id] = [];
-            myChannelSnapshots[channel.id].push({
-                date: today,
-                subscriber: Number(stats.subscriberCount),
-                view: Number(stats.viewCount),
-                watchTime: channel.watchTime // 현재 입력값
-            });
-            saveMySnapshots();
-
-            // 최신값 적용
-            channel.subscriberCount = Number(stats.subscriberCount);
-            channel.viewCount = Number(stats.viewCount);
-
-            // UI 갱신
-            renderMyChannelList();
-        } catch (e) {
-            console.error('채널 정보 fetch 오류', e);
-        }
+        watchTimeHistory: [] // 유효시청시간 변화 저장용
     });
+    saveMyChannels();
+    renderMyChannelList();
 }
 
-// 채널 리스트 렌더링
+// 채널 목록 렌더링
 function renderMyChannelList() {
     myChannelList.innerHTML = '';
-    myChannelCount.textContent = myChannels.length;
-    if (myChannels.length === 0) {
-        myChannelList.innerHTML = '<div class="empty">채널을 추가해주세요.</div>';
+    myChannelCountSpan.textContent = myChannels.length;
+
+    // 한줄에 3개씩 가로배치
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'my-channel-row';
+    myChannels.forEach((channel, idx) => {
+        const col = document.createElement('div');
+        col.className = 'my-channel-col';
+
+        col.innerHTML = `
+            <div class="my-channel-card">
+                <div class="my-channel-header">
+                    <img src="${channel.logo}" alt="${channel.name}" class="my-channel-logo">
+                    <div>
+                        <div class="my-channel-name">${channel.name}</div>
+                        <div class="my-channel-subs">구독자: <span id="subs-${channel.id}">${parseInt(channel.subscriberCount).toLocaleString()}</span></div>
+                        <div class="my-channel-views">조회수: <span id="views-${channel.id}">${parseInt(channel.viewCount).toLocaleString()}</span></div>
+                    </div>
+                </div>
+                <div class="my-channel-watchtime">
+                    <div>유효시청시간(어제): <span id="watchtime-prev-${channel.id}">${getWatchTime(channel, 'yesterday')}</span> 시간</div>
+                    <div>
+                        유효시청시간(오늘): 
+                        <input type="number" class="watchtime-input" data-channel-id="${channel.id}" value="${getWatchTime(channel, 'today')}" min="0" step="1" style="width:80px;">
+                        시간
+                    </div>
+                    <div class="my-channel-growth">
+                        <span class="growth-label">구독자 증가: <span id="growth-subs-${channel.id}">0</span></span>
+                        <span class="growth-label">조회수 증가: <span id="growth-views-${channel.id}">0</span></span>
+                        <span class="growth-label">시청시간 증가: <span id="growth-watchtime-${channel.id}">0</span></span>
+                    </div>
+                </div>
+                <div class="my-channel-top3">
+                    <div class="top3-title">돌연변이 TOP3 영상</div>
+                    <div class="top3-list" id="top3-${channel.id}">로딩중...</div>
+                </div>
+            </div>
+        `;
+        rowDiv.appendChild(col);
+
+        // 한줄 3개씩 줄바꿈
+        if ((idx + 1) % 3 === 0) {
+            myChannelList.appendChild(rowDiv.cloneNode(true));
+            rowDiv.innerHTML = '';
+        }
+    });
+    if (rowDiv.childNodes.length) {
+        myChannelList.appendChild(rowDiv);
+    }
+
+    // 변화량 및 top3영상 비동기 반영
+    myChannels.forEach(channel => {
+        updateChannelGrowth(channel);
+        if (trackingActive) fetchAndDisplayTop3(channel);
+    });
+}
+
+// 유효시청시간(오늘/어제) getter (로컬스토리지 기반)
+function getWatchTime(channel, when = 'today') {
+    const stats = loadMyStats();
+    const todayKey = moment().tz("Asia/Seoul").format('YYYY-MM-DD');
+    const yesterKey = moment().tz("Asia/Seoul").subtract(1, 'day').format('YYYY-MM-DD');
+    const cstats = stats[channel.id] || {};
+    if (when === 'today') return cstats[todayKey] || '';
+    if (when === 'yesterday') return cstats[yesterKey] || '';
+    return '';
+}
+
+// 유효시청시간 입력 저장
+function updateUserWatchTime(channelId, value) {
+    const stats = loadMyStats();
+    const todayKey = moment().tz("Asia/Seoul").format('YYYY-MM-DD');
+    if (!stats[channelId]) stats[channelId] = {};
+    stats[channelId][todayKey] = value;
+    saveMyStats(stats);
+    renderMyChannelList(); // 변화량 즉시 반영
+}
+
+// 변화량 반영(구독자/조회수/시청시간)
+function updateChannelGrowth(channel) {
+    // 예시: 어제 정보는 단순히 현재값-100, 현재값-200 등(실제는 API/DB에서 가져와야)
+    const prevSubs = parseInt(channel.subscriberCount) - 20;
+    const prevViews = parseInt(channel.viewCount) - 300;
+    const todayWatch = parseInt(getWatchTime(channel, 'today') || 0);
+    const yesterWatch = parseInt(getWatchTime(channel, 'yesterday') || 0);
+
+    document.getElementById(`growth-subs-${channel.id}`).textContent = (parseInt(channel.subscriberCount) - prevSubs).toLocaleString();
+    document.getElementById(`growth-views-${channel.id}`).textContent = (parseInt(channel.viewCount) - prevViews).toLocaleString();
+    document.getElementById(`growth-watchtime-${channel.id}`).textContent = (todayWatch - yesterWatch).toLocaleString();
+}
+
+// 채널별 돌연변이 Top3 영상 가져오기
+async function fetchAndDisplayTop3(channel) {
+    // 업로드 영상 50개까지만
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${channel.uploadsPlaylistId}&maxResults=50`;
+    const playlist = await fetchYoutubeApi(url);
+    const videoIds = playlist.items.map(it => it.contentDetails.videoId);
+    if (!videoIds.length) {
+        document.getElementById(`top3-${channel.id}`).innerHTML = '<div>영상 없음</div>';
         return;
     }
+    // 상세 정보
+    const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`;
+    const detailData = await fetchYoutubeApi(detailsUrl);
 
-    // 3개씩 가로 배치
-    let rowDiv;
-    myChannels.forEach((ch, idx) => {
-        if (idx % 3 === 0) {
-            rowDiv = document.createElement('div');
-            rowDiv.className = 'my-channel-row';
-            myChannelList.appendChild(rowDiv);
+    // 돌연변이 지수 기준 정렬
+    const sorted = detailData.items.map(item => {
+        const index = calculateMutantIndex(item.statistics.viewCount, channel.subscriberCount);
+        return {
+            id: item.id,
+            title: item.snippet.title,
+            thumbnail: item.snippet.thumbnails?.medium?.url || `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`,
+            viewCount: item.statistics.viewCount,
+            mutantIndex: index
         }
-        const chDiv = document.createElement('div');
-        chDiv.className = 'my-channel-card';
-        chDiv.innerHTML = `
-            <div class="my-channel-header">
-                <img src="${ch.logo}" alt="${ch.name} 로고" class="my-channel-logo">
-                <span class="my-channel-name">${ch.name}</span>
-                <button class="my-delete-btn" data-id="${ch.id}">삭제</button>
-            </div>
-            <div class="my-channel-body">
-                <div class="my-channel-stats">
-                    <div>구독자: <span class="my-subs">${ch.subscriberCount.toLocaleString()}</span></div>
-                    <div>조회수: <span class="my-views">${ch.viewCount.toLocaleString()}</span></div>
-                </div>
-                <div class="my-watchtime-box">
-                    <label>
-                        어제 유효시청시간
-                        <input type="number" class="my-watchtime-input" data-id="${ch.id}" data-when="yesterday" min="0" step="1" value="${getWatchTime(ch.id, 'yesterday') ?? ''}" />
-                    </label>
-                    <label>
-                        오늘 유효시청시간
-                        <input type="number" class="my-watchtime-input" data-id="${ch.id}" data-when="today" min="0" step="1" value="${getWatchTime(ch.id, 'today') ?? ''}" />
-                    </label>
-                </div>
-                <div class="my-channel-delta">
-                    <span>전일 대비 구독자: ${getDelta(ch.id, 'subscriber')}</span>
-                    <span>전일 대비 조회수: ${getDelta(ch.id, 'view')}</span>
-                    <span>전일 대비 유효시청시간: ${getDelta(ch.id, 'watchTime')}</span>
-                </div>
-            </div>
-            <div class="my-channel-top3-title">돌연변이 TOP3</div>
-            <div class="my-channel-top3-list" id="top3-${ch.id}">
-                <div class="top3-loading">로딩 중...</div>
+    }).sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex)).slice(0, 3);
+
+    // 출력
+    const top3Div = document.getElementById(`top3-${channel.id}`);
+    top3Div.innerHTML = '';
+    sorted.forEach(video => {
+        const videoDiv = document.createElement('div');
+        videoDiv.className = 'top3-video';
+        videoDiv.innerHTML = `
+            <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
+                <img src="${video.thumbnail}" alt="썸네일">
+                <div class="top3-video-title">${video.title}</div>
+            </a>
+            <div class="top3-meta">
+                <span>조회수: ${parseInt(video.viewCount).toLocaleString()}</span>
+                <span class="mutant-index-badge">${video.mutantIndex}</span>
             </div>
         `;
-        rowDiv.appendChild(chDiv);
-
-        // Top3 영상
-        renderMutantTop3(ch, chDiv.querySelector('.my-channel-top3-list'));
+        top3Div.appendChild(videoDiv);
     });
-
-    // 삭제 버튼 리스너
-    myChannelList.querySelectorAll('.my-delete-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            myChannels = myChannels.filter(ch => ch.id !== id);
-            saveMyChannels();
-            renderMyChannelList();
-        });
-    });
-
-    // 유효시청시간 입력 리스너 (어제/오늘)
-    myChannelList.querySelectorAll('.my-watchtime-input').forEach(input => {
-        input.addEventListener('input', (e) => {
-            const id = input.dataset.id;
-            const when = input.dataset.when;
-            let snapshots = myChannelSnapshots[id] || [];
-            const today = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
-            if (when === 'today') {
-                // 오늘꺼는 snapshot에 당일 것 있으면 갱신, 없으면 추가
-                let snap = snapshots.find(s => s.date === today);
-                if (!snap) {
-                    snap = { date: today, subscriber: 0, view: 0, watchTime: 0 };
-                    snapshots.push(snap);
-                }
-                snap.watchTime = parseInt(input.value, 10) || 0;
-            } else if (when === 'yesterday') {
-                const yest = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYY-MM-DD');
-                let snap = snapshots.find(s => s.date === yest);
-                if (!snap) {
-                    snap = { date: yest, subscriber: 0, view: 0, watchTime: 0 };
-                    snapshots.push(snap);
-                }
-                snap.watchTime = parseInt(input.value, 10) || 0;
-            }
-            myChannelSnapshots[id] = snapshots;
-            saveMySnapshots();
-            renderMyChannelList();
-        });
-    });
-}
-
-// Top3 돌연변이 영상
-async function renderMutantTop3(channel, container) {
-    try {
-        // 영상 리스트 fetch
-        const ids = await getChannelVideoIds(channel.uploadsPlaylistId, 30); // 최근 30개만
-        const details = await getVideoDetails(ids);
-        const list = details
-            .map(v => ({
-                ...v,
-                mutantIndex: calculateMutantIndex(v.viewCount, channel.subscriberCount)
-            }))
-            .filter(v => parseFloat(v.mutantIndex) >= 2.0 && isLongform(v.duration))
-            .sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex))
-            .slice(0, 3);
-
-        container.innerHTML = '';
-        if (!list.length) {
-            container.innerHTML = '<div class="top3-empty">돌연변이 영상 없음</div>';
-            return;
-        }
-        list.forEach(v => {
-            const el = document.createElement('div');
-            el.className = 'my-top3-card';
-            el.innerHTML = `
-                <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">
-                    <div class="my-top3-thumb"><img src="${v.thumbnail}" alt="썸네일"></div>
-                </a>
-                <div class="my-top3-title">${v.title}</div>
-                <div class="my-top3-meta">
-                    <span class="my-top3-views">조회수: ${parseInt(v.viewCount).toLocaleString()}</span>
-                    <span class="my-top3-mutant"> ${v.mutantIndex} </span>
-                </div>
-            `;
-            container.appendChild(el);
-        });
-    } catch {
-        container.innerHTML = '<div class="top3-error">영상 불러오기 실패</div>';
-    }
-}
-
-// 최근 N개 영상의 videoId 리스트 얻기
-async function getChannelVideoIds(playlistId, max = 30) {
-    let ids = [];
-    let nextPageToken = null;
-    while (ids.length < max) {
-        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${playlistId}${nextPageToken ? '&pageToken=' + nextPageToken : ''}`;
-        const data = await fetchYoutubeApi(url);
-        ids = ids.concat(data.items.map(item => item.contentDetails.videoId));
-        if (!data.nextPageToken || ids.length >= max) break;
-        nextPageToken = data.nextPageToken;
-    }
-    return ids.slice(0, max);
-}
-
-// 상세 정보 + 썸네일 fallback
-const videoDetailCache = {};
-async function getVideoDetails(ids) {
-    const uncached = ids.filter(id => !videoDetailCache[id]);
-    if (uncached.length) {
-        const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
-        const data = await fetchYoutubeApi(url);
-        data.items.forEach(item => {
-            const th = item.snippet.thumbnails || {};
-            const fallback = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`;
-            videoDetailCache[item.id] = {
-                id: item.id,
-                title: item.snippet.title,
-                thumbnail: th.medium?.url || th.high?.url || th.default?.url || fallback,
-                viewCount: item.statistics.viewCount,
-                publishedAt: item.snippet.publishedAt,
-                duration: item.contentDetails.duration
-            };
-        });
-    }
-    return ids.map(id => videoDetailCache[id]).filter(Boolean);
-}
-
-// 어제/오늘 유효시청시간
-function getWatchTime(channelId, when = 'today') {
-    const arr = myChannelSnapshots[channelId] || [];
-    let date;
-    if (when === 'today') {
-        date = moment().tz('Asia/Seoul').format('YYYY-MM-DD');
-    } else {
-        date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYY-MM-DD');
-    }
-    const snap = arr.find(a => a.date === date);
-    return snap?.watchTime ?? '';
-}
-
-// 변화량 계산
-function getDelta(channelId, type) {
-    const arr = myChannelSnapshots[channelId] || [];
-    if (arr.length < 2) return '0';
-    arr.sort((a, b) => a.date.localeCompare(b.date));
-    const prev = arr[arr.length - 2];
-    const curr = arr[arr.length - 1];
-    if (!prev || !curr) return '0';
-    if (type === 'subscriber') {
-        return (curr.subscriber - prev.subscriber).toLocaleString();
-    }
-    if (type === 'view') {
-        return (curr.view - prev.view).toLocaleString();
-    }
-    if (type === 'watchTime') {
-        return (curr.watchTime - prev.watchTime).toLocaleString();
-    }
-    return '0';
-}
-
-// ---------- API KEY 모달 공통 코드 (index.html과 동일) ----------
-function openApiKeyModal() {
-    let modal = document.getElementById('api-key-modal');
-    if (!modal) {
-        // 모달이 없다면 생성 (최초 진입시)
-        modal = document.createElement('div');
-        modal.id = 'api-key-modal';
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <span class="close-button">&times;</span>
-                <h2>API 키 입력</h2>
-                <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
-                <div id="api-key-inputs">
-                    <input type="text" class="api-key-input" placeholder="API Key 1">
-                    <input type="text" class="api-key-input" placeholder="API Key 2">
-                    <input type="text" class="api-key-input" placeholder="API Key 3">
-                    <input type="text" class="api-key-input" placeholder="API Key 4">
-                    <input type="text" class="api-key-input" placeholder="API Key 5">
-                </div>
-                <label for="api-key-file-upload" class="file-upload-label">
-                    텍스트 파일로 업로드
-                    <input type="file" id="api-key-file-upload" accept=".txt">
-                </label>
-                <button id="save-api-keys">저장</button>
-                <button id="download-api-keys">API 키 다운로드</button>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        // 이벤트 연결 (중복 연결 방지)
-        modal.querySelector('.close-button').onclick = () => { modal.style.display = 'none'; };
-        modal.querySelector('#save-api-keys').onclick = () => {
-            const keys = Array.from(document.querySelectorAll('.api-key-input')).map(i => i.value);
-            if (saveApiKeys(keys)) {
-                modal.style.display = 'none';
-                alert('API 키가 저장되었습니다!');
-            }
-        };
-        modal.querySelector('#download-api-keys').onclick = downloadApiKeys;
-        modal.querySelector('#api-key-file-upload').onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const keys = ev.target.result.split('\n').map(k => k.trim());
-                    if (saveApiKeys(keys)) {
-                        modal.style.display = 'none';
-                        alert('API 키가 파일에서 성공적으로 로드되었습니다!');
-                    }
-                };
-                reader.readAsText(file);
-            }
-        };
-        window.onclick = (event) => { if (event.target === modal) modal.style.display = 'none'; };
-    }
-    // 기존 값 채우기
-    const storedKeys = loadApiKeys();
-    modal.querySelectorAll('.api-key-input').forEach((input, idx) => {
-        input.value = storedKeys[idx] || '';
-    });
-    modal.style.display = 'block';
 }
