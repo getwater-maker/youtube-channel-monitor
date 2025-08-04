@@ -10,9 +10,6 @@ const addChannelButton = document.getElementById('add-channel-button');
 const mutantVideoList = document.getElementById('mutant-video-list');
 const latestVideoList = document.getElementById('latest-video-list');
 
-// 섹션4 썸네일 컨테이너
-const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
-
 // API 키 모달 관련 DOM 요소
 const apiKeyModal = document.getElementById('api-key-modal');
 const openApiKeyPopupButton = document.getElementById('open-api-key-popup');
