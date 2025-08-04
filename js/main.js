@@ -3,8 +3,6 @@
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
 
-
-const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
 // DOM 요소 캐싱
 const channelCountSpan = document.getElementById('channel-count');
 const channelListContainer = document.getElementById('channel-list-container');
