@@ -98,7 +98,7 @@ myChannelSearchBtn.onclick = async () => {
             const channelEl = document.createElement('div');
             channelEl.classList.add('channel-item');
             channelEl.innerHTML = `
-                <img src="${channelLogo}" style="width:36px; border-radius:50%; vertical-align:middle;">
+                <img src="${channelLogo}" style="width:36px; height:36px; object-fit:cover; border-radius:50%; vertical-align:middle;">
                 <span style="margin-left:8px; font-weight:500;">${channelTitle}</span>
                 <button style="float:right; margin-left:16px;" data-id="${channelId}">등록</button>
             `;
