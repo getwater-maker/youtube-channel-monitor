@@ -148,3 +148,13 @@
     .my-channel-card { min-height: unset; }
 }
  
+.my-channel-name {
+    writing-mode: initial !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: break-word !important;
+    display: block !important;
+    font-size: 1.15rem !important;
+    letter-spacing: 0 !important;
+}
