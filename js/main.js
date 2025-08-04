@@ -137,29 +137,90 @@ async function handleAddChannel() {
 
 // 채널 검색 결과 표시 (모달)
 function displaySearchResults(results) {
-    channelSearchResults.innerHTML = '';
-    results.forEach(item => {
-        const channelId = item.id.channelId;
-        const channelTitle = item.snippet.title;
-        const channelLogo = item.snippet.thumbnails.default.url;
+    const ITEMS_PER_PAGE = 5;
+    let currentPage = 1;
+    let totalPage = Math.ceil(results.length / ITEMS_PER_PAGE);
 
-        const channelEl = document.createElement('div');
-        channelEl.classList.add('channel-item');
-        channelEl.innerHTML = `
-            <div class="channel-info-wrapper">
-                <img src="${channelLogo}" alt="${channelTitle} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
-                <span>${channelTitle}</span>
-            </div>
-        `;
-        channelEl.addEventListener('click', () => {
-            addChannel(channelId);
-            channelSelectModal.style.display = 'none';
+    function renderPage(page) {
+        channelSearchResults.innerHTML = '';
+        const start = (page - 1) * ITEMS_PER_PAGE;
+        const end = start + ITEMS_PER_PAGE;
+        const pageItems = results.slice(start, end);
+
+        pageItems.forEach(item => {
+            const channelId = item.id.channelId;
+            const channelTitle = item.snippet.title;
+            const channelLogo = item.snippet.thumbnails.default.url;
+
+            const channelEl = document.createElement('div');
+            channelEl.classList.add('channel-item');
+            channelEl.innerHTML = `
+                <div class="channel-info-wrapper">
+                    <img src="${channelLogo}" alt="${channelTitle} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
+                    <span>${channelTitle}</span>
+                </div>
+            `;
+            channelEl.addEventListener('click', () => {
+                addChannel(channelId);
+                channelSelectModal.style.display = 'none';
+            });
+            channelSearchResults.appendChild(channelEl);
         });
-        channelSearchResults.appendChild(channelEl);
-    });
 
+        // 페이지네이션
+        if (totalPage > 1) {
+            const paginationDiv = document.createElement('div');
+            paginationDiv.style.display = "flex";
+            paginationDiv.style.justifyContent = "center";
+            paginationDiv.style.gap = "8px";
+            paginationDiv.style.marginTop = "15px";
+
+            // prev
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = "Prev";
+            prevBtn.disabled = page === 1;
+            prevBtn.style.opacity = page === 1 ? "0.5" : "1";
+            prevBtn.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage -= 1;
+                    renderPage(currentPage);
+                }
+            };
+            paginationDiv.appendChild(prevBtn);
+
+            // page numbers
+            for (let i = 1; i <= totalPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.textContent = i;
+                if (i === page) pageBtn.style.background = "#c4302b", pageBtn.style.color="white";
+                pageBtn.onclick = () => {
+                    currentPage = i;
+                    renderPage(currentPage);
+                };
+                paginationDiv.appendChild(pageBtn);
+            }
+
+            // next
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = "Next";
+            nextBtn.disabled = page === totalPage;
+            nextBtn.style.opacity = page === totalPage ? "0.5" : "1";
+            nextBtn.onclick = () => {
+                if (currentPage < totalPage) {
+                    currentPage += 1;
+                    renderPage(currentPage);
+                }
+            };
+            paginationDiv.appendChild(nextBtn);
+
+            channelSearchResults.appendChild(paginationDiv);
+        }
+    }
+
+    renderPage(1);
     channelSelectModal.style.display = 'block';
 }
+
 
 // 채널 실제 추가
 async function addChannel(channelId) {
