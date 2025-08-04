@@ -1,6 +1,5 @@
 // js/api_keys.js
 
-// 현재 사용 중인 API 키와 키 목록을 관리하기 위한 변수들
 let apiKeys = [];
 let currentKeyIndex = 0;
 
@@ -9,12 +8,13 @@ export function loadApiKeys() {
     try {
         const storedKeys = localStorage.getItem('youtubeApiKeys');
         if (storedKeys) {
-            apiKeys = JSON.parse(storedKeys);
             console.log('API 키를 로컬 스토리지에서 성공적으로 불러왔습니다.');
+            return JSON.parse(storedKeys);
         }
     } catch (e) {
         console.error('로컬 스토리지 로드 실패', e);
     }
+    return [];
 }
 
 // 로컬 스토리지에 API 키를 저장하는 함수
@@ -101,5 +101,5 @@ export function downloadApiKeys() {
     alert('api_keys.txt 파일이 다운로드되었습니다.');
 }
 
-// 모듈이 로드될 때 API 키를 즉시 불러옵니다.
-loadApiKeys();
+// 모듈이 로드될 때 apiKeys 변수를 초기화합니다.
+apiKeys = loadApiKeys();
