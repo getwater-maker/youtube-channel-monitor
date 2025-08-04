@@ -457,3 +457,50 @@ function handleApiKeyFileUpload(event) {
         reader.readAsText(file);
     }
 }
+
+// 섹션 4: 최신 영상 썸네일만 출력 (가로 스크롤)
+function displayLatestThumbnailsOnly(videoList, container) {
+    container.innerHTML = '';
+    if (videoList.length === 0) {
+        container.innerHTML = '<p>썸네일이 없습니다.</p>';
+        return;
+    }
+
+    const thumbsContainer = document.createElement('div');
+    thumbsContainer.style.display = 'flex';
+    thumbsContainer.style.gap = '12px';
+    thumbsContainer.style.overflowX = 'auto';
+    thumbsContainer.style.padding = '8px 0';
+
+    videoList.forEach(video => {
+        const thumb = document.createElement('a');
+        thumb.href = `https://www.youtube.com/watch?v=${video.id}`;
+        thumb.target = '_blank';
+        thumb.innerHTML = `
+            <img src="${video.thumbnail}" alt="썸네일" style="width:180px; height:100px; object-fit:cover; border-radius:10px; box-shadow:0 2px 8px #0001;">
+        `;
+        thumbsContainer.appendChild(thumb);
+    });
+
+    container.appendChild(thumbsContainer);
+}
+
+// updateLatestVideosSection 함수 맨 마지막에 썸네일 섹션 호출 추가!
+async function updateLatestVideosSection() {
+    latestVideoList.innerHTML = '<p>로딩 중...</p>';
+    const allLatestVideos = [];
+
+    for (const channel of channels) {
+        const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
+        if (latestVideo) {
+            allLatestVideos.push(latestVideo);
+        }
+    }
+
+    allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
+    displayVideos(allLatestVideos, latestVideoList);
+
+    // === 여기 추가 ===
+    const latestThumbnailsList = document.getElementById('latest-thumbnails-list');
+    displayLatestThumbnailsOnly(allLatestVideos, latestThumbnailsList);
+}
