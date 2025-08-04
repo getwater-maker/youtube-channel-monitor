@@ -25,13 +25,16 @@
         <!-- 채널 모니터 탭 (1번) -->
         <div id="channel-monitor" class="tab-content active">
             <section class="section-add-channel">
+                <h2>채널 등록/관리</h2>
                 <p style="text-align:right; margin:0;">
                     <span id="channel-count-text">현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</span>
                     <button id="add-channel-button">채널 추가</button>
                 </p>
                 <div id="channel-list-container" class="channel-list"></div>
             </section>
+            <hr>
             <section class="section-mutant-videos">
+                <h2>돌연변이 영상</h2>
                 <div class="date-range-controls">
                     <button data-period="1m">1개월</button>
                     <button data-period="3m">3개월</button>
@@ -42,7 +45,9 @@
                     <p>채널을 추가하여 영상을 분석해주세요.</p>
                 </div>
             </section>
+            <hr>
             <section class="section-latest-videos">
+                <h2>최신 영상</h2>
                 <div id="latest-video-list">
                     <p>채널을 추가하여 영상을 분석해주세요.</p>
                 </div>
@@ -51,19 +56,26 @@
 
         <!-- 내채널관리 탭 (2번) -->
         <div id="my-channel-manager" class="tab-content">
-            <section>
+            <section class="my-section-add-channel">
+                <h2>내 채널 등록/관리</h2>
                 <p style="text-align:right; margin:0;">
                     <span id="my-channel-count-text">현재 0개의 채널이 등록되었습니다.</span>
                     <button id="add-my-channel-button">채널 추가</button>
                 </p>
-                <div id="my-channel-list-container"></div>
-                <div id="my-channel-stats-container"></div>
-                <div id="my-channel-mutant-videos-container"></div>
+                <div id="my-channel-list-container" class="my-channel-list"></div>
+            </section>
+            <hr>
+            <section class="my-section-mutant-videos">
+                <h2>채널별 돌연변이 TOP3 영상</h2>
+                <div id="my-channel-mutant-videos-container" class="my-mutant-videos-grid">
+                    <!-- JS로 채널별 카드 3개씩 한줄, 카드 내부에 TOP3 영상 세로배치 -->
+                </div>
             </section>
         </div>
 
         <!-- 추가기능 탭 (예정) -->
         <div id="another-feature" class="tab-content">
+            <h2>추가기능 (예정)</h2>
             <p>이곳에 다른 기능이 추가될 예정입니다.</p>
         </div>
     </div>
