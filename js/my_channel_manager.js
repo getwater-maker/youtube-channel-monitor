@@ -81,34 +81,78 @@ addMyChannelBtn.onclick = () => {
 closeAddMyChannelModalBtn.onclick = () => addMyChannelModal.style.display = 'none';
 
 // 채널명 검색 → 유튜브 API v3 search
+// 검색시 한 번에 5개만 + 페이지네이션
+let searchResultsData = [];
+let currentPage = 1;
+const PAGE_SIZE = 5;
+
 myChannelSearchBtn.onclick = async () => {
     const q = myChannelSearchInput.value.trim();
     if (!q) { alert('검색어를 입력하세요!'); return; }
     myChannelSearchResults.innerHTML = '검색중...';
     try {
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=8&q=${encodeURIComponent(q)}`;
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=30&q=${encodeURIComponent(q)}`;
         const data = await fetchYoutubeApi(url);
+        if (!data.items?.length) {
+            myChannelSearchResults.innerHTML = '검색 결과 없음';
+            return;
+        }
+        searchResultsData = data.items;
+        currentPage = 1;
+        renderChannelSearchPage();
+    } catch (e) {
+        myChannelSearchResults.innerHTML = 'API 오류';
+    }
+};
 
-        if (!data.items?.length) { myChannelSearchResults.innerHTML = '검색 결과 없음'; return; }
-        myChannelSearchResults.innerHTML = '';
-        data.items.forEach(item => {
-            const channelId = item.id.channelId;
-            const channelTitle = item.snippet.title;
-            const channelLogo = item.snippet.thumbnails.default.url;
-            const channelEl = document.createElement('div');
-            channelEl.classList.add('channel-item');
-            channelEl.innerHTML = `
-                <img src="${channelLogo}" style="width:36px; height:36px; object-fit:cover; border-radius:50%; vertical-align:middle;">
-                <span style="margin-left:8px; font-weight:500;">${channelTitle}</span>
-                <button style="float:right; margin-left:16px;" data-id="${channelId}">등록</button>
-            `;
-            channelEl.querySelector('button').onclick = async (e) => {
-                await registerChannelById(channelId);
-                addMyChannelModal.style.display = 'none';
-            };
-            myChannelSearchResults.appendChild(channelEl);
-        });
-    } catch (e) { myChannelSearchResults.innerHTML = 'API 오류'; }
+function renderChannelSearchPage() {
+    // 한 번에 5개씩 보여줌
+    myChannelSearchResults.innerHTML = '';
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const endIdx = startIdx + PAGE_SIZE;
+    const pageItems = searchResultsData.slice(startIdx, endIdx);
+
+    pageItems.forEach(item => {
+        const channelId = item.id.channelId;
+        const channelTitle = item.snippet.title;
+        const channelLogo = item.snippet.thumbnails.default.url;
+        // 항상 flex로, 버튼 오른쪽!
+        const channelEl = document.createElement('div');
+        channelEl.classList.add('channel-item-search-row');
+        channelEl.innerHTML = `
+            <img src="${channelLogo}" class="channel-search-thumb">
+            <span class="channel-search-title">${channelTitle}</span>
+            <button class="channel-register-btn" data-id="${channelId}">등록</button>
+        `;
+        channelEl.querySelector('.channel-register-btn').onclick = async (e) => {
+            await registerChannelById(channelId);
+            addMyChannelModal.style.display = 'none';
+        };
+        myChannelSearchResults.appendChild(channelEl);
+    });
+
+    // 페이지네이션 (1 2 3 next)
+    const totalPages = Math.ceil(searchResultsData.length / PAGE_SIZE);
+    if (totalPages > 1) {
+        const pagDiv = document.createElement('div');
+        pagDiv.className = 'channel-pagination';
+        for (let i = 1; i <= totalPages; i++) {
+            const p = document.createElement('span');
+            p.className = 'pagination-num' + (i === currentPage ? ' active' : '');
+            p.textContent = i;
+            p.onclick = () => { currentPage = i; renderChannelSearchPage(); };
+            pagDiv.appendChild(p);
+        }
+        // next
+        if (currentPage < totalPages) {
+            const nextBtn = document.createElement('span');
+            nextBtn.className = 'pagination-next';
+            nextBtn.textContent = 'Next';
+            nextBtn.onclick = () => { currentPage++; renderChannelSearchPage(); };
+            pagDiv.appendChild(nextBtn);
+        }
+        myChannelSearchResults.appendChild(pagDiv);
+    }
 };
 
 // 직접 입력으로 등록
