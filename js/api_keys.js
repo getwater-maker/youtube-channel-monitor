@@ -6,6 +6,8 @@ export function saveApiKeys(keys) {
     if (validKeys.length > 0) {
         try {
             localStorage.setItem('youtubeApiKeys', JSON.stringify(validKeys));
+            // 키를 저장할 때 현재 키 인덱스를 0으로 초기화
+            currentKeyIndex = 0;
             return true;
         } catch (e) {
             console.error('로컬 스토리지 저장 실패', e);
@@ -45,17 +47,19 @@ export async function fetchYoutubeApi(url, retries = 0) {
     const currentKey = apiKeys[currentKeyIndex];
     const requestUrl = `${url}&key=${currentKey}`;
     
-    console.log(`API 키 ${currentKeyIndex + 1}개 로드되었습니다.`);
+    // 재시도 횟수와 현재 사용 중인 키 정보를 더 명확하게 표시
+    console.log(`[API 요청] 키 #${currentKeyIndex + 1} (${retries + 1}번째 시도)`);
 
     try {
         const response = await fetch(requestUrl);
         const data = await response.json();
         
         if (data.error) {
-            // 할당량 초과 에러(403) 또는 기타 API 에러 처리
-            console.error('API 요청 중 오류 발생:', data.error.message);
+            console.error('[API 오류]', data.error.message);
+            // 할당량 초과 에러(403) 처리
             if (data.error.code === 403 && data.error.message.includes('quota')) {
                 console.warn('API 할당량 초과. 다음 키로 전환합니다.');
+                // 다음 키로 인덱스 변경
                 currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
                 if (retries < apiKeys.length - 1) {
                     return fetchYoutubeApi(url, retries + 1); // 다음 키로 재시도
@@ -67,9 +71,7 @@ export async function fetchYoutubeApi(url, retries = 0) {
                 throw new Error(data.error.message);
             }
         }
-
         return data;
-
     } catch (error) {
         console.error('네트워크 또는 API 요청 실패:', error);
         throw error;
@@ -78,29 +80,24 @@ export async function fetchYoutubeApi(url, retries = 0) {
 
 // 로컬 스토리지에 저장된 API 키를 텍스트 파일로 다운로드하는 함수
 export function downloadApiKeys() {
-    // 로컬 스토리지에서 API 키를 가져옵니다.
     const storedKeys = localStorage.getItem('youtubeApiKeys');
     if (!storedKeys) {
         alert('저장된 API 키가 없습니다. 먼저 API 키를 저장해주세요.');
         return;
     }
     
-    // JSON 문자열을 파싱하여 각 키를 한 줄씩 만듭니다.
     const keysArray = JSON.parse(storedKeys);
     const keysText = keysArray.join('\n');
     
-    // Blob 객체를 생성하여 파일을 만듭니다.
     const blob = new Blob([keysText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     
-    // 가상의 <a> 요소를 만들어 파일을 다운로드합니다.
     const a = document.createElement('a');
     a.href = url;
     a.download = 'api_keys.txt';
     document.body.appendChild(a);
     a.click();
     
-    // 생성된 URL과 <a> 요소를 제거합니다.
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
