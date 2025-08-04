@@ -351,7 +351,7 @@ const ddata = await fetchYoutubeApi(durl);
             const div = document.createElement('div');
             div.className = 'my-channel-mutant-item';
             div.innerHTML = `
-                <img src="${video.thumbnail}" class="my-channel-mutant-thumb" alt="썸네일">
+                <img src="${video.thumbnail}" style="width:100%; aspect-ratio:16/9; height:auto; object-fit:contain; background:#eee; border-radius:7px;" alt="썸네일">
                 <div class="my-channel-mutant-title2">${video.title}</div>
                 <div class="my-channel-mutant-extra">
                     <span class="my-channel-mutant-views">조회수: ${video.viewCount.toLocaleString()}회</span>
