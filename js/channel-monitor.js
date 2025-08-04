@@ -16,7 +16,27 @@ export function saveChannelsToStorage(channels) {
     localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels));
 }
 
-// 3. 채널을 추가하고 localStorage에 저장하는 함수
+// 3. 채널 추가 모달을 여는 함수
+export function openAddChannelModal() {
+    const modal = document.getElementById('add-channel-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const channelIdInput = document.getElementById('add-channel-input');
+        if (channelIdInput) {
+            channelIdInput.value = ''; // 모달 열 때 입력 필드 초기화
+        }
+    }
+}
+
+// 4. 채널 추가 모달을 닫는 함수
+export function closeAddChannelModal() {
+    const modal = document.getElementById('add-channel-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 5. 채널을 추가하고 localStorage에 저장하는 함수
 export async function addChannel(channelId) {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -50,7 +70,7 @@ export async function addChannel(channelId) {
     }
 }
 
-// 4. 유튜브 API를 호출하여 채널 정보를 가져오는 함수
+// 6. 유튜브 API를 호출하여 채널 정보를 가져오는 함수
 async function fetchChannelInfo(channelId, apiKey) {
     const response = await fetch(`${YOUTUBE_API_BASE_URL}channels?part=snippet,statistics&id=${channelId}&key=${apiKey}`);
     const data = await response.json();
@@ -68,7 +88,7 @@ async function fetchChannelInfo(channelId, apiKey) {
     }
 }
 
-// 5. 특정 채널의 최신 영상 목록을 가져오는 함수
+// 7. 특정 채널의 최신 영상 목록을 가져오는 함수
 async function fetchChannelVideos(channelId, apiKey) {
     const playlistResponse = await fetch(`${YOUTUBE_API_BASE_URL}channels?part=contentDetails&id=${channelId}&key=${apiKey}`);
     const playlistData = await playlistResponse.json();
@@ -101,7 +121,7 @@ async function fetchChannelVideos(channelId, apiKey) {
     });
 }
 
-// 6. 여러 영상 ID의 통계 데이터를 가져오는 함수
+// 8. 여러 영상 ID의 통계 데이터를 가져오는 함수
 async function fetchVideoStatistics(videoIds, apiKey) {
     if (videoIds.length === 0) {
         return {};
@@ -122,7 +142,7 @@ async function fetchVideoStatistics(videoIds, apiKey) {
     return statsMap;
 }
 
-// 7. 채널 목록을 화면에 렌더링하는 함수
+// 9. 채널 목록을 화면에 렌더링하는 함수
 export function renderChannelList(channels) {
     const channelListContainer = document.getElementById('channel-list');
     if (!channelListContainer) return;
@@ -172,7 +192,7 @@ export function renderChannelList(channels) {
     });
 }
 
-// 8. 채널을 삭제하는 함수
+// 10. 채널을 삭제하는 함수
 export function removeChannel(channelId) {
     const channels = loadChannelsFromStorage();
     const updatedChannels = channels.filter(channel => channel.id !== channelId);
@@ -180,7 +200,7 @@ export function removeChannel(channelId) {
     renderChannelList(updatedChannels);
 }
 
-// 9. 특정 채널의 영상 목록을 화면에 렌더링하고 '돌연변이 지수'를 계산하여 표시하는 함수
+// 11. 특정 채널의 영상 목록을 화면에 렌더링하고 '돌연변이 지수'를 계산하여 표시하는 함수
 export function renderVideoList(channel) {
     const videoListContainer = document.getElementById('video-list-container');
     if (!videoListContainer) return;
@@ -212,7 +232,6 @@ export function renderVideoList(channel) {
     
     document.getElementById('back-to-channels-btn').addEventListener('click', () => {
         const channelMonitorTab = document.getElementById('channel-monitor');
-        // 영상 목록을 숨기고 채널 목록을 다시 표시
         videoListContainer.innerHTML = '';
         renderChannelList(loadChannelsFromStorage());
     });
