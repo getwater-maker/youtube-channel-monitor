@@ -457,9 +457,11 @@ h2 {
 .my-channel-mutant-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 17px;
-    margin-top: 7px;
+    gap: 32px;         /* 카드 사이 여백(취향에 따라 조절) */
+    justify-content: center;   /* 균등하게 가운데 정렬! */
+    align-items: stretch;
 }
+
 
 .my-channel-mutant-item {
     background: #fff;
@@ -613,3 +615,4 @@ h2 {
     color: #222;
     font-size: 15px;
 }
+
