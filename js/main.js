@@ -254,7 +254,6 @@ async function updateMutantVideosSection() {
         let nextPageToken = null;
         let videoIds = [];
         let hasMoreVideos = true;
-        let totalVideoIds = [];
 
         while (hasMoreVideos) {
             const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
@@ -402,6 +401,7 @@ function displayVideos(videoList, container) {
         const videoItem = document.createElement('div');
         videoItem.classList.add('video-item');
         
+        // 이 부분의 URL을 올바르게 수정합니다.
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
