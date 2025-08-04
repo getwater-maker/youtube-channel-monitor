@@ -24,71 +24,65 @@
                 <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
                 <button id="add-channel-button">채널 추가</button>
                 <div id="channel-list-container">
-                    </div>
+                </div>
             </section>
-            
-            <hr>
-            
+
             <section class="section-mutant-videos">
                 <h2>섹션 2: 돌연변이 영상</h2>
                 <div class="date-range-controls">
-                    <button data-period="6m" class="active">최근 6개월</button>
-                    <button data-period="1y">1년</button>
+                    <button data-period="1m">1개월</button>
+                    <button data-period="3m">3개월</button>
+                    <button class="active" data-period="6m">6개월</button>
                     <button data-period="all">전체</button>
                 </div>
-                <div id="mutant-video-list" class="video-list">
-                    </div>
+                <div id="mutant-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
+                </div>
             </section>
-            
-            <hr>
-            
+
             <section class="section-latest-videos">
                 <h2>섹션 3: 최신 영상</h2>
-                <div id="latest-video-list" class="video-list">
-                    </div>
+                <div id="latest-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
+                </div>
             </section>
         </div>
         
         <div id="another-feature" class="tab-content">
-            <p>이곳에 다른 기능들을 추가할 수 있습니다.</p>
+            <p>이곳에 다른 기능이 추가될 예정입니다.</p>
         </div>
     </div>
     
     <div id="api-key-modal" class="modal">
-    <div class="modal-content">
-        <span class="close-button">×</span>
-        <h2>API 키 입력</h2>
-        <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
-        <div id="api-key-inputs">
-            <input type="text" class="api-key-input" placeholder="API Key 1">
-            <input type="text" class="api-key-input" placeholder="API Key 2">
-            <input type="text" class="api-key-input" placeholder="API Key 3">
-            <input type="text" class="api-key-input" placeholder="API Key 4">
-            <input type="text" class="api-key-input" placeholder="API Key 5">
+        <div class="modal-content">
+            <span class="close-button">×</span>
+            <h2>API 키 입력</h2>
+            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+            <div id="api-key-inputs">
+                <input type="text" class="api-key-input" placeholder="API Key 1">
+                <input type="text" class="api-key-input" placeholder="API Key 2">
+                <input type="text" class="api-key-input" placeholder="API Key 3">
+                <input type="text" class="api-key-input" placeholder="API Key 4">
+                <input type="text" class="api-key-input" placeholder="API Key 5">
+            </div>
+            <label for="api-key-file-upload" class="file-upload-label">
+                텍스트 파일로 업로드
+                <input type="file" id="api-key-file-upload" accept=".txt">
+            </label>
+            <button id="save-api-keys">저장</button>
+            <button id="download-api-keys">API 키 다운로드</button>
         </div>
-        <label for="api-key-file-upload" class="file-upload-label">
-            텍스트 파일로 업로드
-            <input type="file" id="api-key-file-upload" accept=".txt">
-        </label>
-        <button id="save-api-keys">저장</button>
-        <button id="download-api-keys">API 키 다운로드</button>
     </div>
-</div>
     
     <div id="channel-select-modal" class="modal">
         <div class="modal-content">
             <span class="close-button channel-select-close">×</span>
             <h2>검색 결과</h2>
             <p>추가할 채널을 선택하세요.</p>
-            <div id="channel-search-results">
-                </div>
+            <div id="channel-search-results"></div>
         </div>
     </div>
     
-    <script type="module" src="js/utils.js"></script>
-    <script type="module" src="js/api_keys.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
-
-
