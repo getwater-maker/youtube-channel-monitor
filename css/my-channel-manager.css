@@ -1,0 +1,262 @@
+/* css/my-channel-manager.css */
+
+/* ========== 공통 및 레이아웃 ========== */
+body {
+    background: #f7f8fa;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 980px;
+    margin: 40px auto 32px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 6px 32px 0 rgba(36,40,55,0.08);
+    padding: 40px 32px 48px 32px;
+}
+h1, h2 {
+    margin: 0;
+    padding: 0;
+    font-weight: 700;
+}
+h1.main-logo {
+    font-size: 2.2rem;
+    color: #ba2d2d;
+    letter-spacing: 2px;
+    margin-bottom: 0;
+}
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 24px;
+}
+.header-actions {
+    display: flex;
+    gap: 12px;
+}
+.tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+.tab-button {
+    padding: 9px 24px;
+    border-radius: 7px 7px 0 0;
+    border: none;
+    background: #f1f2f5;
+    color: #7a1919;
+    font-size: 1.05rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin: 0 2px;
+    transition: background 0.18s;
+}
+.tab-button.active, .tab-button:hover {
+    background: #ba2d2d;
+    color: #fff;
+}
+.api-key-btn {
+    background: #e85a5a;
+    color: #fff;
+    border: none;
+    padding: 9px 22px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+    box-shadow: 0 2px 8px #e99c9c30;
+}
+.api-key-btn:hover { background: #a31b1b; }
+
+/* ========== 내 채널 등록/관리 섹션 ========== */
+.my-track-btn {
+    background: #3a67ff;
+    color: #fff;
+    border: none;
+    padding: 7px 22px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+    margin-left: 10px;
+}
+.my-track-btn:hover { background: #2242b8; }
+
+.my-add-btn {
+    background: #21b37a;
+    color: #fff;
+    border: none;
+    padding: 7px 18px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-left: 12px;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+.my-add-btn:hover { background: #118154; }
+
+#my-channel-count {
+    font-weight: bold;
+    color: #ba2d2d;
+}
+
+.my-channel-list {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    min-height: 60px;
+}
+
+.my-channel-item {
+    flex: 1 1 280px;
+    background: #fafbfc;
+    border-radius: 10px;
+    box-shadow: 0 1.5px 9px #a59e9e11;
+    display: flex;
+    align-items: center;
+    padding: 20px 18px 18px 16px;
+    position: relative;
+    min-width: 270px;
+    max-width: 340px;
+    margin-bottom: 10px;
+}
+.my-channel-logo {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 14px;
+    border: 2.2px solid #f4d2d2;
+}
+.my-channel-info {
+    flex-grow: 1;
+}
+.my-channel-title {
+    font-size: 1.09rem;
+    font-weight: 600;
+    color: #ba2d2d;
+    margin-bottom: 6px;
+    margin-top: 2px;
+}
+.my-channel-meta {
+    font-size: 0.98rem;
+    color: #8c8f99;
+    margin-bottom: 3px;
+}
+.my-channel-del-btn {
+    background: #ffeaea;
+    color: #e13a3a;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: bold;
+    width: 35px;
+    height: 35px;
+    cursor: pointer;
+    margin-left: 12px;
+    transition: background 0.17s, color 0.17s;
+}
+.my-channel-del-btn:hover { background: #e13a3a; color: #fff; }
+
+.my-channel-empty {
+    padding: 28px 0;
+    text-align: center;
+    color: #bbb;
+    font-size: 1.13rem;
+    font-weight: 500;
+}
+
+@media (max-width: 650px) {
+    .my-channel-item { min-width: 96vw; max-width: 99vw; }
+    .container { padding: 6vw 2vw; }
+}
+
+/* ========== 모달(팝업) 스타일 ========== */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 40;
+    left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(30,20,40,0.17);
+    transition: opacity 0.2s;
+}
+.modal-content {
+    background: #fff;
+    margin: 8% auto;
+    border-radius: 13px;
+    max-width: 420px;
+    padding: 34px 32px 28px 32px;
+    position: relative;
+    box-shadow: 0 8px 32px #ba2d2d21;
+    text-align: center;
+}
+.modal-center { top: 50%; left: 50%; transform: translate(-50%, -50%); position: absolute; }
+.close-button {
+    position: absolute;
+    top: 18px;
+    right: 22px;
+    color: #c4302b;
+    font-size: 1.7rem;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
+    z-index: 45;
+    transition: color 0.18s;
+}
+.close-button:hover { color: #b22020; }
+
+/* ========== 검색 결과 리스트/페이지네이션 ========== */
+.my-channel-search-item {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 11px 5px 11px 0;
+    border-bottom: 1px solid #e5e5e5;
+    cursor: pointer;
+    transition: background 0.17s;
+}
+.my-channel-search-item:hover {
+    background: #f7eaea;
+}
+.my-channel-search-logo {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.7px solid #f3b7b7;
+}
+
+#my-pagination {
+    margin: 20px 0 3px 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+#my-pagination button {
+    background: #fff;
+    color: #c4302b;
+    border: 1.5px solid #e6bdbd;
+    border-radius: 5px;
+    padding: 6px 12px;
+    margin: 0 2px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.16s, color 0.16s;
+}
+#my-pagination button.active,
+#my-pagination button:hover {
+    background: #c4302b;
+    color: #fff;
+}
+
+/* ========== 기타 스타일 ========== */
+::-webkit-scrollbar { width: 8px; background: #f7eaea; }
+::-webkit-scrollbar-thumb { background: #dbb9b9; border-radius: 6px; }
