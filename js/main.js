@@ -399,7 +399,8 @@ async function getVideoDetails(videoIds) {
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-// 영상 목록 화면에 표시
+// 영상 목록을 화면에 표시하는 함수 (썸네일 포함)
+// main.js에서 기존 displayVideos 함수를 완전히 이걸로 바꾸세요!
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -414,10 +415,11 @@ function displayVideos(videoList, container) {
         const videoItem = document.createElement('div');
         videoItem.classList.add('video-item');
 
+        // 썸네일 컨테이너 및 이미지 추가!
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
-                    <img src="${video.thumbnail}" alt="${video.title} 썸네일">
+                    <img src="${video.thumbnail}" alt="${video.title} 썸네일" style="width:100%; border-radius:4px;"/>
                 </div>
             </a>
             <div class="video-info">
@@ -426,7 +428,7 @@ function displayVideos(videoList, container) {
                     <p>조회수: ${parseInt(video.viewCount).toLocaleString()}회</p>
                     <p>업로드 날짜: ${moment(video.publishedAt).fromNow()}</p>
                 </div>
-                <div class="mutant-index">
+                <div class="mutant-index" style="color:#c4302b; font-weight:bold;">
                     돌연변이 지수: <strong>${video.mutantIndex}</strong>
                 </div>
             </div>
@@ -436,6 +438,7 @@ function displayVideos(videoList, container) {
 
     container.appendChild(videoListContainer);
 }
+
 
 // API 키 저장 핸들러
 function handleSaveApiKeys() {
