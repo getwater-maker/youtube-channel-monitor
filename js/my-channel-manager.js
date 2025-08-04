@@ -1,7 +1,7 @@
 // js/my-channel-manager.js
 
-import { fetchYoutubeApi, loadApiKeys, saveApiKeys, downloadApiKeys } from './js/api_keys.js';
-import { isLongform, calculateMutantIndex } from './js/utils.js';
+import { fetchYoutubeApi, loadApiKeys, saveApiKeys, downloadApiKeys } from './api_keys.js';
+import { isLongform, calculateMutantIndex } from './utils.js';
 
 // DOM 요소 캐싱
 const myChannelList = document.getElementById('my-channel-list');
