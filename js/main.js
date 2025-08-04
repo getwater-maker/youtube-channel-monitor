@@ -321,27 +321,6 @@ function chunkArray(arr, chunkSize) {
     return result;
 }
 
-// 최신 영상 목록 업데이트 + 섹션4에 썸네일 출력
-async function updateLatestVideosSection() {
-    latestVideoList.innerHTML = '<p>로딩 중...</p>';
-    const allLatestVideos = [];
-
-    for (const channel of channels) {
-        const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
-        if (latestVideo) {
-            allLatestVideos.push(latestVideo);
-        }
-    }
-
-    allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
-    window.allLatestVideos = allLatestVideos; // 디버깅용
-
-    displayVideos(allLatestVideos, latestVideoList);
-
-    // 섹션4에 썸네일만 출력!
-    if (latestThumbnailsList) displayLatestThumbnailsOnly(allLatestVideos, latestThumbnailsList);
-}
-
 // 채널의 가장 최근 롱폼 영상 1개 가져오기
 async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
