@@ -1,71 +1,108 @@
 // js/api_keys.js
 
-let apiKeys = [];
-let currentApiKeyIndex = 0;
-
-// API 키를 로컬 스토리지에 저장하는 함수
+// 로컬 스토리지에 API 키를 저장하는 함수
 export function saveApiKeys(keys) {
-    apiKeys = keys.filter(key => key.trim() !== ''); // 빈 키 제거
-    if (apiKeys.length > 0) {
-        localStorage.setItem('youtubeApiKeys', JSON.stringify(apiKeys));
-        currentApiKeyIndex = 0;
-        console.log(`API 키 ${apiKeys.length}개가 저장되었습니다.`);
-        return true;
+    const validKeys = keys.filter(key => key.trim() !== '');
+    if (validKeys.length > 0) {
+        try {
+            localStorage.setItem('youtubeApiKeys', JSON.stringify(validKeys));
+            return true;
+        } catch (e) {
+            console.error('로컬 스토리지 저장 실패', e);
+            alert('API 키를 저장하는 중 오류가 발생했습니다.');
+            return false;
+        }
+    } else {
+        alert('유효한 API 키가 없습니다.');
+        return false;
     }
-    console.error('API 키가 입력되지 않았습니다.');
-    return false;
 }
 
 // 로컬 스토리지에서 API 키를 불러오는 함수
 export function loadApiKeys() {
-    const storedKeys = localStorage.getItem('youtubeApiKeys');
-    if (storedKeys) {
-        apiKeys = JSON.parse(storedKeys);
-        console.log(`API 키 ${apiKeys.length}개가 로드되었습니다.`);
-        return true;
+    try {
+        const storedKeys = localStorage.getItem('youtubeApiKeys');
+        if (storedKeys) {
+            return JSON.parse(storedKeys);
+        }
+    } catch (e) {
+        console.error('로컬 스토리지 로드 실패', e);
     }
-    return false;
+    return [];
 }
 
-// 다음 API 키를 가져오는 함수
-function getNextApiKey() {
-    if (apiKeys.length === 0) {
-        return null;
-    }
-    const key = apiKeys[currentApiKeyIndex];
-    currentApiKeyIndex = (currentApiKeyIndex + 1) % apiKeys.length; // 다음 인덱스로 순환
-    return key;
-}
+// 현재 사용 중인 API 키와 키 목록을 관리
+let apiKeys = loadApiKeys();
+let currentKeyIndex = 0;
 
 // API 요청을 처리하는 핵심 함수
 export async function fetchYoutubeApi(url, retries = 0) {
-    if (retries >= apiKeys.length) {
-        throw new Error('모든 API 키의 할당량이 소진되었거나 요청이 실패했습니다.');
+    if (apiKeys.length === 0) {
+        alert('API 키를 먼저 등록해주세요.');
+        throw new Error('API 키 없음');
     }
 
-    const apiKey = apiKeys[retries];
-    if (!apiKey) {
-        throw new Error('사용 가능한 API 키가 없습니다. API 키를 먼저 입력해주세요.');
-    }
+    const currentKey = apiKeys[currentKeyIndex];
+    const requestUrl = `${url}&key=${currentKey}`;
+    
+    console.log(`API 키 ${currentKeyIndex + 1}개 로드되었습니다.`);
 
-    const fullUrl = `${url}&key=${apiKey}`;
     try {
-        const response = await fetch(fullUrl);
+        const response = await fetch(requestUrl);
         const data = await response.json();
         
-        if (!response.ok) {
-            // 할당량 초과 에러(code 403) 확인
-            if (data.error && data.error.code === 403) {
-                console.warn(`API 키 ${apiKey} 할당량 소진. 다음 키로 재시도합니다.`);
-                return fetchYoutubeApi(url, retries + 1); // 재귀적으로 다음 키로 재시도
+        if (data.error) {
+            // 할당량 초과 에러(403) 또는 기타 API 에러 처리
+            console.error('API 요청 중 오류 발생:', data.error.message);
+            if (data.error.code === 403 && data.error.message.includes('quota')) {
+                console.warn('API 할당량 초과. 다음 키로 전환합니다.');
+                currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+                if (retries < apiKeys.length - 1) {
+                    return fetchYoutubeApi(url, retries + 1); // 다음 키로 재시도
+                } else {
+                    alert('모든 API 키의 할당량이 소진되었습니다.');
+                    throw new Error('모든 API 키 할당량 소진');
+                }
             } else {
-                throw new Error(data.error.message || `API 요청 실패: ${response.status}`);
+                throw new Error(data.error.message);
             }
         }
-        
+
         return data;
+
     } catch (error) {
-        console.error('API 요청 중 오류 발생:', error);
+        console.error('네트워크 또는 API 요청 실패:', error);
         throw error;
     }
+}
+
+// 로컬 스토리지에 저장된 API 키를 텍스트 파일로 다운로드하는 함수
+export function downloadApiKeys() {
+    // 로컬 스토리지에서 API 키를 가져옵니다.
+    const storedKeys = localStorage.getItem('youtubeApiKeys');
+    if (!storedKeys) {
+        alert('저장된 API 키가 없습니다. 먼저 API 키를 저장해주세요.');
+        return;
+    }
+    
+    // JSON 문자열을 파싱하여 각 키를 한 줄씩 만듭니다.
+    const keysArray = JSON.parse(storedKeys);
+    const keysText = keysArray.join('\n');
+    
+    // Blob 객체를 생성하여 파일을 만듭니다.
+    const blob = new Blob([keysText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    // 가상의 <a> 요소를 만들어 파일을 다운로드합니다.
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'api_keys.txt';
+    document.body.appendChild(a);
+    a.click();
+    
+    // 생성된 URL과 <a> 요소를 제거합니다.
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert('api_keys.txt 파일이 다운로드되었습니다.');
 }
