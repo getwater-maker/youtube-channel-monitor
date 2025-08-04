@@ -86,9 +86,9 @@ myChannelSearchBtn.onclick = async () => {
     if (!q) { alert('검색어를 입력하세요!'); return; }
     myChannelSearchResults.innerHTML = '검색중...';
     try {
-        const apiKey = await window.getCurrentApiKey?.();
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=8&q=${encodeURIComponent(q)}&key=${apiKey}`;
-        const res = await fetch(url); const data = await res.json();
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=8&q=${encodeURIComponent(q)}`;
+        const data = await fetchYoutubeApi(url);
+
         if (!data.items?.length) { myChannelSearchResults.innerHTML = '검색 결과 없음'; return; }
         myChannelSearchResults.innerHTML = '';
         data.items.forEach(item => {
@@ -129,9 +129,9 @@ async function registerChannelById(channelId) {
         return;
     }
     try {
-        const apiKey = await window.getCurrentApiKey?.();
-        const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${apiKey}`;
-        const data = await fetch(url).then(r=>r.json());
+        const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}`;
+        const data = await fetchYoutubeApi(url);
+
         if (!data.items || !data.items[0]) {
             alert('채널 정보를 찾을 수 없습니다.');
             return;
@@ -162,9 +162,9 @@ analyzeAllBtn.onclick = async () => {
     const list = await idbGetAll('my_channels');
     for (const channel of list) {
         try {
-            const apiKey = await window.getCurrentApiKey?.();
-            const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channel.id}&key=${apiKey}`;
-            const data = await fetch(url).then(r=>r.json());
+            const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channel.id}`;
+            const data = await fetchYoutubeApi(url);
+
             if (data.items && data.items[0]) {
                 channel.subscriberCount = data.items[0].statistics.subscriberCount;
                 await idbPut('my_channels', channel);
@@ -288,10 +288,8 @@ async function renderChannelCard(channel, allWatchtimes) {
 async function renderMutantVideos(channel, container) {
     container.innerHTML = '<div style="color:#aaa;">영상 분석 중...</div>';
     try {
-        const apiKey = await window.getCurrentApiKey?.();
-        // 업로드리스트ID
-        const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channel.id}&key=${apiKey}`;
-        const data = await fetch(url).then(r=>r.json());
+        const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channel.id}`;
+        const data = await fetchYoutubeApi(url);
         const uploadPid = data.items[0].contentDetails.relatedPlaylists.uploads;
         let videos = [];
         let nextPageToken = '', cnt = 0;
@@ -299,8 +297,8 @@ async function renderMutantVideos(channel, container) {
         let period = mutantPeriodSelect.value;
         if (period !== 'all') minDate = moment().subtract(parseInt(period), 'months');
         do {
-            const vurl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadPid}&maxResults=50${nextPageToken ? '&pageToken='+nextPageToken : ''}&key=${apiKey}`;
-            const vdata = await fetch(vurl).then(r=>r.json());
+const vurl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadPid}&maxResults=50${nextPageToken ? '&pageToken='+nextPageToken : ''}`;
+const vdata = await fetchYoutubeApi(vurl);
             let items = vdata.items;
             if (minDate) items = items.filter(i=>moment(i.snippet.publishedAt).isAfter(minDate));
             videos.push(...items);
@@ -313,8 +311,8 @@ async function renderMutantVideos(channel, container) {
         let detailList = [];
         for (let i=0; i<videoIds.length; i+=50) {
             const ids = videoIds.slice(i, i+50);
-            const durl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${ids.join(',')}&key=${apiKey}`;
-            const ddata = await fetch(durl).then(r=>r.json());
+const durl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${ids.join(',')}`;
+const ddata = await fetchYoutubeApi(durl);
             if (ddata.items) detailList.push(...ddata.items);
         }
         // 1. 롱폼만 2. 구독자수2배 이상만
