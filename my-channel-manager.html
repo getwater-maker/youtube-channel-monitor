@@ -3,37 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>내 채널 등록/관리</title>
-    <link rel="stylesheet" href="css/my-channel-manager.css">
+    <title>내 채널 관리</title>
+    <link rel="stylesheet" href="css/styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-timezone-with-data.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="header-bar">
-            <h1>내 채널 등록/관리</h1>
-            <button id="start-track-btn">추적시작</button>
-        </div>
-
-        <div class="my-channel-actions">
-            <span id="my-channel-count"></span>
-            <button id="add-my-channel-btn">채널 추가</button>
-        </div>
-
-        <div id="my-channel-list"></div>
+<div class="container">
+    <h1 style="text-align:center; color:#b22020; margin-bottom:36px;">유튜브 도우미</h1>
+    
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h2>내 채널 등록/관리</h2>
+        <button id="my-track-btn" class="my-track-btn">추적시작</button>
     </div>
-
-    <!-- 채널 검색 모달 -->
+    <div style="margin-bottom:18px;">
+        현재 <span id="my-channel-count">0</span>개의 채널이 등록되었습니다.
+        <button id="my-add-channel-btn" class="my-add-btn">채널 추가</button>
+    </div>
+    
+    <div id="my-channel-list" class="my-channel-list"></div>
+    
+    <!-- 검색 모달 -->
     <div id="my-channel-search-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-center">
             <span class="close-button">&times;</span>
             <h2>채널 검색 결과</h2>
             <div id="my-channel-search-results"></div>
-            <div id="search-pagination"></div>
+            <div id="my-pagination"></div>
         </div>
     </div>
+</div>
 
-    <script type="module" src="js/my-channel-manager.js"></script>
+<script type="module" src="js/my-channel-manager.js"></script>
 </body>
 </html>
