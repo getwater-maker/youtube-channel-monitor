@@ -2152,3 +2152,43 @@ body {
     padding-bottom: 10px;
     border-bottom: 1px solid #ddd;
 }
+
+/* js/channel-monitor.js에 추가한 '돌연변이' 영상 스타일 */
+.mutant-video {
+    border: 2px solid #ff4d4d;
+    position: relative;
+}
+
+.mutant-video:hover {
+    box-shadow: 0 0 15px rgba(255, 77, 77, 0.5);
+}
+
+.mutant-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: #ff4d4d;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* 영상 목록 컨테이너 스타일 */
+#video-list-container {
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.video-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
