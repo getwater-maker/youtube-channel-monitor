@@ -331,3 +331,8 @@ h2 {
     align-items: center;
     min-width: 0;
 }
+.my-mutant-videos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
