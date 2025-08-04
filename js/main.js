@@ -171,18 +171,10 @@ function displaySearchResultsPaginated() {
             channelSearchResults.appendChild(channelEl);
         });
 
-        // 페이지네이션
-        for (let p = 1; p <= totalPages; p++) {
-            const btn = document.createElement('button');
-            btn.textContent = p;
-            btn.className = (p === currentSearchPage) ? 'active' : '';
-            btn.addEventListener('click', () => {
-                currentSearchPage = p;
-                displaySearchResultsPaginated();
-            });
-            paginationContainer.appendChild(btn);
-        }
-        // Prev/Next
+        // 페이지네이션 (최대 3개 + ... + 다음)
+        paginationContainer.innerHTML = '';
+        
+        // 이전 버튼
         if (totalPages > 1) {
             const prevBtn = document.createElement('button');
             prevBtn.textContent = '이전';
@@ -193,8 +185,28 @@ function displaySearchResultsPaginated() {
                     displaySearchResultsPaginated();
                 }
             });
-            paginationContainer.insertBefore(prevBtn, paginationContainer.firstChild);
-
+            paginationContainer.appendChild(prevBtn);
+        }
+        
+        // 1, 2, 3 페이지만
+        for (let p = 1; p <= Math.min(3, totalPages); p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = (p === currentSearchPage) ? 'active' : '';
+            btn.addEventListener('click', () => {
+                currentSearchPage = p;
+                displaySearchResultsPaginated();
+            });
+            paginationContainer.appendChild(btn);
+        }
+        
+        // ... 다음 (totalPages > 3)
+        if (totalPages > 3) {
+            const dots = document.createElement('span');
+            dots.textContent = '...';
+            dots.className = 'pagination-dots';
+            paginationContainer.appendChild(dots);
+        
             const nextBtn = document.createElement('button');
             nextBtn.textContent = '다음';
             nextBtn.disabled = currentSearchPage === totalPages;
@@ -206,6 +218,7 @@ function displaySearchResultsPaginated() {
             });
             paginationContainer.appendChild(nextBtn);
         }
+
 
         channelSearchResults.appendChild(paginationContainer);
     }
