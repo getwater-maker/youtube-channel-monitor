@@ -1,7 +1,7 @@
 // js/my-channel-manager.js
 
-import { fetchYoutubeApi, loadApiKeys } from './api_keys.js';
-import { isLongform, calculateMutantIndex } from './utils.js';
+import { fetchYoutubeApi, loadApiKeys } from './js/api_keys.js';
+import { isLongform, calculateMutantIndex } from './js/utils.js';
 
 let myChannels = [];
 let currentSearchResults = [];
