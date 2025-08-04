@@ -1,6 +1,4 @@
-// js/main.js (최적화 버전)
-// 중복 API 요청 방지 & 콘솔 로그 제거
-// 한글 주석 포함, 복사만 하세요
+// js/main.js (썸네일 확실히 출력, 최적화, 한글 주석 포함)
 
 import { isLongform, calculateMutantIndex, isWithinLastMonths } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
@@ -30,7 +28,7 @@ const channelSelectCloseButton = document.querySelector('#channel-select-modal .
 let channels = [];
 let currentMutantPeriod = '6m';
 
-// API 데이터 캐싱을 위한 임시 저장소
+// API 데이터 캐싱 임시 저장소
 const playlistCache = {};
 const videoDetailCache = {};
 
@@ -46,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
     addChannelButton.addEventListener('click', handleAddChannel);
 
-    // API 키 모달 이벤트
     openApiKeyPopupButton.addEventListener('click', () => {
         const storedKeys = loadApiKeys();
         apiKeyInputs.forEach((input, index) => {
@@ -64,7 +61,6 @@ function setupEventListeners() {
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
     downloadApiKeysButton.addEventListener('click', downloadApiKeys);
 
-    // 채널 선택 모달 이벤트
     channelSelectCloseButton.addEventListener('click', () => channelSelectModal.style.display = 'none');
     window.addEventListener('click', (event) => {
         if (event.target === channelSelectModal) {
@@ -72,7 +68,6 @@ function setupEventListeners() {
         }
     });
 
-    // 돌연변이 영상 기간 설정 버튼 이벤트
     document.querySelector('.date-range-controls').addEventListener('click', (event) => {
         if (event.target.tagName === 'BUTTON') {
             document.querySelectorAll('.date-range-controls button').forEach(btn => btn.classList.remove('active'));
@@ -82,7 +77,6 @@ function setupEventListeners() {
         }
     });
 
-    // 채널 목록 컨테이너에 이벤트 위임 (삭제 버튼 처리)
     channelListContainer.addEventListener('click', (event) => {
         if (event.target.classList.contains('delete-channel-button')) {
             const channelIdToDelete = event.target.dataset.channelId;
@@ -116,7 +110,7 @@ async function updateUI() {
     }
 }
 
-// 1. 채널 추가 및 검색
+// 채널 추가 및 검색
 async function handleAddChannel() {
     const channelName = prompt('추가할 채널명을 입력하세요:');
     if (!channelName) return;
@@ -141,7 +135,7 @@ async function handleAddChannel() {
     }
 }
 
-// 2. 검색 결과 팝업 표시
+// 검색 결과 팝업 표시
 function displaySearchResults(results) {
     channelSearchResults.innerHTML = '';
     results.forEach(item => {
@@ -167,7 +161,7 @@ function displaySearchResults(results) {
     channelSelectModal.style.display = 'block';
 }
 
-// 3. 채널 실제 추가
+// 채널 실제 추가
 async function addChannel(channelId) {
     if (channels.some(c => c.id === channelId)) {
         alert('이미 등록된 채널입니다.');
@@ -184,7 +178,7 @@ async function addChannel(channelId) {
     }
 }
 
-// 4. 채널 삭제
+// 채널 삭제
 function deleteChannel(channelId) {
     if (confirm('이 채널을 삭제하시겠습니까?')) {
         channels = channels.filter(channel => channel.id !== channelId);
@@ -193,9 +187,8 @@ function deleteChannel(channelId) {
     }
 }
 
-// 5. 채널 상세 정보 불러오기 (중복 API 요청 방지)
+// 채널 상세 정보 불러오기
 async function getChannelDetails(channelId) {
-    // 이미 저장된 채널이면 반환
     const exist = channels.find(c => c.id === channelId);
     if (exist) return exist;
 
@@ -215,7 +208,7 @@ async function getChannelDetails(channelId) {
     };
 }
 
-// 6. 채널 목록 UI 표시
+// 채널 목록 UI 표시
 function displayChannelList() {
     channelListContainer.innerHTML = '';
     channelCountSpan.textContent = channels.length;
@@ -241,9 +234,8 @@ function displayChannelList() {
     });
 }
 
-// 7. playlistItems 요청 (중복 방지)
+// playlistItems 요청 (중복 방지)
 async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
-    // 캐시 사용: 동일 요청은 한 번만
     const cacheKey = `${playlistId}_${maxResults}_${pageToken || ''}`;
     if (playlistCache[cacheKey]) {
         return playlistCache[cacheKey];
@@ -254,7 +246,7 @@ async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
     return data;
 }
 
-// 8. 돌연변이 영상 목록 업데이트 (최적화)
+// 돌연변이 영상 목록 업데이트
 async function updateMutantVideosSection() {
     mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
@@ -268,7 +260,6 @@ async function updateMutantVideosSection() {
         let videoIds = [];
         let hasMoreVideos = true;
 
-        // 영상 리스트 중복 요청 방지
         while (hasMoreVideos) {
             const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
             const recentItems = playlistData.items.filter(item => {
@@ -297,7 +288,7 @@ async function updateMutantVideosSection() {
         const chunkedVideoIds = chunkArray(videoIds, 50);
         let videoDetails = [];
         for (const chunk of chunkedVideoIds) {
-            const details = await getVideoDetails(chunk); // 여기도 캐시 적용됨
+            const details = await getVideoDetails(chunk);
             videoDetails = videoDetails.concat(details);
         }
 
@@ -329,7 +320,7 @@ function chunkArray(arr, chunkSize) {
     return result;
 }
 
-// 9. 최신 영상 목록 업데이트 (최적화)
+// 최신 영상 목록 업데이트
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
     const allLatestVideos = [];
@@ -345,7 +336,7 @@ async function updateLatestVideosSection() {
     displayVideos(allLatestVideos, latestVideoList);
 }
 
-// 채널의 가장 최근 롱폼 영상 1개 가져오기 (중복 요청 최소화)
+// 채널의 가장 최근 롱폼 영상 1개 가져오기
 async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
     let foundVideo = null;
@@ -373,34 +364,38 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
     return foundVideo;
 }
 
-// 동영상 상세 정보 가져오기 (중복 API 요청 방지)
+// 동영상 상세 정보 가져오기 (썸네일 우선 medium → high → default)
 async function getVideoDetails(videoIds) {
     if (videoIds.length === 0) return [];
-    // 캐시 사용: 한 번 요청한 videoIds는 다시 요청 안 함
     const uncached = videoIds.filter(id => !videoDetailCache[id]);
     let newDetails = [];
     if (uncached.length > 0) {
         const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
         const data = await fetchYoutubeApi(url);
-        newDetails = data.items.map(item => ({
-            id: item.id,
-            title: item.snippet.title,
-            thumbnail: item.snippet.thumbnails.medium.url,
-            viewCount: item.statistics.viewCount,
-            publishedAt: item.snippet.publishedAt,
-            duration: item.contentDetails.duration
-        }));
-        // 캐시에 저장
+        newDetails = data.items.map(item => {
+            const thumbnails = item.snippet.thumbnails;
+            let thumbnailUrl =
+                (thumbnails.medium && thumbnails.medium.url) ||
+                (thumbnails.high && thumbnails.high.url) ||
+                (thumbnails.default && thumbnails.default.url) ||
+                '';
+            return {
+                id: item.id,
+                title: item.snippet.title,
+                thumbnail: thumbnailUrl,
+                viewCount: item.statistics.viewCount,
+                publishedAt: item.snippet.publishedAt,
+                duration: item.contentDetails.duration
+            };
+        });
         for (const item of newDetails) {
             videoDetailCache[item.id] = item;
         }
     }
-    // 이미 캐시된 것과 새로 받아온 것 합치기
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-// 영상 목록을 화면에 표시하는 함수 (썸네일 포함)
-// main.js에서 기존 displayVideos 함수를 완전히 이걸로 바꾸세요!
+// 영상 목록을 화면에 표시 (썸네일 포함)
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -415,7 +410,6 @@ function displayVideos(videoList, container) {
         const videoItem = document.createElement('div');
         videoItem.classList.add('video-item');
 
-        // 썸네일 컨테이너 및 이미지 추가!
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
@@ -438,7 +432,6 @@ function displayVideos(videoList, container) {
 
     container.appendChild(videoListContainer);
 }
-
 
 // API 키 저장 핸들러
 function handleSaveApiKeys() {
