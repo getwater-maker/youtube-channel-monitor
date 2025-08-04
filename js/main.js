@@ -30,6 +30,8 @@ let currentMutantPeriod = '6m';
 
 // 초기 로딩
 document.addEventListener('DOMContentLoaded', () => {
+    // moment.js 한국어 설정
+    moment.locale('ko');
     loadApiKeys();
     loadChannels();
     setupEventListeners();
@@ -42,7 +44,6 @@ function setupEventListeners() {
     
     // API 키 모달 이벤트
     openApiKeyPopupButton.addEventListener('click', () => {
-        // 모달을 열 때, 현재 저장된 키를 입력 필드에 채워 넣습니다.
         const storedKeys = loadApiKeys();
         apiKeyInputs.forEach((input, index) => {
             input.value = storedKeys[index] || '';
@@ -58,7 +59,6 @@ function setupEventListeners() {
     saveApiKeysButton.addEventListener('click', handleSaveApiKeys);
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
     
-    // API 키 다운로드 버튼 이벤트 리스너 추가
     downloadApiKeysButton.addEventListener('click', downloadApiKeys);
 
     // 채널 선택 모달 이벤트
@@ -401,7 +401,6 @@ function displayVideos(videoList, container) {
         const videoItem = document.createElement('div');
         videoItem.classList.add('video-item');
         
-        // 이 부분의 URL을 올바르게 수정합니다.
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
