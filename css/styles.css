@@ -616,3 +616,10 @@ h2 {
     font-size: 15px;
 }
 
+.my-channel-card {
+    cursor: grab;
+}
+.sortable-ghost {
+    opacity: 0.4;
+}
+
