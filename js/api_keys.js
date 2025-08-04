@@ -1,5 +1,5 @@
-// js/api_keys.js (최적화 버전)
-// 불필요한 콘솔 로그 제거, 직관적 처리, 한글 주석 포함
+// js/api_keys.js (불필요한 콘솔 로그 완전 제거, 최적화)
+// 복사해서 기존 파일을 완전히 덮어써 주세요!
 
 let apiKeys = [];
 let currentKeyIndex = 0;
@@ -11,18 +11,18 @@ export function loadApiKeys() {
     try {
         const storedKeys = localStorage.getItem('youtubeApiKeys');
         if (storedKeys) {
-            // 로컬 스토리지에서 키 불러오기 성공
+            // 성공적으로 불러온 경우 (이제 로그 없음)
             return JSON.parse(storedKeys);
         }
     } catch (e) {
-        // 로딩 실패 시 무시 (키 없음)
+        // 무시
     }
     return [];
 }
 
 /**
  * API 키 배열을 로컬 스토리지에 저장합니다.
- * 빈 값(공백 등)은 자동으로 제외됩니다.
+ * 빈 값은 자동 제외됩니다.
  */
 export function saveApiKeys(keys) {
     const validKeys = keys.filter(key => key.trim() !== '');
@@ -66,11 +66,9 @@ export async function fetchYoutubeApi(url, retries = 0) {
         // 오류 발생 시 다음 키로 전환 후 재시도
         if (data.error) {
             if (data.error.code === 403 || data.error.code === 400) {
-                // 유효하지 않은 키 또는 할당량 소진 시
                 currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
                 return fetchYoutubeApi(url, retries + 1);
             } else {
-                // 기타 오류는 바로 반환
                 alert(data.error.message || 'API 오류가 발생했습니다.');
                 throw new Error(data.error.message);
             }
@@ -78,7 +76,6 @@ export async function fetchYoutubeApi(url, retries = 0) {
         return data;
 
     } catch (error) {
-        // 네트워크 또는 기타 예외 발생 시 다음 키로 전환
         currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
         if (retries + 1 < apiKeys.length) {
             return fetchYoutubeApi(url, retries + 1);
