@@ -259,3 +259,56 @@ h2 {
     font-weight: bold;
     margin-top: 8px;
 }
+
+/* css/styles.css */
+/* 기존 스타일은 유지하고 아래 코드를 추가하거나 수정하세요 */
+
+/* 채널 목록 아이템에 삭제 버튼을 위한 레이아웃 추가 */
+.channel-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* 양 끝 정렬 */
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.channel-info-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+/* 채널 삭제 버튼 스타일 */
+.delete-channel-button {
+    background: #dc3545; /* 빨간색 배경 */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.delete-channel-button:hover {
+    background: #c82333;
+}
+
+/* 채널 검색 결과 모달 스타일 */
+#channel-search-results .channel-item {
+    cursor: pointer;
+}
+#channel-search-results .channel-item:hover {
+    background-color: #e9ecef;
+}
+
+/* 다른 모달과 구분하기 위한 close 버튼 스타일 */
+.close-button.channel-select-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
