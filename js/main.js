@@ -1,6 +1,7 @@
 // js/main.js
 
 import { openApiSettingsModal, closeApiSettingsModal, saveApiKey, updateApiStatus } from './api-settings.js';
+import { addChannel, renderChannelList, loadChannelsFromStorage } from './channel-monitor.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // API 설정 버튼 (톱니바퀴 아이콘) 클릭 이벤트
@@ -9,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
         apiSettingsBtn.addEventListener('click', openApiSettingsModal);
     }
 
+    const addChannelBtn = document.getElementById('add-channel-btn');
+    if (addChannelBtn) {
+        addChannelBtn.addEventListener('click', () => {
+            const channelIdInput = document.getElementById('add-channel-id-input');
+            const channelId = channelIdInput ? channelIdInput.value.trim() : '';
+
+            if (channelId) {
+                addChannel(channelId);
+                channelIdInput.value = ''; // 입력 필드 초기화
+            } else {
+                alert('채널 ID를 입력해주세요.');
+            }
+        });
+    }
+    
     // 모달 내 '저장' 버튼 클릭 이벤트
     const saveApiKeyBtn = document.getElementById('save-api-key-btn');
     if (saveApiKeyBtn) {
