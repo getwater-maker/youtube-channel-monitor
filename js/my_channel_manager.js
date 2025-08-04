@@ -233,6 +233,7 @@ async function renderMyChannels() {
     for (const ch of channels) {
         await renderChannelCard(ch, watchtimes);
     }
+    enableChannelDragSort();
 }
 
 // 채널 카드 렌더
@@ -256,6 +257,7 @@ async function renderChannelCard(channel, allWatchtimes) {
 
     const card = document.createElement('div');
     card.className = 'my-channel-card';
+    card.dataset.channelId = channel.id;
     card.innerHTML = `
         <div class="my-channel-info-row">
             <img src="${channel.thumbnail||''}" class="my-channel-thumb" alt="채널 썸네일">
@@ -431,3 +433,38 @@ if (document.querySelector('.tab-button.active')?.dataset.tab === 'my-channel-ma
 }
 
 export {};
+
+// ① 순서정보 저장: 현재 DOM순서대로 id 배열을 localStorage에 저장
+function saveChannelOrder() {
+    const cardDivs = document.querySelectorAll('#my-channel-list .my-channel-card');
+    const order = Array.from(cardDivs).map(div => div.dataset.channelId);
+    localStorage.setItem('myChannelOrder', JSON.stringify(order));
+}
+
+// ② 순서정보 읽어서, 정렬된 배열로 반환
+function sortChannelsByOrder(channels) {
+    const order = JSON.parse(localStorage.getItem('myChannelOrder') || '[]');
+    if (!order.length) return channels;
+    // order에 따라 channels를 정렬, 없는 건 뒤로
+    return channels.slice().sort((a, b) => {
+        const ai = order.indexOf(a.id);
+        const bi = order.indexOf(b.id);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+    });
+}
+
+// ③ 드래그앤드랍 활성화
+function enableChannelDragSort() {
+    if (window.channelSortable) return; // 여러번 생성 방지
+    window.channelSortable = Sortable.create(document.getElementById('my-channel-list'), {
+        animation: 150,
+        handle: '.my-channel-card',
+        ghostClass: 'sortable-ghost',
+        onEnd: function(evt) {
+            saveChannelOrder(); // 이동 시 순서 저장
+        }
+    });
+}
