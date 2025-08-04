@@ -109,3 +109,17 @@ export function downloadApiKeys() {
 
 // 모듈이 로드될 때 자동으로 apiKeys 배열 초기화
 apiKeys = loadApiKeys();
+
+/**
+ * 현재 사용할 API 키를 반환합니다.
+ */
+export async function getCurrentApiKey() {
+    if (!apiKeys.length) {
+        apiKeys = loadApiKeys();
+    }
+    if (!apiKeys.length) {
+        alert('API 키가 없습니다. 먼저 API 키를 저장해주세요.');
+        throw new Error('API 키 없음');
+    }
+    return apiKeys[currentKeyIndex] || apiKeys[0];
+}
