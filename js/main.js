@@ -32,7 +32,6 @@ let currentMutantPeriod = '6m';
 document.addEventListener('DOMContentLoaded', () => {
     // moment.js 한국어 설정
     moment.locale('ko');
-    loadApiKeys();
     loadChannels();
     setupEventListeners();
     updateUI();
@@ -44,6 +43,7 @@ function setupEventListeners() {
     
     // API 키 모달 이벤트
     openApiKeyPopupButton.addEventListener('click', () => {
+        // loadApiKeys()는 이제 키 배열을 반환합니다.
         const storedKeys = loadApiKeys();
         apiKeyInputs.forEach((input, index) => {
             input.value = storedKeys[index] || '';
@@ -219,7 +219,7 @@ function displayChannelList() {
         channelEl.innerHTML = `
             <div class="channel-info-wrapper">
                 <a href="https://www.youtube.com/channel/${channel.id}" target="_blank">
-                    <img src="${channel.logo}" alt="${channel.name} 로고">
+                    <img src="${channel.logo}" alt="${channel.name} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
                 </a>
                 <div>
                     <h3><a href="https://www.youtube.com/channel/${channel.id}" target="_blank">${channel.name}</a></h3>
