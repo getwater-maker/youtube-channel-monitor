@@ -223,24 +223,54 @@ function displayChannelList() {
     });
 }
 
+// 채널의 최신 영상 목록을 가져오는 함수 (수정)
+async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&pageToken=${pageToken || ''}`;
+    const data = await fetchYoutubeApi(url);
+    return data;
+}
 
 // 섹션 2: 돌연변이 영상 목록 업데이트
 async function updateMutantVideosSection() {
     mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
-    const minDate = currentMutantPeriod === 'all' ? null : moment().subtract(parseInt(currentMutantPeriod), 'months');
+    let minDate = null;
+    if (currentMutantPeriod !== 'all') {
+        minDate = moment().subtract(parseInt(currentMutantPeriod), 'months');
+    }
 
     for (const channel of channels) {
-        const videos = await getChannelVideos(channel.uploadsPlaylistId);
+        let nextPageToken = null;
+        let videoIds = [];
+        let hasMoreVideos = true;
+
+        while (hasMoreVideos) {
+            const playlistData = await getPlaylistItems(channel.uploadsPlaylistId, 50, nextPageToken);
+            videoIds = videoIds.concat(playlistData.items.map(item => item.contentDetails.videoId));
+            nextPageToken = playlistData.nextPageToken;
+
+            // 기간 필터링
+            if (minDate && playlistData.items.length > 0) {
+                const lastVideoDate = moment(playlistData.items[playlistData.items.length - 1].snippet.publishedAt);
+                if (lastVideoDate.isBefore(minDate)) {
+                    hasMoreVideos = false;
+                    const filteredVideoIds = playlistData.items.filter(item => moment(item.snippet.publishedAt).isAfter(minDate)).map(item => item.contentDetails.videoId);
+                    videoIds = videoIds.filter(id => filteredVideoIds.includes(id));
+                }
+            }
+            if (!nextPageToken) {
+                hasMoreVideos = false;
+            }
+        }
+        
+        if (videoIds.length === 0) continue;
+
+        const videoDetails = await getVideoDetails(videoIds);
         const mutantVideosForChannel = [];
         
-        for (const video of videos) {
-            if (minDate && moment(video.publishedAt).isBefore(minDate)) {
-                continue;
-            }
-
+        for (const video of videoDetails) {
             const mutantIndex = calculateMutantIndex(video.viewCount, channel.subscriberCount);
-            if (parseFloat(mutantIndex) >= 2.0) {
+            if (parseFloat(mutantIndex) >= 2.0 && isLongform(video.duration) && (!minDate || moment(video.publishedAt).isAfter(minDate))) {
                 mutantVideosForChannel.push({ ...video, mutantIndex });
             }
         }
@@ -274,7 +304,7 @@ async function updateLatestVideosSection() {
     displayVideos(allLatestVideos, latestVideoList);
 }
 
-// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수 (새로 추가)
+// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수 (기존과 동일)
 async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
     let foundVideo = null;
@@ -307,7 +337,7 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
 }
 
 
-// 동영상 상세 정보 가져오는 함수
+// 동영상 상세 정보 가져오는 함수 (기존과 동일)
 async function getVideoDetails(videoIds) {
     const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`;
     const data = await fetchYoutubeApi(url);
@@ -323,7 +353,7 @@ async function getVideoDetails(videoIds) {
 }
 
 
-// 영상 목록을 화면에 표시하는 함수
+// 영상 목록을 화면에 표시하는 함수 (기존과 동일)
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -361,7 +391,7 @@ function displayVideos(videoList, container) {
     container.appendChild(videoListContainer);
 }
 
-// API 키 저장 핸들러
+// API 키 저장 핸들러 (기존과 동일)
 function handleSaveApiKeys() {
     const keys = Array.from(apiKeyInputs).map(input => input.value);
     if (saveApiKeys(keys)) {
@@ -370,7 +400,7 @@ function handleSaveApiKeys() {
     }
 }
 
-// API 키 파일 업로드 핸들러
+// API 키 파일 업로드 핸들러 (기존과 동일)
 function handleApiKeyFileUpload(event) {
     const file = event.target.files[0];
     if (file) {
