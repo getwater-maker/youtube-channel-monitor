@@ -1,6 +1,8 @@
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, fetchYoutubeApi } from './api_keys.js';
 
+let myChannels = [];
+
 // DOM 요소
 const myChannelCountText = document.getElementById('my-channel-count-text');
 const addMyChannelButton = document.getElementById('add-my-channel-button');
