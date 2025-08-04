@@ -1,6 +1,6 @@
-// js/main.js (썸네일 확실히 출력, 최적화, 한글 주석 포함)
+// js/main.js (최적화 + 썸네일 100% 표시 + 중복 함수 제거, 한글 주석)
 
-import { isLongform, calculateMutantIndex, isWithinLastMonths } from './utils.js';
+import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
 
 // DOM 요소 캐싱
@@ -135,7 +135,7 @@ async function handleAddChannel() {
     }
 }
 
-// 검색 결과 팝업 표시
+// 채널 검색 결과 표시 (모달)
 function displaySearchResults(results) {
     channelSearchResults.innerHTML = '';
     results.forEach(item => {
@@ -395,7 +395,7 @@ async function getVideoDetails(videoIds) {
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-// 영상 목록을 화면에 표시 (썸네일 포함)
+// 영상 목록을 화면에 표시 (썸네일 포함, 함수는 딱 1번만)
 function displayVideos(videoList, container) {
     container.innerHTML = '';
     if (videoList.length === 0) {
@@ -413,7 +413,7 @@ function displayVideos(videoList, container) {
         videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
                 <div class="thumbnail-container">
-                    <img src="${video.thumbnail}" alt="${video.title} 썸네일" style="width:100%; border-radius:4px;"/>
+                    <img src="${video.thumbnail}" alt="${video.title} 썸네일" style="width:100%; border-radius:4px; max-height:160px; object-fit:cover;"/>
                 </div>
             </a>
             <div class="video-info">
