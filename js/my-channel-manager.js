@@ -19,26 +19,32 @@ document.addEventListener('DOMContentLoaded', () => {
 function loadChannels() {
     myChannels = JSON.parse(localStorage.getItem('myChannels') || '[]');
     myChannelsData = JSON.parse(localStorage.getItem('myChannelsData') || '{}');
-    document.getElementById('my-channel-count').textContent = myChannels.length;
+    const count = document.getElementById('my-channel-count');
+    if (count) count.textContent = myChannels.length;
 }
 
 // ----------------- 채널 저장 --------------------
 function saveChannels() {
     localStorage.setItem('myChannels', JSON.stringify(myChannels));
     localStorage.setItem('myChannelsData', JSON.stringify(myChannelsData));
-    document.getElementById('my-channel-count').textContent = myChannels.length;
+    const count = document.getElementById('my-channel-count');
+    if (count) count.textContent = myChannels.length;
 }
 
 // ----------------- 이벤트 ----------------------
 function setupEventListeners() {
     // 채널추가
-    document.getElementById('my-add-channel-btn').onclick = openChannelSearchModal;
+    const addBtn = document.getElementById('my-add-channel-btn');
+    if (addBtn) addBtn.onclick = openChannelSearchModal;
     // API키 모달
-    document.getElementById('open-api-key-popup').onclick = openApiKeyModal;
+    const openApiBtn = document.getElementById('open-api-key-popup');
+    if (openApiBtn) openApiBtn.onclick = openApiKeyModal;
     document.querySelectorAll('#api-key-modal .close-button').forEach(btn => btn.onclick = closeApiKeyModal);
-    document.getElementById('save-api-keys').onclick = saveApiKeysHandler;
+    const saveApiBtn = document.getElementById('save-api-keys');
+    if (saveApiBtn) saveApiBtn.onclick = saveApiKeysHandler;
     // 추적버튼
-    document.getElementById('my-track-btn').onclick = startTracking;
+    const trackBtn = document.getElementById('my-track-btn');
+    if (trackBtn) trackBtn.onclick = startTracking;
 
     // 모달 닫기
     document.querySelectorAll('.modal .close-button').forEach(btn =>
@@ -49,6 +55,7 @@ function setupEventListeners() {
 // ----------- 채널 카드 렌더링 -----------
 function renderMyChannelList() {
     const myChannelList = document.getElementById('my-channel-list');
+    if (!myChannelList) return;
     myChannelList.innerHTML = '';
     if (!myChannels.length) {
         myChannelList.innerHTML = `<div style="text-align:center; color:#aaa; margin:50px 0;">채널을 추가해주세요.</div>`;
@@ -202,6 +209,7 @@ async function fetchVideoDetails(ids) {
 // ----------- 채널 검색 모달 ---------------
 function openChannelSearchModal() {
     const modal = document.getElementById('my-channel-search-modal');
+    if (!modal) return;
     modal.style.display = 'block';
     document.getElementById('my-channel-search-results').innerHTML = '<div style="margin:30px;">채널명을 입력하세요.<br><input id="search-input" style="width:80%; padding:9px; margin-top:16px;"></div>';
     document.getElementById('my-pagination').innerHTML = '';
@@ -228,6 +236,7 @@ async function searchChannels(keyword) {
 // 검색결과/페이지네이션
 function displaySearchResultsPaginated() {
     const container = document.getElementById('my-channel-search-results');
+    if (!container) return;
     container.innerHTML = '';
     const totalPages = Math.ceil(currentSearchResults.length / SEARCH_PER_PAGE);
     const startIdx = (currentSearchPage-1) * SEARCH_PER_PAGE;
@@ -254,6 +263,7 @@ function displaySearchResultsPaginated() {
     });
     // 페이지네이션 (1,2,3)
     const pag = document.getElementById('my-pagination');
+    if (!pag) return;
     pag.innerHTML = '';
     if (totalPages > 1) {
         if (currentSearchPage > 1) {
@@ -285,10 +295,11 @@ function openApiKeyModal() {
     document.querySelectorAll('.api-key-input').forEach((input, i) => {
         input.value = storedKeys[i] || '';
     });
-    modal.style.display = 'block';
+    if (modal) modal.style.display = 'block';
 }
 function closeApiKeyModal() {
-    document.getElementById('api-key-modal').style.display = 'none';
+    const modal = document.getElementById('api-key-modal');
+    if (modal) modal.style.display = 'none';
 }
 function saveApiKeysHandler() {
     const keys = Array.from(document.querySelectorAll('.api-key-input')).map(input=>input.value);
