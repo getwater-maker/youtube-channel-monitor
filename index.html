@@ -71,7 +71,9 @@
 					  <button class="collapse-btn" id="monitoring-collapse-btn">▼</button>
 					</div>
 					<div class="management-controls" onclick="event.stopPropagation()">
-					  <button id="add-monitoring-channel-btn" class="btn btn-primary">+ 채널 추가</button>
+					  <button class="add-channel-btn" id="add-channel-modal-btn">
+					    + 채널 추가
+					</button>
 					  <span class="channel-count">총 <span id="monitoring-channel-count">0</span>개 채널</span>
 					</div>
 				  </div>
@@ -81,9 +83,9 @@
                 <div class="tracking-records" id="tracking-records">
                     <div class="empty-state">
                         <p>채널을 추가하고 추적을 시작해보세요.</p>
-                        <button class="btn btn-primary" onclick="document.getElementById('add-monitoring-channel-btn').click()">
-                            첫 번째 채널 추가하기
-                        </button>
+                        <button class="btn btn-primary" id="add-channel-modal-btn">
+			    첫 번째 채널 추가하기
+			</button>
                     </div>
                 </div>
 
@@ -432,6 +434,7 @@
 </body>
 
 </html>
+
 
 
 
