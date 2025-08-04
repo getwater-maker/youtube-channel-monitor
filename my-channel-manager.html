@@ -10,38 +10,43 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-timezone-with-data.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- 상단 헤더 -->
-        <div class="header-bar">
-            <h1 class="main-logo">유튜브 도우미</h1>
-            <div class="header-actions">
-                <button id="open-api-key-popup" class="api-key-btn">API 키 입력</button>
-            </div>
+<div class="container">
+    <!-- 상단 헤더/키입력 -->
+    <div class="header-bar">
+        <h1 class="main-logo">유튜브 도우미</h1>
+        <div class="header-actions">
+            <button id="open-api-key-popup" class="api-key-btn">API 키 입력</button>
         </div>
-        <!-- 탭 -->
-        <div class="tabs">
-            <button class="tab-button" data-tab="channel-monitor" onclick="location.href='index.html'">채널 모니터</button>
-            <button class="tab-button active" data-tab="my-channel-manager">내 채널 관리</button>
-            <button class="tab-button" data-tab="another-feature">다른 기능(예정)</button>
-        </div>
+    </div>
+    <!-- 탭 -->
+    <div class="tabs">
+        <button class="tab-button" onclick="location.href='index.html'">채널 모니터</button>
+        <button class="tab-button active">내 채널 관리</button>
+        <button class="tab-button" disabled>다른 기능(예정)</button>
+    </div>
 
-        <!-- 내 채널 등록/관리 -->
-        <div class="my-channel-manager-content">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:28px;">
-                <h2>내 채널 등록/관리</h2>
-                <button id="my-track-btn" class="my-track-btn">추적시작</button>
-            </div>
-            <div class="my-channel-header-row">
-                <div>
-                    현재 <span id="my-channel-count">0</span>개의 채널이 등록되었습니다.
-                    <button id="my-add-channel-btn" class="my-add-btn">채널 추가</button>
-                </div>
-            </div>
-            <div id="my-channel-list" class="my-channel-list"></div>
+    <!-- 내 채널 관리 섹션 -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:24px;">
+        <h2>내 채널 등록/관리</h2>
+        <button id="my-track-btn" class="my-track-btn">추적시작</button>
+    </div>
+    <div style="margin-bottom:18px;">
+        현재 <span id="my-channel-count">0</span>개의 채널이 등록되었습니다.
+        <button id="my-add-channel-btn" class="my-add-btn">채널 추가</button>
+    </div>
+    <div id="my-channel-list" class="my-channel-list"></div>
+
+    <!-- 채널 검색 모달 -->
+    <div id="my-channel-search-modal" class="modal">
+        <div class="modal-content modal-center">
+            <span class="close-button">&times;</span>
+            <h2>채널 검색 결과</h2>
+            <div id="my-channel-search-results"></div>
+            <div id="my-pagination"></div>
         </div>
     </div>
 
-    <!-- 공통 API키 입력 모달 -->
+    <!-- API키 입력 모달 (공통) -->
     <div id="api-key-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -56,17 +61,10 @@
             <button id="save-api-keys">저장</button>
         </div>
     </div>
+</div>
 
-    <!-- 채널 검색 모달 -->
-    <div id="my-channel-search-modal" class="modal">
-        <div class="modal-content modal-center">
-            <span class="close-button">&times;</span>
-            <h2>채널 검색 결과</h2>
-            <div id="my-channel-search-results"></div>
-            <div id="my-pagination"></div>
-        </div>
-    </div>
-
-    <script type="module" src="js/my-channel-manager.js"></script>
+<script type="module" src="js/my-channel-manager.js"></script>
+<script type="module" src="js/api_keys.js"></script>
+<script type="module" src="js/utils.js"></script>
 </body>
 </html>
