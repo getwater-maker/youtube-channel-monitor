@@ -266,22 +266,34 @@ function displayVideos(videoList, container) {
         return;
     }
 
+    const videoListContainer = document.createElement('div');
+    videoListContainer.classList.add('video-list');
+
     videoList.forEach(video => {
-        const videoEl = document.createElement('div');
-        videoEl.classList.add('video-item');
-        videoEl.innerHTML = `
+        const videoItem = document.createElement('div');
+        videoItem.classList.add('video-item');
+        
+        videoItem.innerHTML = `
             <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
-                <img src="${video.thumbnail}" alt="${video.title} 썸네일">
+                <div class="thumbnail-container">
+                    <img src="${video.thumbnail}" alt="${video.title} 썸네일">
+                    </div>
             </a>
             <div class="video-info">
                 <h3><a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">${video.title}</a></h3>
-                <p>조회수: ${parseInt(video.viewCount).toLocaleString()}회</p>
-                <p>업로드 날짜: ${moment(video.publishedAt).format('YYYY-MM-DD')}</p>
-                <p>돌연변이 지수: <strong>${video.mutantIndex}</strong></p>
+                <div class="meta-data">
+                    <p>조회수: ${parseInt(video.viewCount).toLocaleString()}회</p>
+                    <p>업로드 날짜: ${moment(video.publishedAt).fromNow()}</p>
+                </div>
+                <div class="mutant-index">
+                    돌연변이 지수: <strong>${video.mutantIndex}</strong>
+                </div>
             </div>
         `;
-        container.appendChild(videoEl);
+        videoListContainer.appendChild(videoItem);
     });
+
+    container.appendChild(videoListContainer);
 }
 
 // API 키 저장 핸들러
