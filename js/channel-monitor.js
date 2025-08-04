@@ -36,6 +36,9 @@ export async function addChannel(channelId) {
             alert('이미 추가된 채널입니다.');
             return;
         }
+        
+        const videos = await fetchChannelVideos(channelId, apiKey);
+        channelInfo.videos = videos;
 
         channels.push(channelInfo);
         saveChannelsToStorage(channels);
@@ -43,7 +46,7 @@ export async function addChannel(channelId) {
         alert(`${channelInfo.title} 채널이 성공적으로 추가되었습니다.`);
     } catch (error) {
         console.error('채널 추가 중 오류 발생:', error);
-        alert('채널을 추가하는 중 오류가 발생했습니다.');
+        alert('채널을 추가하는 중 오류가 발생했습니다. API 키가 유효한지 확인하거나 잠시 후 다시 시도해주세요.');
     }
 }
 
@@ -58,14 +61,68 @@ async function fetchChannelInfo(channelId, apiKey) {
             title: item.snippet.title,
             thumbnail: item.snippet.thumbnails.default.url,
             subscriberCount: item.statistics.subscriberCount,
-            videoCount: item.statistics.videoCount
+            videoCount: item.statistics.videoCount,
         };
     } else {
         return null;
     }
 }
 
-// 5. 채널 목록을 화면에 렌더링하는 함수
+// 5. 특정 채널의 최신 영상 목록을 가져오는 함수
+async function fetchChannelVideos(channelId, apiKey) {
+    const playlistResponse = await fetch(`${YOUTUBE_API_BASE_URL}channels?part=contentDetails&id=${channelId}&key=${apiKey}`);
+    const playlistData = await playlistResponse.json();
+    if (!playlistData.items || playlistData.items.length === 0) {
+        return [];
+    }
+    const uploadsPlaylistId = playlistData.items[0].contentDetails.relatedPlaylists.uploads;
+
+    const videosResponse = await fetch(`${YOUTUBE_API_BASE_URL}playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=20&key=${apiKey}`);
+    const videosData = await videosResponse.json();
+
+    if (!videosData.items) {
+        return [];
+    }
+
+    const videoIds = videosData.items.map(item => item.snippet.resourceId.videoId);
+    const videoStats = await fetchVideoStatistics(videoIds, apiKey);
+
+    return videosData.items.map(item => {
+        const stats = videoStats[item.snippet.resourceId.videoId] || {};
+        return {
+            id: item.snippet.resourceId.videoId,
+            title: item.snippet.title,
+            thumbnail: item.snippet.thumbnails.default.url,
+            publishedAt: item.snippet.publishedAt,
+            views: stats.viewCount || 0,
+            likes: stats.likeCount || 0,
+            comments: stats.commentCount || 0,
+        };
+    });
+}
+
+// 6. 여러 영상 ID의 통계 데이터를 가져오는 함수
+async function fetchVideoStatistics(videoIds, apiKey) {
+    if (videoIds.length === 0) {
+        return {};
+    }
+    const videoStatsResponse = await fetch(`${YOUTUBE_API_BASE_URL}videos?part=statistics&id=${videoIds.join(',')}&key=${apiKey}`);
+    const videoStatsData = await videoStatsResponse.json();
+    
+    const statsMap = {};
+    if (videoStatsData.items) {
+        videoStatsData.items.forEach(item => {
+            statsMap[item.id] = {
+                viewCount: item.statistics.viewCount,
+                likeCount: item.statistics.likeCount,
+                commentCount: item.statistics.commentCount,
+            };
+        });
+    }
+    return statsMap;
+}
+
+// 7. 채널 목록을 화면에 렌더링하는 함수
 export function renderChannelList(channels) {
     const channelListContainer = document.getElementById('channel-list');
     if (!channelListContainer) return;
@@ -87,12 +144,26 @@ export function renderChannelList(channels) {
                 <p>구독자: ${parseInt(channel.subscriberCount).toLocaleString()}명</p>
                 <p>영상 수: ${parseInt(channel.videoCount).toLocaleString()}개</p>
             </div>
-            <button class="remove-btn" data-channel-id="${channel.id}">삭제</button>
+            <div class="channel-actions">
+                <button class="view-videos-btn" data-channel-id="${channel.id}">최신 영상 보기</button>
+                <button class="remove-btn" data-channel-id="${channel.id}">삭제</button>
+            </div>
         `;
         channelListContainer.appendChild(channelItem);
     });
 
-    // 삭제 버튼 이벤트 리스너 추가
+    // 버튼 이벤트 리스너 추가
+    document.querySelectorAll('.view-videos-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const channelId = event.target.dataset.channelId;
+            const channels = loadChannelsFromStorage();
+            const channel = channels.find(c => c.id === channelId);
+            if (channel) {
+                renderVideoList(channel);
+            }
+        });
+    });
+
     document.querySelectorAll('.remove-btn').forEach(button => {
         button.addEventListener('click', (event) => {
             const channelId = event.target.dataset.channelId;
@@ -101,10 +172,48 @@ export function renderChannelList(channels) {
     });
 }
 
-// 6. 채널을 삭제하는 함수
+// 8. 채널을 삭제하는 함수
 export function removeChannel(channelId) {
     const channels = loadChannelsFromStorage();
     const updatedChannels = channels.filter(channel => channel.id !== channelId);
     saveChannelsToStorage(updatedChannels);
     renderChannelList(updatedChannels);
+}
+
+// 9. 특정 채널의 영상 목록을 화면에 렌더링하고 '돌연변이 지수'를 계산하여 표시하는 함수
+export function renderVideoList(channel) {
+    const videoListContainer = document.getElementById('video-list-container');
+    if (!videoListContainer) return;
+
+    videoListContainer.innerHTML = `
+        <div class="video-list-header">
+            <h3>${channel.title} 채널 영상 목록</h3>
+            <button id="back-to-channels-btn">채널 목록으로 돌아가기</button>
+        </div>
+        <div class="video-list-body">
+            ${channel.videos.map(video => {
+                const mutantIndex = channel.subscriberCount > 0 ? (video.views / channel.subscriberCount) : 0;
+                const isMutant = mutantIndex >= 1.5;
+
+                return `
+                    <div class="video-item ${isMutant ? 'mutant-video' : ''}">
+                        <img src="${video.thumbnail}" alt="${video.title} 썸네일" class="video-thumbnail">
+                        <div class="video-info">
+                            <h4>${video.title}</h4>
+                            <p>조회수: ${parseInt(video.views).toLocaleString()}회</p>
+                            <p>돌연변이 지수: ${mutantIndex.toFixed(2)}</p>
+                            ${isMutant ? '<span class="mutant-badge">돌연변이!</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    
+    document.getElementById('back-to-channels-btn').addEventListener('click', () => {
+        const channelMonitorTab = document.getElementById('channel-monitor');
+        // 영상 목록을 숨기고 채널 목록을 다시 표시
+        videoListContainer.innerHTML = '';
+        renderChannelList(loadChannelsFromStorage());
+    });
 }
