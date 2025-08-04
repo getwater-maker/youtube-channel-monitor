@@ -13,20 +13,20 @@
         <h1>유튜브 도우미</h1>
         <div class="tabs">
             <button class="tab-button active" data-tab="channel-monitor">채널 모니터</button>
+            <button class="tab-button" data-tab="my-channel-manager">내 채널 관리</button>
             <button class="tab-button" data-tab="another-feature">다른 기능 (구현 예정)</button>
         </div>
         
         <button id="open-api-key-popup">API 키 입력</button>
-        
+
+        <!-- 채널 모니터 탭 -->
         <div id="channel-monitor" class="tab-content active">
             <section class="section-add-channel">
                 <h2>섹션 1: 채널 추가</h2>
                 <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
                 <button id="add-channel-button">채널 추가</button>
-                <div id="channel-list-container" class="channel-list">
-                </div>
+                <div id="channel-list-container" class="channel-list"></div>
             </section>
-
             <section class="section-mutant-videos">
                 <h2>섹션 2: 돌연변이 영상</h2>
                 <div class="date-range-controls">
@@ -39,7 +39,6 @@
                     <p>채널을 추가하여 영상을 분석해주세요.</p>
                 </div>
             </section>
-
             <section class="section-latest-videos">
                 <h2>섹션 3: 최신 영상</h2>
                 <div id="latest-video-list">
@@ -47,12 +46,33 @@
                 </div>
             </section>
         </div>
-     
+
+        <!-- 내 채널 관리 탭 -->
+        <div id="my-channel-manager" class="tab-content">
+            <section class="section-my-channels">
+                <div class="my-channel-header">
+                    <h2>내 채널 관리</h2>
+                    <button id="add-my-channel-btn">+ 내 채널 추가</button>
+                    <label>
+                        돌연변이 영상 기간:
+                        <select id="mutant-period-select">
+                            <option value="all">전체</option>
+                            <option value="1m">1개월</option>
+                            <option value="3m">3개월</option>
+                            <option value="6m">6개월</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="my-channel-list"></div>
+            </section>
+        </div>
+
         <div id="another-feature" class="tab-content">
             <p>이곳에 다른 기능이 추가될 예정입니다.</p>
         </div>
     </div>
-    
+
+    <!-- API 키 입력 모달 -->
     <div id="api-key-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">×</span>
@@ -83,9 +103,35 @@
         </div>
     </div>
     
+    <!-- 내 채널 추가 모달 -->
+    <div id="add-my-channel-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="close-add-my-channel-modal">×</span>
+            <h2>내 채널 추가</h2>
+            <input type="text" id="my-channel-id-input" placeholder="채널 ID 또는 URL을 입력하세요">
+            <button id="save-my-channel-btn">등록</button>
+        </div>
+    </div>
+
+    <!-- 시청시간 입력/수정 모달 -->
+    <div id="watchtime-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="close-watchtime-modal">×</span>
+            <h2>시청시간 입력/수정</h2>
+            <div>
+                <label for="watchtime-date-input">날짜:</label>
+                <input type="date" id="watchtime-date-input">
+            </div>
+            <div>
+                <label for="watchtime-hours-input">시청시간(시간):</label>
+                <input type="number" id="watchtime-hours-input" min="0" max="24" step="1">
+            </div>
+            <button id="save-watchtime-btn">저장</button>
+            <button id="delete-watchtime-btn" style="display:none;">삭제</button>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/my_channel_manager.js"></script>
 </body>
 </html>
-
-
-
