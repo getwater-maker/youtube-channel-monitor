@@ -11,9 +11,22 @@
 </head>
 <body>
 <div class="container">
-    <h1 style="text-align:center; color:#b22020; margin-bottom:36px;">유튜브 도우미</h1>
-    
-    <div style="display:flex; align-items:center; justify-content:space-between;">
+
+    <!-- 🔴 공통 헤더 영역 -->
+    <div class="header-bar">
+        <h1 class="main-logo">유튜브 도우미</h1>
+        <div class="header-actions">
+            <button id="open-api-key-popup" class="api-key-btn">API 키 입력</button>
+        </div>
+    </div>
+    <div class="tabs">
+        <button class="tab-button" data-tab="channel-monitor">채널 모니터</button> 
+        <button class="tab-button active" data-tab="my-channel-manager">내 채널 관리</button> 
+        <button class="tab-button" data-tab="another-feature">다른 기능(예정)</button>
+    </div>
+
+    <!-- 내 채널 관리 주요 화면 -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:36px;">
         <h2>내 채널 등록/관리</h2>
         <button id="my-track-btn" class="my-track-btn">추적시작</button>
     </div>
@@ -24,13 +37,35 @@
     
     <div id="my-channel-list" class="my-channel-list"></div>
     
-    <!-- 검색 모달 -->
+    <!-- 채널 검색 모달 -->
     <div id="my-channel-search-modal" class="modal">
         <div class="modal-content modal-center">
             <span class="close-button">&times;</span>
             <h2>채널 검색 결과</h2>
             <div id="my-channel-search-results"></div>
-            <div id="my-pagination"></div>
+            <div id="my-pagination" class="pagination"></div>
+        </div>
+    </div>
+    
+    <!-- API키 입력 모달 (선택, 필요시 활성화) -->
+    <div id="api-key-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>API 키 입력</h2>
+            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+            <div id="api-key-inputs">
+                <input type="text" class="api-key-input" placeholder="API Key 1">
+                <input type="text" class="api-key-input" placeholder="API Key 2">
+                <input type="text" class="api-key-input" placeholder="API Key 3">
+                <input type="text" class="api-key-input" placeholder="API Key 4">
+                <input type="text" class="api-key-input" placeholder="API Key 5">
+            </div>
+            <label for="api-key-file-upload" class="file-upload-label">
+                텍스트 파일로 업로드
+                <input type="file" id="api-key-file-upload" accept=".txt">
+            </label>
+            <button id="save-api-keys">저장</button>
+            <button id="download-api-keys">API 키 다운로드</button>
         </div>
     </div>
 </div>
