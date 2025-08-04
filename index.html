@@ -3,36 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>유튜브 도우미</title>
+    <title>유튜브 도우미 - 채널 모니터</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <!-- moment.js & moment-timezone (한국시간 지원) -->
+    <!-- moment.js 및 moment-timezone -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
 </head>
 <body>
     <div class="container">
+        <!-- 메뉴바 -->
+        <nav class="top-nav" style="display:flex; justify-content:flex-end; gap:16px; margin-bottom:16px;">
+            <a href="index.html" class="nav-link active">채널 모니터</a>
+            <a href="my-channel-manager.html" class="nav-link">내 채널 관리</a>
+        </nav>
         <h1>유튜브 도우미</h1>
-        <div class="tabs">
-            <button class="tab-button active" data-tab="channel-monitor">채널 모니터</button>
-            <button class="tab-button" data-tab="my-channel-manager">내채널관리</button>
-            <button class="tab-button" data-tab="another-feature">다른 기능 (구현 예정)</button>
-        </div>
-
-        <!-- API키 입력 버튼 (우상단) -->
-        <button id="open-api-key-popup" style="position:absolute; top:32px; right:48px;">API 키 입력</button>
         
-        <!-- 채널 모니터 탭 (1번) -->
+        <!-- API키 버튼 (오른쪽 상단으로) -->
+        <button id="open-api-key-popup" style="position:absolute; top:32px; right:32px;">API 키 입력</button>
+
+        <!-- 채널 모니터 탭 (섹션 1~3) -->
         <div id="channel-monitor" class="tab-content active">
             <section class="section-add-channel">
-                <h2>채널 등록/관리</h2>
-                <p style="text-align:right; margin:0;">
-                    <span id="channel-count-text">현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</span>
-                    <button id="add-channel-button">채널 추가</button>
-                </p>
+                <h2>채널 추가</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="text-align:right;">
+                        <span class="channel-count-text">
+                            현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.
+                        </span>
+                        <button id="add-channel-button" class="add-channel-btn">채널 추가</button>
+                    </div>
+                </div>
                 <div id="channel-list-container" class="channel-list"></div>
             </section>
-            <hr>
+
             <section class="section-mutant-videos">
                 <h2>돌연변이 영상</h2>
                 <div class="date-range-controls">
@@ -45,7 +49,7 @@
                     <p>채널을 추가하여 영상을 분석해주세요.</p>
                 </div>
             </section>
-            <hr>
+
             <section class="section-latest-videos">
                 <h2>최신 영상</h2>
                 <div id="latest-video-list">
@@ -53,34 +57,9 @@
                 </div>
             </section>
         </div>
-
-        <!-- 내채널관리 탭 (2번) -->
-        <div id="my-channel-manager" class="tab-content">
-            <section class="my-section-add-channel">
-                <h2>내 채널 등록/관리</h2>
-                <p style="text-align:right; margin:0;">
-                    <span id="my-channel-count-text">현재 0개의 채널이 등록되었습니다.</span>
-                    <button id="add-my-channel-button">채널 추가</button>
-                </p>
-                <div id="my-channel-list-container" class="my-channel-list"></div>
-            </section>
-            <hr>
-            <section class="my-section-mutant-videos">
-                <h2>채널별 돌연변이 TOP3 영상</h2>
-                <div id="my-channel-mutant-videos-container" class="my-mutant-videos-grid">
-                    <!-- JS로 채널별 카드 3개씩 한줄, 카드 내부에 TOP3 영상 세로배치 -->
-                </div>
-            </section>
-        </div>
-
-        <!-- 추가기능 탭 (예정) -->
-        <div id="another-feature" class="tab-content">
-            <h2>추가기능 (예정)</h2>
-            <p>이곳에 다른 기능이 추가될 예정입니다.</p>
-        </div>
     </div>
     
-    <!-- API키 입력 모달 -->
+    <!-- API 키 입력 모달 -->
     <div id="api-key-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">×</span>
@@ -101,7 +80,7 @@
             <button id="download-api-keys">API 키 다운로드</button>
         </div>
     </div>
-
+    
     <!-- 채널 검색 결과 모달 -->
     <div id="channel-select-modal" class="modal">
         <div class="modal-content">
@@ -111,21 +90,7 @@
             <div id="channel-search-results"></div>
         </div>
     </div>
-
-    <!-- 탭 전환 스크립트 (main.js에서 이미 있으면 중복X) -->
-    <script>
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-            this.classList.add('active');
-            document.getElementById(this.dataset.tab).classList.add('active');
-        });
-    });
-    </script>
-
-    <!-- 메인/서브 js 모듈 연결 -->
+    
     <script type="module" src="js/main.js"></script>
-    <script type="module" src="js/my-channel-manager.js"></script>
 </body>
 </html>
