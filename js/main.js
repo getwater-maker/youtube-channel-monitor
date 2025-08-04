@@ -259,48 +259,51 @@ async function updateMutantVideosSection() {
 // 섹션 3: 최신 영상 목록 업데이트
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
-    let allLatestVideos = [];
+    const allLatestVideos = [];
     
     for (const channel of channels) {
-        const videos = await getChannelVideos(channel.uploadsPlaylistId, 20);
-        
-        const videosWithIndex = videos.map(video => ({
-            ...video,
-            mutantIndex: calculateMutantIndex(video.viewCount, channel.subscriberCount)
-        }));
-        
-        allLatestVideos = allLatestVideos.concat(videosWithIndex);
+        // 각 채널에서 가장 최근 롱폼 영상 1개만 가져옵니다.
+        const latestVideo = await getLatestLongformVideo(channel.uploadsPlaylistId, channel.subscriberCount);
+        if (latestVideo) {
+            allLatestVideos.push(latestVideo);
+        }
     }
 
+    // 돌연변이 지수 높은 순으로 정렬
     allLatestVideos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
     displayVideos(allLatestVideos, latestVideoList);
 }
 
-
-// 재생목록의 영상들을 가져오는 함수
-async function getChannelVideos(playlistId, maxResults = 50) {
-    const videos = [];
+// 채널의 가장 최근 롱폼 영상 1개를 가져오는 함수 (새로 추가)
+async function getLatestLongformVideo(playlistId, subscriberCount) {
     let nextPageToken = null;
+    let foundVideo = null;
 
-    while (true) {
-        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&pageToken=${nextPageToken || ''}`;
+    while (!foundVideo) {
+        const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${playlistId}&maxResults=10&pageToken=${nextPageToken || ''}`;
         const data = await fetchYoutubeApi(url);
         
         const videoIds = data.items.map(item => item.contentDetails.videoId);
-        if (videoIds.length > 0) {
-            const videoDetails = await getVideoDetails(videoIds);
+        if (videoIds.length === 0) break;
 
-            const longformVideos = videoDetails.filter(video => isLongform(video.duration));
-            videos.push(...longformVideos);
+        const videoDetails = await getVideoDetails(videoIds);
+        
+        // 가져온 영상 목록에서 롱폼 영상을 찾습니다.
+        for (const video of videoDetails) {
+            if (isLongform(video.duration)) {
+                // 롱폼 영상이면 돌연변이 지수 계산 후 반환
+                const mutantIndex = calculateMutantIndex(video.viewCount, subscriberCount);
+                foundVideo = { ...video, mutantIndex };
+                break;
+            }
         }
-
+        
+        // 롱폼 영상을 찾지 못했다면 다음 페이지로 이동
         nextPageToken = data.nextPageToken;
-        if (!nextPageToken || videos.length >= maxResults) {
-            break;
-        }
+        if (!nextPageToken) break;
     }
-
-    return videos;
+    
+    return foundVideo;
 }
 
 
