@@ -463,3 +463,4 @@ function enableChannelDragSort() {
 
 export function initializeMyChannelManager() {
     console.log("My channel manager tab initialized.");
+}
