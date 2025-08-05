@@ -1,6 +1,6 @@
 // js/channel-monitor.js
 
-import { getApiKey } from './api-settings.js';
+import { getApiKey } from './api-keys.js';
 
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
 const CHANNELS_STORAGE_KEY = 'youtube_channels';
