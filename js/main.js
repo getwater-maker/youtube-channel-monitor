@@ -1,4 +1,4 @@
-// js/main.js (불필요 코드 제거, 썸네일 무조건 출력, 한글 주석 포함)
+// main.js - 영상 정보, UI 일관성 통일 버전
 
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
@@ -10,7 +10,7 @@ const addChannelButton = document.getElementById('add-channel-button');
 const mutantVideoList = document.getElementById('mutant-video-list');
 const latestVideoList = document.getElementById('latest-video-list');
 
-// API 키 모달 관련 DOM 요소
+// API 키 모달 관련
 const apiKeyModal = document.getElementById('api-key-modal');
 const openApiKeyPopupButton = document.getElementById('open-api-key-popup');
 const closeButton = document.querySelector('#api-key-modal .close-button');
@@ -19,16 +19,16 @@ const apiKeyInputs = document.querySelectorAll('.api-key-input');
 const apiKeyFileUpload = document.getElementById('api-key-file-upload');
 const downloadApiKeysButton = document.getElementById('download-api-keys');
 
-// 채널 선택 모달 관련 DOM 요소
+// 채널 선택 모달
 const channelSelectModal = document.getElementById('channel-select-modal');
 const channelSearchResults = document.getElementById('channel-search-results');
 const channelSelectCloseButton = document.querySelector('#channel-select-modal .close-button');
 
-// 로컬 스토리지에 저장된 채널 목록 관리
+// 채널 목록
 let channels = [];
 let currentMutantPeriod = '6m';
 
-// API 데이터 캐싱 임시 저장소
+// API 데이터 임시 저장소
 const playlistCache = {};
 const videoDetailCache = {};
 
@@ -39,29 +39,23 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     updateUI();
 
-    
-    // ▼ 아까 추가한 토글 코드를 "여기"에 같이 넣으세요.
-const toggleBtn = document.getElementById('toggle-section1-btn');
-const section1Content = document.getElementById('section1-content');
-let originalDisplay = getComputedStyle(section1Content).display; // 기본값 저장
-
-// 최초에는 접어두기
-section1Content.style.display = 'none';
-toggleBtn.textContent = '▶';
-
-// 토글 기능
-toggleBtn.addEventListener('click', () => {
-    if (section1Content.style.display === 'none') {
-        section1Content.style.display = originalDisplay === 'none' ? 'block' : originalDisplay;
-        toggleBtn.textContent = '▼';
-    } else {
-        section1Content.style.display = 'none';
-        toggleBtn.textContent = '▶';
-    }
+    // 채널 추가 토글 섹션
+    const toggleBtn = document.getElementById('toggle-section1-btn');
+    const section1Content = document.getElementById('section1-content');
+    let originalDisplay = getComputedStyle(section1Content).display;
+    section1Content.style.display = 'none';
+    toggleBtn.textContent = '▶';
+    toggleBtn.addEventListener('click', () => {
+        if (section1Content.style.display === 'none') {
+            section1Content.style.display = originalDisplay === 'none' ? 'block' : originalDisplay;
+            toggleBtn.textContent = '▼';
+        } else {
+            section1Content.style.display = 'none';
+            toggleBtn.textContent = '▶';
+        }
+    });
 });
 
-
-// 이벤트 리스너 설정
 function setupEventListeners() {
     addChannelButton.addEventListener('click', handleAddChannel);
 
@@ -74,9 +68,7 @@ function setupEventListeners() {
     });
     closeButton.addEventListener('click', () => apiKeyModal.style.display = 'none');
     window.addEventListener('click', (event) => {
-        if (event.target === apiKeyModal) {
-            apiKeyModal.style.display = 'none';
-        }
+        if (event.target === apiKeyModal) apiKeyModal.style.display = 'none';
     });
     saveApiKeysButton.addEventListener('click', handleSaveApiKeys);
     apiKeyFileUpload.addEventListener('change', handleApiKeyFileUpload);
@@ -84,9 +76,7 @@ function setupEventListeners() {
 
     channelSelectCloseButton.addEventListener('click', () => channelSelectModal.style.display = 'none');
     window.addEventListener('click', (event) => {
-        if (event.target === channelSelectModal) {
-            channelSelectModal.style.display = 'none';
-        }
+        if (event.target === channelSelectModal) channelSelectModal.style.display = 'none';
     });
 
     document.querySelector('.date-range-controls').addEventListener('click', (event) => {
@@ -106,15 +96,13 @@ function setupEventListeners() {
     });
 }
 
-// 채널 목록 로드
+// 채널 목록 로드/저장
 function loadChannels() {
     const storedChannels = localStorage.getItem('registeredChannels');
     if (storedChannels) {
         channels = JSON.parse(storedChannels);
     }
 }
-
-// 채널 목록 저장
 function saveChannels() {
     localStorage.setItem('registeredChannels', JSON.stringify(channels));
 }
@@ -156,7 +144,7 @@ async function handleAddChannel() {
     }
 }
 
-// 채널 검색 결과 표시 (모달)
+// 채널 검색 결과 모달 표시 (UI 일관화)
 function displaySearchResults(results) {
     const ITEMS_PER_PAGE = 5;
     let currentPage = 1;
@@ -173,18 +161,21 @@ function displaySearchResults(results) {
             const channelTitle = item.snippet.title;
             const channelLogo = item.snippet.thumbnails.default.url;
 
+            // 채널 카드 디자인 공통화
             const channelEl = document.createElement('div');
-            channelEl.classList.add('channel-item');
+            channelEl.className = 'channel-item';
+            channelEl.style.cursor = 'pointer';
+            channelEl.style.display = 'flex';
+            channelEl.style.alignItems = 'center';
             channelEl.innerHTML = `
-                <div class="channel-info-wrapper">
-                    <img src="${channelLogo}" alt="${channelTitle} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
-                    <span>${channelTitle}</span>
-                </div>
+                <img src="${channelLogo}" alt="${channelTitle} 로고" style="width:56px;height:56px;border-radius:50%;margin-right:14px;">
+                <span style="font-size:1rem;font-weight:600;flex:1;">${channelTitle}</span>
+                <button class="my-button" style="margin-left:auto;">등록</button>
             `;
-            channelEl.addEventListener('click', () => {
+            channelEl.querySelector('button').onclick = () => {
                 addChannel(channelId);
                 channelSelectModal.style.display = 'none';
-            });
+            };
             channelSearchResults.appendChild(channelEl);
         });
 
@@ -242,7 +233,6 @@ function displaySearchResults(results) {
     channelSelectModal.style.display = 'block';
 }
 
-
 // 채널 실제 추가
 async function addChannel(channelId) {
     if (channels.some(c => c.id === channelId)) {
@@ -290,7 +280,7 @@ async function getChannelDetails(channelId) {
     };
 }
 
-// 채널 목록 UI 표시
+// 채널 목록 UI 표시 (카드형 공통화)
 function displayChannelList() {
     channelListContainer.innerHTML = '';
     channelCountSpan.textContent = channels.length;
@@ -301,16 +291,20 @@ function displayChannelList() {
         channelEl.innerHTML = `
             <div class="channel-info-wrapper">
                 <a href="https://www.youtube.com/channel/${channel.id}" target="_blank">
-                    <img src="${channel.logo}" alt="${channel.name} 로고" style="width: 50px; height: 50px; border-radius: 50%; margin-right: 10px;">
+                    <img src="${channel.logo}" alt="${channel.name} 로고">
                 </a>
                 <div>
-                    <h3><a href="https://www.youtube.com/channel/${channel.id}" target="_blank">${channel.name}</a></h3>
+                    <h3 style="margin:0;">
+                        <a href="https://www.youtube.com/channel/${channel.id}" target="_blank" style="color:var(--main-color);text-decoration:none;">
+                            ${channel.name}
+                        </a>
+                    </h3>
                     <p>구독자: ${parseInt(channel.subscriberCount).toLocaleString()}명</p>
                     <p>최근 업로드: ${moment(channel.latestUploadDate).format('YYYY-MM-DD')}</p>
                     <p>돌연변이 영상: <span id="mutant-count-${channel.id}">...</span>개</p>
                 </div>
             </div>
-            <button class="delete-channel-button" data-channel-id="${channel.id}">삭제</button>
+            <button class="delete-channel-button my-button--danger" data-channel-id="${channel.id}">삭제</button>
         `;
         channelListContainer.appendChild(channelEl);
     });
@@ -328,7 +322,7 @@ async function getPlaylistItems(playlistId, maxResults = 50, pageToken = null) {
     return data;
 }
 
-// 돌연변이 영상 목록 업데이트 (섹션2)
+// 돌연변이 영상 목록 (공통 영상카드 구조로)
 async function updateMutantVideosSection() {
     mutantVideoList.innerHTML = '<p>로딩 중...</p>';
     let allMutantVideos = [];
@@ -402,7 +396,7 @@ function chunkArray(arr, chunkSize) {
     return result;
 }
 
-// 최신 영상 목록 업데이트 (섹션3)
+// 최신 영상 목록 (공통 영상카드 구조로)
 async function updateLatestVideosSection() {
     latestVideoList.innerHTML = '<p>로딩 중...</p>';
     const allLatestVideos = [];
@@ -451,7 +445,7 @@ async function getLatestLongformVideo(playlistId, subscriberCount) {
     return foundVideo;
 }
 
-// 동영상 상세 정보 가져오기 (썸네일 직접 생성! 반드시 뜸)
+// 동영상 상세 정보 (썸네일, 제목 등 공통 카드화)
 async function getVideoDetails(videoIds) {
     if (videoIds.length === 0) return [];
     const uncached = videoIds.filter(id => !videoDetailCache[id]);
@@ -460,91 +454,71 @@ async function getVideoDetails(videoIds) {
         const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${uncached.join(',')}`;
         const data = await fetchYoutubeApi(url);
         newDetails = data.items.map(item => {
-            // 썸네일이 없을 때도 영상ID로 반드시 생성!
+            // 썸네일이 없을 때도 영상ID로 생성
             const fallbackThumbnail = `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`;
-            let thumbnailUrl = fallbackThumbnail;
-            if (item.snippet.thumbnails) {
-                thumbnailUrl =
-                    item.snippet.thumbnails.medium?.url ||
-                    item.snippet.thumbnails.high?.url ||
-                    item.snippet.thumbnails.default?.url ||
-                    fallbackThumbnail;
-            }
             return {
                 id: item.id,
                 title: item.snippet.title,
-                thumbnail: thumbnailUrl,
-                viewCount: item.statistics.viewCount,
+                thumbnail: (item.snippet.thumbnails && item.snippet.thumbnails.medium?.url) || fallbackThumbnail,
                 publishedAt: item.snippet.publishedAt,
-                duration: item.contentDetails.duration
+                duration: item.contentDetails.duration,
+                viewCount: item.statistics.viewCount || 0,
+                mutantIndex: '0.00',
             };
         });
-        for (const item of newDetails) {
-            videoDetailCache[item.id] = item;
-        }
+        uncached.forEach((id, idx) => { videoDetailCache[id] = newDetails[idx]; });
     }
     return videoIds.map(id => videoDetailCache[id]).filter(Boolean);
 }
 
-// 영상 목록을 화면에 표시 (섹션2/3)
+// ---------- 공통 영상 카드 UI 렌더 함수 ----------
 function displayVideos(videoList, container) {
     container.innerHTML = '';
-    if (videoList.length === 0) {
-        container.innerHTML = '<p>영상이 없습니다.</p>';
+    if (!videoList || videoList.length === 0) {
+        container.innerHTML = '<p style="color:#888;text-align:center;">영상이 없습니다.</p>';
         return;
     }
-
-    const videoListContainer = document.createElement('div');
-    videoListContainer.classList.add('video-list');
-
     videoList.forEach(video => {
-        const videoItem = document.createElement('div');
-        videoItem.classList.add('video-item');
+        const card = document.createElement('div');
+        card.className = 'video-card';
 
-        videoItem.innerHTML = `
-            <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">
-                <div class="thumbnail-container">
-                    <img src="${video.thumbnail}" alt="${video.title} 썸네일" style="width:100%; border-radius:4px; max-height:160px; object-fit:cover;"/>
-                </div>
-            </a>
-            <div class="video-info">
-                <h3><a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">${video.title}</a></h3>
-                <div class="meta-data">
-                    <p>조회수: ${parseInt(video.viewCount).toLocaleString()}회</p>
-                    <p>업로드 날짜: ${moment(video.publishedAt).fromNow()}</p>
-                </div>
-                <div class="mutant-index" style="color:#c4302b; font-weight:bold;">
-                    돌연변이 지수: <strong>${video.mutantIndex}</strong>
-                </div>
+        // 썸네일 위,좌우 동일 여백 & 한줄 제목 & 지수 뱃지
+        card.innerHTML = `
+            <img class="video-card__thumbnail" src="${video.thumbnail}" alt="썸네일">
+            <div class="video-card__title" title="${video.title}">${video.title}</div>
+            <div class="video-card__info">
+                <span class="video-card__views">조회수: ${parseInt(video.viewCount).toLocaleString()}회</span>
+                <span>${video.publishedAt ? moment(video.publishedAt).format('YYYY-MM-DD') : ''}</span>
             </div>
+            <span class="video-card__mutant-index">${video.mutantIndex}</span>
         `;
-        videoListContainer.appendChild(videoItem);
+        container.appendChild(card);
     });
-
-    container.appendChild(videoListContainer);
 }
 
-// API 키 저장 핸들러
+// ------------- API키 저장/업로드 -------------
+
 function handleSaveApiKeys() {
-    const keys = Array.from(apiKeyInputs).map(input => input.value);
+    const keys = Array.from(apiKeyInputs).map(input => input.value.trim()).filter(Boolean);
     if (saveApiKeys(keys)) {
+        alert('API 키가 저장되었습니다.');
         apiKeyModal.style.display = 'none';
-        alert('API 키가 저장되었습니다!');
     }
 }
 
-// API 키 파일 업로드 핸들러
 function handleApiKeyFileUpload(event) {
     const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const keys = e.target.result.split('\n').map(key => key.trim());
-            if (saveApiKeys(keys)) {
-                apiKeyModal.style.display = 'none';
-                alert('API 키가 파일에서 성공적으로 로드되었습니다!');
-            }
-        };
-        reader.readAsText(file);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        // 여러개 지원
+        const keys = content.split('\n').map(line => line.trim()).filter(Boolean);
+        if (saveApiKeys(keys)) {
+            alert('API 키가 파일에서 저장되었습니다.');
+            apiKeyModal.style.display = 'none';
+        }
+    };
+    reader.readAsText(file);
 }
+
