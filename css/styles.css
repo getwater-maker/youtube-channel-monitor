@@ -623,3 +623,14 @@ h2 {
     opacity: 0.4;
 }
 
+.thumbnail-img {
+    width: 100%;
+    aspect-ratio: 16/9;         /* 썸네일 비율 고정! */
+    height: auto;
+    object-fit: contain;        /* 짤림 방지! */
+    background: #eee;           /* 빈공간 회색, 취향에 따라 */
+    border-radius: 12px;        /* 둥글게(선택) */
+    display: block;
+    box-shadow: 0 1px 8px #eee; /* 그림자(선택) */
+}
+
