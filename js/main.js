@@ -41,22 +41,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     
     // ▼ 아까 추가한 토글 코드를 "여기"에 같이 넣으세요.
-    const toggleBtn = document.getElementById('toggle-section1-btn');
-    const section1Content = document.getElementById('section1-content');
-    if (toggleBtn && section1Content) {
-        toggleBtn.textContent = '▶';
+const toggleBtn = document.getElementById('toggle-section1-btn');
+const section1Content = document.getElementById('section1-content');
+let originalDisplay = getComputedStyle(section1Content).display; // 기본값 저장
+
+// 최초에는 접어두기
+section1Content.style.display = 'none';
+toggleBtn.textContent = '▶';
+
+// 토글 기능
+toggleBtn.addEventListener('click', () => {
+    if (section1Content.style.display === 'none') {
+        section1Content.style.display = originalDisplay === 'none' ? 'block' : originalDisplay;
+        toggleBtn.textContent = '▼';
+    } else {
         section1Content.style.display = 'none';
-        toggleBtn.addEventListener('click', () => {
-            if (section1Content.style.display === 'none') {
-                section1Content.style.display = 'block';
-                toggleBtn.textContent = '▼';
-            } else {
-                section1Content.style.display = 'none';
-                toggleBtn.textContent = '▶';
-            }
-        });
+        toggleBtn.textContent = '▶';
     }
 });
+
 
 // 이벤트 리스너 설정
 function setupEventListeners() {
