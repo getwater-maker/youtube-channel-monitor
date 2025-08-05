@@ -216,7 +216,7 @@ export function renderVideoList(channel) {
                 const isMutant = mutantIndex >= 1.5;
 
                 return `
-                    <div class="video-item ${isMutant ? 'mutant-video' : ''}">
+                    <div class="thumbnail-card ${isMutant ? 'mutant-video' : ''}">
                         <img src="${video.thumbnail}" alt="${video.title} 썸네일" class="video-thumbnail">
                         <div class="video-info">
                             <h4>${video.title}</h4>
