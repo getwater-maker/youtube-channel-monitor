@@ -107,6 +107,7 @@ h2 {
     background: #f6f6f6;
     border-radius: 12px 12px 0 0;
     overflow: hidden;
+    margin-top: 24px;    
 }
 
 .video-item .thumbnail-container img {
@@ -668,4 +669,5 @@ h2 {
 .section-toggle-btn.rotated {
     transform: rotate(-90deg);
 }
+
 
