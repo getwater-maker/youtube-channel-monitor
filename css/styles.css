@@ -646,3 +646,25 @@ h2 {
     display: block;
     box-shadow: 0 1px 8px #eee;
 }
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.section-toggle-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    margin-left: 5px;
+    color: #888;
+    transition: transform 0.2s;
+    line-height: 1;
+    padding: 2px 7px;
+}
+.section-toggle-btn.rotated {
+    transform: rotate(-90deg);
+}
