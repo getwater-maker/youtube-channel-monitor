@@ -22,12 +22,17 @@
 
         <!-- 채널 모니터 탭 -->
         <div id="channel-monitor" class="tab-content active">
-            <section class="section-add-channel">
-                <h2>섹션 1: 채널 추가</h2>
-                <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
-                <button id="add-channel-button">채널 추가</button>
-                <div id="channel-list-container" class="channel-list"></div>
-            </section>
+<section class="section-add-channel">
+    <div class="section-header">
+        <h2 style="margin-bottom:0;">섹션 1: 채널 추가</h2>
+        <button id="toggle-section1-btn" class="section-toggle-btn">▼</button>
+        <button id="add-channel-button" style="margin-left:auto;">채널 추가</button>
+    </div>
+    <div id="section1-content" style="display: none;">
+        <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
+        <div id="channel-list-container" class="channel-list"></div>
+    </div>
+</section>
             <section class="section-mutant-videos">
                 <h2>섹션 2: 돌연변이 영상</h2>
                 <div class="date-range-controls">
@@ -138,5 +143,6 @@
     </div>
 </body>
 </html>
+
 
 
