@@ -400,7 +400,7 @@ const ddata = await fetchYoutubeApi(durl);
         container.innerHTML = '';
         list.forEach(video => {
             const div = document.createElement('div');
-            div.className = 'my-channel-mutant-item';
+            div.className = 'thumbnail-card'; // 클래스 이름을 'thumbnail-card'로 변경
             div.innerHTML = `
                 <img src="${video.thumbnail}" style="width:100%; aspect-ratio:16/9; height:auto; object-fit:contain; background:#eee; border-radius:7px;" alt="썸네일">
                 <div class="my-channel-mutant-title2">${video.title}</div>
