@@ -57,18 +57,7 @@ const saveWatchtimeBtn = document.getElementById('save-watchtime-btn');
 const deleteWatchtimeBtn = document.getElementById('delete-watchtime-btn');
 let editingWatchtime = null;
 
-// 탭 이동시 렌더링
-const tabButtons = document.querySelectorAll('.tab-button');
-const tabContents = document.querySelectorAll('.tab-content');
-tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-        tabButtons.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(tc => tc.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(btn.dataset.tab).classList.add('active');
-        if (btn.dataset.tab === 'my-channel-manager') renderMyChannels();
-    });
-});
+
 mutantPeriodSelect.onchange = () => renderMyChannels();
 
 // 채널 추가 모달
@@ -433,9 +422,7 @@ function extractChannelId(input) {
 }
 
 // 탭 첫 진입시 렌더링
-if (document.querySelector('.tab-button.active')?.dataset.tab === 'my-channel-manager') {
-    renderMyChannels();
-}
+
 
 export {};
 
