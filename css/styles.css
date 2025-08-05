@@ -67,7 +67,7 @@ h2 {
     margin-bottom: 40px;
 }
 
-.channel-item, .video-item {
+.channel-item {
     display: flex;
     align-items: center;
     background: #fafafa;
@@ -85,22 +85,26 @@ h2 {
     object-fit: cover;
 }
 
-.video-item {
-    flex-direction: column;
-    align-items: stretch;
+/* --------------------------- */
+/* 모든 썸네일 카드의 공통 스타일  */
+/* --------------------------- */
+.thumbnail-card {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
     overflow: hidden;
     transition: transform 0.2s;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 }
 
-.video-item:hover {
+.thumbnail-card:hover {
     transform: translateY(-5px) scale(1.03);
 }
 
-.video-item .thumbnail-container {
+.thumbnail-card .thumbnail-container {
     position: relative;
     width: 100%;
     padding-top: 56.25%;
@@ -109,7 +113,7 @@ h2 {
     overflow: hidden;
 }
 
-.video-item .thumbnail-container img {
+.thumbnail-card .thumbnail-container img {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     object-fit: cover;
@@ -119,25 +123,14 @@ h2 {
     box-shadow: 0 2px 8px #0001;
 }
 
-.video-item .video-duration {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.video-info {
+.thumbnail-card .video-info {
     padding: 15px;
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
 }
 
-.video-info h3 {
+.thumbnail-card .video-info h3 {
     font-size: 16px;
     font-weight: bold;
     margin: 0 0 8px 0;
@@ -150,33 +143,38 @@ h2 {
     -webkit-box-orient: vertical;
 }
 
-.video-info .meta-data {
+.thumbnail-card .video-info .meta-data {
     font-size: 13px;
     color: #606060;
 }
 
-.video-info .meta-data p {
+.thumbnail-card .video-info .meta-data p {
     margin: 4px 0;
 }
 
-.video-info a {
+.thumbnail-card .video-info a {
     text-decoration: none;
     color: inherit;
 }
 
-.video-info .mutant-index {
+.thumbnail-card .video-info .mutant-index {
     font-size: 14px;
     color: #c4302b;
     font-weight: bold;
     margin-top: 8px;
 }
 
+/* --------------------------- */
+/* 기존 썸네일 카드 관련 스타일 삭제  */
+/* --------------------------- */
+/* 기존 .video-item 과 .my-channel-mutant-item 관련 스타일이 삭제되었습니다. */
+
+
 .video-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
     width: 100%;
-    margin-top: 20px
 }
 
 .channel-list {
@@ -315,7 +313,7 @@ h2 {
 }
 
 /* --------------------------- */
-/*   내 채널 관리 스타일 추가   */
+/* 내 채널 관리 스타일 추가   */
 /* --------------------------- */
 .section-my-channels {
     margin-bottom: 50px;
@@ -464,20 +462,6 @@ h2 {
 }
 
 
-.my-channel-mutant-item {
-    margin-top: 15px;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px #d3d3d340;
-    padding: 0 18px 14px 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 250px;
-    max-width: 320px;
-    flex: 1 1 250px;
-    text-align: center;
-}
 .my-channel-mutant-thumb {
     width: 100%;
     height: 152px;
@@ -670,5 +654,3 @@ h2 {
 .section-toggle-btn.rotated {
     transform: rotate(-90deg);
 }
-
-
