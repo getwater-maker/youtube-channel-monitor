@@ -1,6 +1,6 @@
 // js/channel-monitor.js
 
-import { getApiKey } from './api_keys.js';
+import { fetchYoutubeApi } from './api_keys.js';
 
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
 const CHANNELS_STORAGE_KEY = 'youtube_channels';
@@ -38,16 +38,9 @@ export function closeAddChannelModal() {
 
 // 5. 채널을 추가하고 localStorage에 저장하는 함수
 export async function addChannel(channelId) {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        alert('API 키를 입력해주세요.');
-        return;
-    }
-
     try {
-        const url = `${YOUTUBE_API_BASE_URL}channels?part=snippet,statistics&id=${channelId}&key=${apiKey}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const url = `${YOUTUBE_API_BASE_URL}channels?part=snippet,statistics&id=${channelId}`;
+        const data = await fetchYoutubeApi(url);
 
         if (data.items.length > 0) {
             const channelData = data.items[0];
@@ -73,7 +66,7 @@ export async function addChannel(channelId) {
         }
     } catch (error) {
         console.error('Error fetching channel data:', error);
-        alert('채널 데이터를 불러오는 중 오류가 발생했습니다.');
+        alert('채널 데이터를 불러오는 중 오류가 발생했습니다. API 키를 확인해주세요.');
     }
 }
 
@@ -127,22 +120,14 @@ export function renderChannelList(channels) {
 
 // 7. 특정 채널의 영상을 불러와 렌더링하는 함수 (비동기)
 async function fetchAndRenderVideos(channel) {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        alert('API 키를 입력해주세요.');
-        return;
-    }
-
     try {
-        const url = `${YOUTUBE_API_BASE_URL}search?part=snippet&channelId=${channel.id}&maxResults=20&order=date&type=video&key=${apiKey}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const url = `${YOUTUBE_API_BASE_URL}search?part=snippet&channelId=${channel.id}&maxResults=20&order=date&type=video`;
+        const data = await fetchYoutubeApi(url);
 
         if (data.items.length > 0) {
             const videoIds = data.items.map(item => item.id.videoId).join(',');
-            const videoStatsUrl = `${YOUTUBE_API_BASE_URL}videos?part=statistics&id=${videoIds}&key=${apiKey}`;
-            const statsResponse = await fetch(videoStatsUrl);
-            const statsData = await statsResponse.json();
+            const videoStatsUrl = `${YOUTUBE_API_BASE_URL}videos?part=statistics&id=${videoIds}`;
+            const statsData = await fetchYoutubeApi(videoStatsUrl);
 
             const videos = data.items.map(item => {
                 const stats = statsData.items.find(s => s.id === item.id.videoId);
@@ -168,7 +153,7 @@ async function fetchAndRenderVideos(channel) {
         }
     } catch (error) {
         console.error('Error fetching videos:', error);
-        alert('영상 데이터를 불러오는 중 오류가 발생했습니다.');
+        alert('영상 데이터를 불러오는 중 오류가 발생했습니다. API 키를 확인해주세요.');
     }
 }
 
