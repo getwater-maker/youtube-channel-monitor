@@ -193,3 +193,38 @@ function renderVideoList(channel, videos) {
         renderChannelList(loadChannelsFromStorage());
     });
 }
+
+// js/channel-monitor.js 파일의 맨 끝에 추가
+
+// 9. 최근 썸네일 목록을 렌더링하는 함수
+export function renderLatestThumbnailsList(thumbnails) {
+    const mainContainer = document.getElementById('main-container');
+    if (!mainContainer) return;
+
+    const thumbnailsHtml = thumbnails.map(thumb => `
+        <div class="thumbnail-card">
+            <img src="${thumb.src}" alt="${thumb.alt}" class="thumbnail-img">
+            <div class="video-info">
+                <h4>${thumb.alt}</h4>
+            </div>
+        </div>
+    `).join('');
+
+    const html = `
+        <div class="video-list-header">
+            <h3>최근 썸네일</h3>
+            <button id="back-to-previous-tab-btn">돌아가기</button>
+        </div>
+        <div class="video-list">
+            ${thumbnailsHtml}
+        </div>
+    `;
+
+    mainContainer.innerHTML = html;
+
+    document.getElementById('back-to-previous-tab-btn').addEventListener('click', () => {
+        // 이전 탭으로 돌아가는 로직은 필요에 따라 구현해야 합니다.
+        // 현재는 단순히 페이지를 새로고침하는 방법이 가장 간단합니다.
+        window.location.reload();
+    });
+}
