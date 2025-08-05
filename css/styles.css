@@ -465,6 +465,7 @@ h2 {
 
 
 .my-channel-mutant-item {
+    margin-top: 15px;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 10px #d3d3d340;
@@ -669,4 +670,5 @@ h2 {
 .section-toggle-btn.rotated {
     transform: rotate(-90deg);
 }
+
 
