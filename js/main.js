@@ -1,5 +1,6 @@
 // js/main.js (불필요 코드 제거, 썸네일 무조건 출력, 한글 주석 포함)
 
+import * as myChannelManager from './my_channel_manager.js';
 import { isLongform, calculateMutantIndex } from './utils.js';
 import { loadApiKeys, saveApiKeys, fetchYoutubeApi, downloadApiKeys } from './api_keys.js';
 
@@ -98,6 +99,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 const channelIdToDelete = event.target.dataset.channelId;
                 deleteChannel(channelIdToDelete);
             }
+        });
+        
+        // 탭 버튼 이벤트 리스너 추가 (새로 추가/수정된 부분)
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // 모든 탭 버튼과 콘텐츠 비활성화
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+                // 클릭된 탭 버튼 활성화
+                button.classList.add('active');
+    
+                // 해당 탭 콘텐츠 활성화
+                const tabId = button.dataset.tab;
+                const tabContent = document.getElementById(tabId);
+                if (tabContent) {
+                    tabContent.classList.add('active');
+                }
+    
+                // '내 채널 관리' 탭일 경우 초기화 함수 호출
+                if (tabId === 'my-channel-manager') {
+                    myChannelManager.initializeMyChannelManager();
+                }
+            });
         });
     }
 
@@ -548,7 +573,8 @@ const ttsTabButton = document.getElementById('tts-tab-button');
 if (ttsTabButton) {
     ttsTabButton.addEventListener('click', () => {
         // 여기에 원하는 웹사이트 주소를 입력하세요
-        const ttsUrl = 'https://getwater-maker.github.io/youtube2/'; 
+        const ttsUrl = 'https://getwater-maker.github.io/youtube2/';
         window.open(ttsUrl, '_blank');
     });
 }
+
