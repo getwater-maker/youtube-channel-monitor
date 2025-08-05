@@ -244,7 +244,7 @@ analyzeAllBtn.onclick = async () => {
 };
 
 // 메인 렌더링
-async function renderMyChannels() {
+export async function renderMyChannels() {
     myChannelListDiv.innerHTML = '로딩 중...';
     const channels = await idbGetAll('my_channels');
     const watchtimes = await idbGetAll('watchtimes');
