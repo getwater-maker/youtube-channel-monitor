@@ -67,7 +67,7 @@ h2 {
     margin-bottom: 40px;
 }
 
-.channel-item {
+.channel-item, .video-item {
     display: flex;
     align-items: center;
     background: #fafafa;
@@ -93,7 +93,7 @@ h2 {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
     overflow: hidden;
     transition: transform 0.2s;
-    padding: 24px 0 0 0;
+    padding: 0;
 }
 
 .video-item:hover {
@@ -107,7 +107,6 @@ h2 {
     background: #f6f6f6;
     border-radius: 12px 12px 0 0;
     overflow: hidden;
-    margin-top: 24px;    
 }
 
 .video-item .thumbnail-container img {
@@ -669,5 +668,3 @@ h2 {
 .section-toggle-btn.rotated {
     transform: rotate(-90deg);
 }
-
-
