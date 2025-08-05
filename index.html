@@ -20,66 +20,92 @@
         
         <button id="open-api-key-popup">API 키 입력</button>
 
+        <!-- 채널 모니터 탭 -->
         <div id="channel-monitor" class="tab-content active">
-            <section class="section-add-channel">
-                <div class="section-header">
-                    <h2>채널 추가</h2>
-                    <button id="open-add-channel-modal-btn">+</button>
+<section class="section-add-channel">
+    <div class="section-header">
+        <h2 style="margin-bottom:0;">채널 추가</h2>
+        <button id="toggle-section1-btn" class="section-toggle-btn">▼</button>
+        <button id="add-channel-button" style="margin-left:auto;">채널 추가</button>
+    </div>
+    <div id="section1-content" style="display: none;">
+        <p>현재 <span id="channel-count">0</span>개의 채널이 등록되었습니다.</p>
+        <div id="channel-list-container" class="channel-list"></div>
+    </div>
+</section>
+            <section class="section-mutant-videos">
+                <h2>돌연변이 영상</h2>
+                <div class="date-range-controls">
+                    <button data-period="1m">1개월</button>
+                    <button data-period="3m">3개월</button>
+                    <button class="active" data-period="6m">6개월</button>
+                    <button data-period="all">전체</button>
                 </div>
-                <div id="channel-list-container">
-                    </div>
+                <div id="mutant-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
+                </div>
+            </section>
+            <section class="section-latest-videos">
+                <h2>최신 영상</h2>
+                <div id="latest-video-list">
+                    <p>채널을 추가하여 영상을 분석해주세요.</p>
+                </div>
             </section>
         </div>
 
+        <!-- 내 채널 관리 탭 -->
         <div id="my-channel-manager" class="tab-content">
-            <section class="my-channels-controls">
-                <div class="my-channels-header">
+            <section class="section-my-channels">
+                <div class="my-channel-header">
                     <h2>내 채널 관리</h2>
-                    <div>
-                        <button id="add-my-channel-btn">채널 추가</button>
+                    <button id="analyze-all-channels-btn">채널분석</button>
+                    <button id="add-my-channel-btn">+ 내 채널 추가</button>
+                    <label>
+                        돌연변이 영상 기간:
                         <select id="mutant-period-select">
-                            <option value="all">전체기간</option>
-                            <option value="1">최근 1개월</option>
-                            <option value="3">최근 3개월</option>
-                            <option value="6">최근 6개월</option>
-                            <option value="12">최근 12개월</option>
+                            <option value="all">전체</option>
+                            <option value="1m">1개월</option>
+                            <option value="3m">3개월</option>
+                            <option value="6m">6개월</option>
                         </select>
-                        <button id="analyze-all-channels-btn">채널분석</button>
-                    </div>
+                    </label>
                 </div>
-                <div id="my-channel-list">
-                    </div>
+                <div id="my-channel-list"></div>
             </section>
         </div>
 
-        <div id="another-feature" class="tab-content">
-            <p>이곳에 다른 기능이 추가될 예정입니다.</p>
-        </div>
-
-        <div id="api-key-modal" class="modal">
-            <div class="modal-content">
-                <span class="close-button" id="close-api-key-modal">×</span>
-                <h2>유튜브 API 키 입력</h2>
-                <div id="api-key-inputs">
-                    <input type="text" class="api-key-input" placeholder="API Key 1">
-                    <input type="text" class="api-key-input" placeholder="API Key 2 (선택 사항)">
-                </div>
-                <div class="modal-buttons">
-                    <button id="save-api-keys">키 저장</button>
-                    <button id="download-api-keys">키 백업</button>
-                </div>
+    <!-- API 키 입력 모달 -->
+    <div id="api-key-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">×</span>
+            <h2>API 키 입력</h2>
+            <p>5개의 API 키를 입력하거나, 텍스트 파일로 업로드하세요.</p>
+            <div id="api-key-inputs">
+                <input type="text" class="api-key-input" placeholder="API Key 1">
+                <input type="text" class="api-key-input" placeholder="API Key 2">
+                <input type="text" class="api-key-input" placeholder="API Key 3">
+                <input type="text" class="api-key-input" placeholder="API Key 4">
+                <input type="text" class="api-key-input" placeholder="API Key 5">
             </div>
+            <label for="api-key-file-upload" class="file-upload-label">
+                텍스트 파일로 업로드
+                <input type="file" id="api-key-file-upload" accept=".txt">
+            </label>
+            <button id="save-api-keys">저장</button>
+            <button id="download-api-keys">API 키 다운로드</button>
         </div>
-
-        <div id="add-channel-modal" class="modal">
-            <div class="modal-content">
-                <span class="close-button" id="close-add-channel-modal">×</span>
-                <h2>채널 추가</h2>
-                <input type="text" id="add-channel-input" placeholder="채널 ID 또는 URL 입력">
-                <button id="add-channel-save-btn">추가</button>
-            </div>
+    </div>
+    
+    <div id="channel-select-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button channel-select-close">×</span>
+            <h2>검색 결과</h2>
+            <p>추가할 채널을 선택하세요.</p>
+            <div id="channel-search-results"></div>
         </div>
-
+    </div>
+    
+    <!-- 내 채널 추가 모달 -->
         <div id="add-my-channel-modal" class="modal">
             <div class="modal-content">
                 <span class="close-button" id="close-add-my-channel-modal">×</span>
@@ -94,7 +120,8 @@
             </div>
         </div>
 
-    <div id="watchtime-modal" class="modal">
+    <!-- 시청시간 입력/수정 모달 -->
+        <div id="watchtime-modal" class="modal">
             <div class="modal-content">
                 <span class="close-button" id="close-watchtime-modal">×</span>
                 <h2>시청시간 입력/수정</h2>
@@ -110,11 +137,13 @@
                 <button id="delete-watchtime-btn" style="display:none;">삭제</button>
             </div>
         </div>
+
+        <script type="module" src="js/main.js"></script>
+        <script type="module" src="js/my_channel_manager.js"></script>
     </div>
-    
-    <script type="module" src="js/api_keys.js"></script>
-    <script type="module" src="js/channel-monitor.js"></script>
-    <script type="module" src="js/my_channel_manager.js"></script>
-    <script type="module" src="js/main.js"></script>
 </body>
 </html>
+
+
+
+
