@@ -230,11 +230,16 @@ async function renderMyChannels() {
         myChannelListDiv.innerHTML = '<p style="text-align:center; color:#888;">등록된 내 채널이 없습니다.</p>';
         return;
     }
-    for (const ch of channels) {
+
+    // ★ 추가된 부분! (순서대로 보여주기)
+    const sortedChannels = sortChannelsByOrder(channels);
+
+    for (const ch of sortedChannels) {  // 여기서 sortedChannels로 바꿈!
         await renderChannelCard(ch, watchtimes);
     }
     enableChannelDragSort();
 }
+
 
 // 채널 카드 렌더
 async function renderChannelCard(channel, allWatchtimes) {
