@@ -573,7 +573,7 @@ const ttsTabButton = document.getElementById('tts-tab-button');
 if (ttsTabButton) {
     ttsTabButton.addEventListener('click', () => {
         // 여기에 원하는 웹사이트 주소를 입력하세요
-        const ttsUrl = 'https://getwater-maker.github.io/youtube-channel-monitor/';
+        const ttsUrl = 'https://getwater-maker.github.io/google-tts-converter/';
         window.open(ttsUrl, '_self');
     });
 }
