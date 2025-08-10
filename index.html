@@ -490,9 +490,12 @@ async function addChannelById(channelId){
   console.log('🔵 채널 추가 시작:', channelId);
   
   try {
+    console.log('🔵 채널 추가 시작:', channelId);
+    
     // 1. 이미 등록된 채널인지 확인
     console.log('📋 기존 채널 확인 중...');
     const exist=await idbGet('my_channels',channelId);
+    
     if(exist){ 
       console.log('❌ 이미 등록된 채널:', exist.title);
       toast('이미 등록된 채널입니다: ' + exist.title); 
@@ -1353,3 +1356,4 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>
+
