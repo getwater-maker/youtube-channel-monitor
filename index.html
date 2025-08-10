@@ -89,7 +89,6 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
   </div>
 
   <div id="columns" class="three-col">
-    <!-- 채널 추가 -->
     <section class="col" data-col="channels">
       <div class="col-head" draggable="true">
         <h2>채널 추가</h2>
@@ -110,7 +109,6 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
       <div id="channel-list" class="channel-list"><p class="muted">채널을 추가하세요.</p></div>
     </section>
 
-    <!-- 돌연변이 -->
     <section class="col" data-col="mutant">
       <div class="col-head" draggable="true">
         <h2>돌연변이 영상</h2>
@@ -137,7 +135,6 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
       <div id="mutant-list" class="video-list"><p class="muted">채널을 추가하여 영상을 분석해주세요.</p></div>
     </section>
 
-    <!-- 최신 -->
     <section class="col" data-col="latest">
       <div class="col-head" draggable="true"><h2>최신 영상</h2></div>
       <div class="sort-row">
@@ -156,7 +153,6 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
   </div>
 </div>
 
-<!-- API 키 모달 -->
 <div id="modal-api" class="modal">
   <div class="content">
     <span class="close" data-close="modal-api">×</span>
@@ -174,7 +170,6 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
   </div>
 </div>
 
-<!-- 채널 추가 모달 -->
 <div id="modal-add" class="modal">
   <div class="content">
     <span class="close" data-close="modal-add">×</span>
@@ -196,7 +191,7 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
     </div>
     <div id="tab-url-add" class="tabpanel">
       <div class="row">
-        <input id="url-input" class="search-input" placeholder="채널 URL 또는 채널 ID 입력"/>
+        <input id="url-input" class="search-input" placeholder="채널 URL 또는 채널 ID, 핸들 입력"/>
         <button id="btn-url-add" class="btn">추가</button>
       </div>
       <div id="url-result"></div>
@@ -393,44 +388,37 @@ async function yt(endpoint,params,attempt=0){
 function extractChannelId(url) {
   if (!url) return null;
   
-  // 공백 제거
   url = url.trim();
   
   // 이미 채널 ID인 경우 (UC로 시작하는 24자리)
   if (/^UC[a-zA-Z0-9_-]{22}$/.test(url)) {
-    return url;
+    return { type: 'id', value: url };
   }
   
-  // URL에서 채널 ID 추출 패턴들
+  // URL에서 채널 ID, 사용자명, 핸들 추출
   const patterns = [
-    // 기본 채널 URL
-    /(?:youtube\.com|youtu\.be)\/channel\/([a-zA-Z0-9_-]+)/,
-    // 커스텀 URL
-    /(?:youtube\.com|youtu\.be)\/c\/([a-zA-Z0-9_-]+)/,
-    // 사용자 URL
-    /(?:youtube\.com|youtu\.be)\/user\/([a-zA-Z0-9_-]+)/,
-    // 새로운 핸들 형식
-    /(?:youtube\.com|youtu\.be)\/@([a-zA-Z0-9_-]+)/,
-    // 모바일 URL
-    /m\.youtube\.com\/channel\/([a-zA-Z0-9_-]+)/,
-    // 단순 핸들 (@ 포함)
-    /^@([a-zA-Z0-9_-]+)$/
+    /(?:youtube\.com|youtu\.be)\/channel\/([a-zA-Z0-9_-]+)/, // 기본 채널 URL
+    /(?:youtube\.com|youtu\.be)\/c\/([a-zA-Z0-9_-]+)/,      // 커스텀 URL
+    /(?:youtube\.com|youtu\.be)\/user\/([a-zA-Z0-9_-]+)/,    // 사용자 URL
+    /(?:youtube\.com|youtu\.be)\/@([a-zA-Z0-9_-]+)/,         // 새로운 핸들 형식
+    /^@([a-zA-Z0-9_-]+)$/                                   // 단순 핸들
   ];
   
   for (const pattern of patterns) {
     const match = url.match(pattern);
     if (match) {
       const extracted = match[1];
-      // UC로 시작하는 경우만 직접 반환 (실제 채널 ID)
+      // UC로 시작하는 실제 채널 ID인 경우
       if (extracted.startsWith('UC') && extracted.length === 24) {
-        return extracted;
+        return { type: 'id', value: extracted };
       }
-      // 아니면 null 반환해서 검색하도록 함
-      return null;
+      // 핸들이나 사용자명인 경우
+      return { type: 'handleOrUsername', value: extracted };
     }
   }
   
-  return null;
+  // 어떤 패턴에도 맞지 않는 경우, 채널명으로 간주하고 검색하도록 함
+  return { type: 'channelName', value: url };
 }
 
 /* 채널 관리 */
@@ -1289,42 +1277,42 @@ document.addEventListener('DOMContentLoaded',()=>{
     
     console.log('URL 입력 처리:', input);
     
-    let channelId = extractChannelId(input);
-    console.log('추출된 채널 ID:', channelId);
+    let channelId = null;
+    let extracted = extractChannelId(input);
     
-    // 채널 ID가 추출되지 않은 경우, 사용자명이나 핸들일 수 있음
-    if(!channelId) {
-      try {
-        showSuccess('url-result', '채널을 검색하는 중...');
-        
-        // @ 핸들 처리
-        let searchQuery = input;
-        if(input.startsWith('@')) {
-          searchQuery = input.substring(1);
+    if (extracted) {
+      if (extracted.type === 'id') {
+        channelId = extracted.value;
+      } else {
+        // 핸들이나 채널명인 경우, 검색 API를 통해 채널 ID를 찾음
+        try {
+          showSuccess('url-result', `"${extracted.value}" 채널 정보를 검색하는 중...`);
+          
+          const searchRes = await yt('search', {
+            part: 'snippet',
+            q: extracted.value,
+            type: 'channel',
+            maxResults: 1
+          });
+          
+          if(searchRes.items && searchRes.items[0]) {
+            channelId = searchRes.items[0].snippet.channelId;
+            console.log('검색으로 찾은 채널 ID:', channelId);
+          } else {
+            throw new Error('채널을 찾을 수 없습니다.');
+          }
+        } catch(e) {
+          showError('url-result', `채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요. (${e.message})`);
+          return;
         }
-        
-        // 채널명이나 핸들로 검색
-        const searchRes = await yt('search', {
-          part: 'snippet',
-          q: searchQuery,
-          type: 'channel',
-          maxResults: 1
-        });
-        
-        if(searchRes.items && searchRes.items[0]) {
-          channelId = searchRes.items[0].snippet.channelId;
-          console.log('검색으로 찾은 채널 ID:', channelId);
-        } else {
-          throw new Error('채널을 찾을 수 없습니다.');
-        }
-      } catch(e) {
-        showError('url-result', '채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요.');
-        return;
       }
+    } else {
+      showError('url-result', '유효하지 않은 채널 URL 또는 ID입니다.');
+      return;
     }
     
     if(!channelId) {
-      showError('url-result', '유효하지 않은 채널 URL 또는 ID입니다.');
+      showError('url-result', '채널 ID를 찾을 수 없습니다.');
       return;
     }
     
