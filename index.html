@@ -765,7 +765,7 @@ async function refreshMutant(){
             list.push({
               id:v.id,
               title:v.snippet.title,
-              thumbnail:v.snippet.thumbnails?.medium?.url||`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`,
+              thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
               viewCount:views,
               publishedAt:v.snippet.publishedAt,
               mutantIndex:(subs>0?(views/subs).toFixed(2):'0.00'),
@@ -820,7 +820,7 @@ async function refreshLatest(){
               out.push({
                 id:v.id,
                 title:v.snippet.title,
-                thumbnail:v.snippet.thumbnails?.medium?.url||`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`,
+                thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
                 viewCount:views,
                 publishedAt:v.snippet.publishedAt,
                 mutantIndex:subs>0?(views/subs).toFixed(2):'0.00',
