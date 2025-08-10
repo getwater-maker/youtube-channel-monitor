@@ -271,13 +271,29 @@ function idbGet(store,key){
   })); 
 }
 
-function idbPut(store,obj){ 
+/* IndexedDB 개선 */
+async function idbPut(store,obj){ 
   return openDB().then(db=>new Promise((res,rej)=>{ 
-    const tx=db.transaction(store,'readwrite'); 
-    const s=tx.objectStore(store); 
-    const q=s.put(obj); 
-    q.onsuccess=()=>res(); 
-    q.onerror=()=>rej(q.error);
+    try {
+      const tx=db.transaction(store,'readwrite'); 
+      const s=tx.objectStore(store); 
+      const q=s.put(obj); 
+      q.onsuccess=()=>{
+        console.log(`IndexedDB 저장 성공: ${store}`, obj);
+        res();
+      }; 
+      q.onerror=()=>{
+        console.error(`IndexedDB 저장 오류: ${store}`, q.error);
+        rej(q.error);
+      };
+      tx.onerror=()=>{
+        console.error(`IndexedDB 트랜잭션 오류: ${store}`, tx.error);
+        rej(tx.error);
+      };
+    } catch(e) {
+      console.error(`IndexedDB 예외: ${store}`, e);
+      rej(e);
+    }
   })); 
 }
 
@@ -468,49 +484,55 @@ async function updateDailySubSnapshot(ch){
   });
 }
 
-/* 채널 등록 */
+/* 채널 등록 개선 */
 async function addChannelById(channelId){
   if(!channelId) {
+    console.error('채널 ID가 없습니다:', channelId);
     toast('올바른 채널 ID가 아닙니다.');
     return false;
   }
   
-  console.log('채널 추가 시도:', channelId);
+  console.log('🔵 채널 추가 시작:', channelId);
   
   try {
-    // 이미 등록된 채널인지 확인
+    // 1. 이미 등록된 채널인지 확인
+    console.log('📋 기존 채널 확인 중...');
     const exist=await idbGet('my_channels',channelId);
     if(exist){ 
-      toast('이미 등록된 채널입니다.'); 
+      console.log('❌ 이미 등록된 채널:', exist.title);
+      toast('이미 등록된 채널입니다: ' + exist.title); 
       return false;
     }
     
-    console.log('채널 정보 요청 중...');
-    
-    // 채널 정보 가져오기
+    // 2. 채널 정보 가져오기
+    console.log('🔍 채널 정보 요청 중...');
     const ch=await yt('channels',{
       part:'snippet,statistics,contentDetails',
       id:channelId
     });
     
-    console.log('채널 정보 응답:', ch);
+    console.log('📥 채널 정보 응답:', ch);
     
     const it=ch.items?.[0]; 
     
     if(!it) {
+      console.error('❌ 채널 정보를 찾을 수 없음');
       throw new Error('채널을 찾을 수 없습니다. 채널 ID나 URL을 확인해주세요.');
     }
     
-    console.log('채널 찾음:', it.snippet.title);
+    console.log('✅ 채널 찾음:', it.snippet.title);
     
+    // 3. 업로드 플레이리스트 및 최신 영상 정보
     const uploads=it.contentDetails?.relatedPlaylists?.uploads||'';
     let latest=it.snippet.publishedAt;
     let country=it.snippet.country||'-';
     
-    // 최신 업로드 정보 가져오기
+    console.log('📺 업로드 플레이리스트 ID:', uploads);
+    
+    // 4. 최신 업로드 정보 가져오기
     if(uploads){
       try{
-        console.log('최신 업로드 확인 중...');
+        console.log('⏰ 최신 업로드 확인 중...');
         const pl=await yt('playlistItems',{
           part:'snippet',
           playlistId:uploads,
@@ -518,13 +540,14 @@ async function addChannelById(channelId){
         });
         if(pl.items && pl.items[0]) {
           latest=pl.items[0].snippet.publishedAt||latest;
-          console.log('최신 업로드:', latest);
+          console.log('📅 최신 업로드 날짜:', latest);
         }
       }catch(e){
-        console.warn('최신 업로드 정보를 가져올 수 없습니다:', e);
+        console.warn('⚠️ 최신 업로드 정보를 가져올 수 없습니다:', e.message);
       }
     }
     
+    // 5. 채널 데이터 준비
     const data={ 
       id:it.id,
       title:it.snippet.title,
@@ -536,33 +559,42 @@ async function addChannelById(channelId){
       country 
     };
     
-    console.log('채널 데이터 저장:', data);
+    console.log('💾 저장할 채널 데이터:', data);
     
+    // 6. IndexedDB에 저장
+    console.log('💾 IndexedDB에 저장 중...');
     await idbPut('my_channels',data);
-    toast(`${data.title} 채널이 성공적으로 등록되었습니다!`);
     
-    // 채널 목록 새로고침 (백그라운드에서)
-    setTimeout(() => refreshAll('channels'), 100);
+    console.log('✅ 채널 저장 완료!');
+    toast(`✅ ${data.title} 채널이 성공적으로 등록되었습니다!`);
+    
+    // 7. 채널 목록 새로고침 (백그라운드에서)
+    console.log('🔄 채널 목록 새로고침...');
+    setTimeout(() => {
+      refreshAll('channels').catch(e => {
+        console.error('새로고침 오류:', e);
+      });
+    }, 100);
     
     return true;
     
   } catch(e) {
-    console.error('채널 추가 오류:', e);
+    console.error('❌ 채널 추가 오류:', e);
     
     let errorMessage = e.message;
     
     // 특정 오류 메시지 개선
     if(e.message.includes('quota')){
-      errorMessage = 'API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+      errorMessage = '⚠️ API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.';
     } else if(e.message.includes('403')){
-      errorMessage = 'API 키 권한 오류입니다. Google Cloud Console 설정을 확인해주세요.';
+      errorMessage = '🔒 API 키 권한 오류입니다. Google Cloud Console 설정을 확인해주세요.';
     } else if(e.message.includes('404')){
-      errorMessage = '채널을 찾을 수 없습니다. 채널 ID나 URL을 확인해주세요.';
-    } else if(e.message.includes('timeout')){
-      errorMessage = '네트워크 연결이 불안정합니다. 다시 시도해주세요.';
+      errorMessage = '🔍 채널을 찾을 수 없습니다. 채널 ID나 URL을 확인해주세요.';
+    } else if(e.message.includes('timeout') || e.message.includes('AbortError')){
+      errorMessage = '🌐 네트워크 연결이 불안정합니다. 다시 시도해주세요.';
     }
     
-    toast('채널 등록 실패: ' + errorMessage);
+    toast('❌ 채널 등록 실패: ' + errorMessage);
     return false;
   }
 }
@@ -906,9 +938,27 @@ async function renderChPage(){
     `;
     
     row.querySelector('[data-add-ch]').onclick=async()=>{
-      const success = await addChannelById(ch.id);
-      if(success) {
-        closeModal('modal-add');
+      const button = row.querySelector('[data-add-ch]');
+      const originalText = button.textContent;
+      
+      try {
+        button.textContent = '추가 중...';
+        button.disabled = true;
+        
+        const success = await addChannelById(ch.id);
+        if(success) {
+          button.textContent = '완료!';
+          button.style.background = '#1db954';
+          setTimeout(() => closeModal('modal-add'), 1000);
+        } else {
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+      } catch(e) {
+        console.error('채널 추가 버튼 오류:', e);
+        button.textContent = originalText;
+        button.disabled = false;
+        toast('채널 추가 중 오류가 발생했습니다.');
       }
     };
     
@@ -1021,9 +1071,27 @@ async function renderVidPage(){
     `;
     
     row.querySelector('[data-add-ch-from-vid]').onclick=async()=>{
-      const success = await addChannelById(v.snippet.channelId);
-      if(success) {
-        closeModal('modal-add');
+      const button = row.querySelector('[data-add-ch-from-vid]');
+      const originalText = button.textContent;
+      
+      try {
+        button.textContent = '추가 중...';
+        button.disabled = true;
+        
+        const success = await addChannelById(v.snippet.channelId);
+        if(success) {
+          button.textContent = '완료!';
+          button.style.background = '#1db954';
+          setTimeout(() => closeModal('modal-add'), 1000);
+        } else {
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+      } catch(e) {
+        console.error('영상에서 채널 추가 오류:', e);
+        button.textContent = originalText;
+        button.disabled = false;
+        toast('채널 추가 중 오류가 발생했습니다.');
       }
     };
     
