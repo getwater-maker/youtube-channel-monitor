@@ -73,7 +73,7 @@ function toggleTheme() {
 }
 
 function loadTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const savedTheme = localStorage.getItem('theme') || 'dark'; // 기본값을 dark로 변경
   document.body.classList.add(savedTheme);
   qs('btn-toggle-theme').textContent = savedTheme === 'dark' ? '라이트 모드' : '다크 모드';
 }
