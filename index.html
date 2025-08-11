@@ -318,6 +318,24 @@ body.dark .success-message{background:#2b542b;color:#a5d6a7;}
       <div id="latest-keywords" class="keywords"></div>
       <div id="latest-list" class="video-list"><p class="muted">채널을 추가하여 영상을 분석해주세요.</p></div>
     </section>
+    <section class="col" data-col="keywords">
+      <div class="col-head" draggable="true"><h2>키워드 분석</h2></div>
+      <div class="sort-row">
+        <div class="tabs">
+          <button id="tab-mutant" class="btn small" data-target="mutant">돌연변이 영상</button>
+          <button id="tab-latest" class="btn small" data-target="latest">최신 영상</button>
+        </div>
+        <label style="margin-left:auto">표시 개수:
+          <select id="kw-limit"><option>8</option><option selected>12</option><option>16</option><option>20</option></select>
+        </label>
+        <label style="margin-left:8px">필터: 
+          <select id="kw-mincount"><option value="1" selected>모두</option><option value="2">2회 이상</option></select>
+        </label>
+      </div>
+      <div id="kw-badges" class="keywords"></div>
+      <div class="table-wrap"><table class="table" id="kw-table"><thead><tr><th>키워드</th><th>포함영상수</th><th>평균 조회수</th><th>조회 속도</th><th>평균 돌연변이</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
   </div>
 </div>
 
@@ -534,6 +552,31 @@ async function ensureUploadsAndLatest(ch){
   }
   await idbPut('my_channels',ch); return ch;
 }
+
+async function ensureFirstUploadDate(ch){
+  if(ch.firstUploadDate) return ch;
+  try{
+    if(!ch.uploadsPlaylistId){
+      await ensureUploadsAndLatest(ch);
+    }
+    if(!ch.uploadsPlaylistId) return ch;
+    let next=null, oldest=null;
+    while(true){
+      const pl=await yt('playlistItems',{part:'snippet',playlistId:ch.uploadsPlaylistId,maxResults:50,pageToken:next||''});
+      const items=pl.items||[];
+      for(const it of items){
+        const d=it?.snippet?.publishedAt;
+        if(d && (!oldest || new Date(d) < new Date(oldest))) oldest=d;
+      }
+      next=pl.nextPageToken;
+      if(!next || !items.length) break;
+    }
+    if(oldest){ ch.firstUploadDate=oldest; await idbPut('my_channels',ch); }
+  }catch(e){ console.warn('firstUploadDate 계산 실패', e); }
+  return ch;
+}
+
+
 async function getYesterdaySubCount(ch){
   const y=moment().subtract(1,'day').format('YYYY-MM-DD');
   const rec=await idbGet('dailySubs',[ch.id,y]); return rec? rec.subCount:null;
@@ -553,13 +596,20 @@ async function addChannelById(channelId){
   const uploads=it.contentDetails?.relatedPlaylists?.uploads||''; let latest=it.snippet.publishedAt; const country=it.snippet.country||'-';
   if(uploads){ try{ const pl=await yt('playlistItems',{part:'snippet',playlistId:uploads,maxResults:1}); if(pl.items && pl.items[0]) latest=pl.items[0].snippet.publishedAt||latest; }catch{} }
   const data={ id:it.id,title:it.snippet.title,thumbnail:it.snippet.thumbnails?.default?.url||'',subscriberCount:it.statistics.subscriberCount||'0',videoCount:it.statistics.videoCount||'0',uploadsPlaylistId:uploads,latestUploadDate:latest,country };
-  await idbPut('my_channels',data); toast(`✅ ${data.title} 채널이 등록되었습니다.`); setTimeout(()=>refreshAll('channels'),50); return true;
+  await idbPut('my_channels',data);
+toast(`✅ ${data.title} 채널이 등록되었습니다.`);
+setTimeout(async ()=>{
+  const saved=await idbGet('my_channels', data.id);
+  await ensureFirstUploadDate(saved);
+  refreshAll('channels');
+},50);
+return true;
 }
 
 /* 채널 렌더(2단 구조, 링크 이동 + 삭제만 표시) */
 async function refreshChannels(){
   const list=await getAllChannels();
-  for(const ch of list){ await ensureUploadsAndLatest(ch); await updateDailySubSnapshot(ch); }
+  for(const ch of list){ await ensureUploadsAndLatest(ch); await ensureFirstUploadDate(ch); await updateDailySubSnapshot(ch); }
   sortChannels(list,qs('sort-channels').value);
   qs('channel-count').textContent=list.length;
   const wrap=qs('channel-list');
@@ -616,19 +666,27 @@ function renderVideoList(videos,listId,kwId){
   wrap.innerHTML='';
   videos.forEach(v=>{
     const card=document.createElement('div'); card.className='video-card';
-    card.innerHTML=`
-      <a class="video-link" target="_blank" href="https://www.youtube.com/watch?v=${v.id}">
-        <div class="thumb-wrap"><img class="thumb" src="${v.thumbnail}" alt=""></div>
-        <div class="v-title">${v.title}</div>
-        <div class="v-meta">
-          <span>조회수: ${fmt(v.viewCount)}</span>
-          <span>업로드: ${moment(v.publishedAt).format('YYYY-MM-DD')}</span>
-          <span>구독자: ${fmt(v.__ch.subscriberCount)}</span>
-          ${v.mutantIndex? `<span>돌연변이지수: <strong>${v.mutantIndex}</strong></span>`:''}
-        </div>
-        ${v.mutantIndex? `<div class="badge">${v.mutantIndex}</div>`:''}
-      </a>
-      <label style="display:block;padding:0 12px 12px"><input type="checkbox" data-done="${v.id}"/> 영상제작완료</label>`;
+    
+card.innerHTML = `
+  <a class="video-link" target="_blank" href="https://www.youtube.com/watch?v=${v.id}" aria-label="영상 링크: ${v.title}">
+    <div class="thumb-wrap"><img class="thumb" src="${v.thumbnail}" alt=""></div>
+    <div class="v-title">${v.title}</div>
+    <div class="v-lines">
+      <div class="v-line">
+        <span class="ch ell" title="${v.__ch?.title||''}" aria-label="채널명 ${v.__ch?.title||''}">${(v.__ch?.title||'')}</span>
+        <span>구독자: ${fmt(v.__ch.subscriberCount)}</span>
+        <span>조회수: ${fmt(v.viewCount)}</span>
+      </div>
+    </div>
+  </a>
+  <div class="v-lines">
+    <div class="v-line between">
+      <span>업로드: ${moment(v.publishedAt).format('YYYY-MM-DD')}</span>
+      <label class="right"><input type="checkbox" data-done="${v.id}"/> 영상제작완료</label>
+    </div>
+    ${v.mutantIndex ? `<div class="v-line center"><div class="badge" title="돌연변이지수 ${v.mutantIndex}" aria-label="돌연변이지수 ${v.mutantIndex}">${v.mutantIndex}</div></div>` : ''}
+  </div>`;
+
     // restore state
     idbGet('doneVideos',[v.__ch?.channelId||v.snippet?.channelId||'', v.id]).then(rec=>{ if(rec) { const cb=card.querySelector(`[data-done='${v.id}']`); if(cb) cb.checked=true; }});
     card.addEventListener('change', async (e)=>{
@@ -639,10 +697,7 @@ function renderVideoList(videos,listId,kwId){
     });
     wrap.appendChild(card);
   });
-  if(kwId){
-    const f=extractKeywords(videos.map(v=>v.title||'').join(' '));
-    const top=f.slice(0,12);
-    qs(kwId).innerHTML=top.map(([w,c])=>`<span class="kw">${w} ${c}회</span>`).join('');
+  /* 키워드 섹션은 통합 섹션에서 렌더링합니다. */ ${c}회</span>`).join('');
   }
 }
 function sortVideoCards(list,mode){
@@ -669,11 +724,12 @@ async function refreshMutant(){
       (d.items||[]).forEach(v=>{
         const dur=seconds(v.contentDetails.duration); if(dur<=180) return;
         const views=parseInt(v.statistics.viewCount||'0',10); const subs=parseInt(ch.subscriberCount||'1',10); if(views<subs*2) return;
-        list.push({id:v.id,title:v.snippet.title,thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,viewCount:views,publishedAt:v.snippet.publishedAt,mutantIndex:(subs>0?(views/subs).toFixed(2):'0.00'),__ch:{subscriberCount:subs}});
+        list.push({id:v.id,title:v.snippet.title,thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,viewCount:views,publishedAt:v.snippet.publishedAt,mutantIndex:(subs>0?(views/subs).toFixed(2):'0.00'),__ch:{subscriberCount:subs, title: ch.title}});
       });
     }
   }
   sortVideoCards(list,qs('sort-mutant').value); renderVideoList(list,'mutant-list','mutant-keywords');
+  lastMutantVideos = list;
 }
 
 /* 최신 */
@@ -689,13 +745,14 @@ async function refreshLatest(){
       for(const v of (d.items||[])){
         if(seconds(v.contentDetails.duration)>180){
           const views=parseInt(v.statistics.viewCount||'0',10); const subs=parseInt(ch.subscriberCount||'1',10);
-          out.push({id:v.id,title:v.snippet.title,thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,viewCount:views,publishedAt:v.snippet.publishedAt,mutantIndex:subs>0?(views/subs).toFixed(2):'0.00',__ch:{subscriberCount:subs}}); found=true; break;
+          out.push({id:v.id,title:v.snippet.title,thumbnail:v.snippet.thumbnails?.medium?.url||`https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,viewCount:views,publishedAt:v.snippet.publishedAt,mutantIndex:subs>0?(views/subs).toFixed(2):'0.00',__ch:{subscriberCount:subs, title: ch.title}}); found=true; break;
         }
       }
       next=pl.nextPageToken; if(!next) break;
     }
   }
   sortVideoCards(out,qs('sort-latest').value); renderVideoList(out,'latest-list','latest-keywords');
+  lastLatestVideos = out || list || videos || [];
 }
 
 /* 전체 갱신 */
