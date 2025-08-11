@@ -1,30 +1,30 @@
-// IndexedDB 관리
-let db = null;
+// IndexedDB 관리 - 중복 선언 방지
+window.db = window.db || null;
 
 function openDB() { 
   return new Promise((res, rej) => { 
-    if (db) return res(db); 
+    if (window.db) return res(window.db); 
     const r = indexedDB.open('myChannelDB', 4);
     
     r.onupgradeneeded = e => { 
-      db = e.target.result;
-      if (!db.objectStoreNames.contains('my_channels')) {
-        db.createObjectStore('my_channels', { keyPath: 'id' });
+      window.db = e.target.result;
+      if (!window.db.objectStoreNames.contains('my_channels')) {
+        window.db.createObjectStore('my_channels', { keyPath: 'id' });
       }
-      if (!db.objectStoreNames.contains('insights')) {
-        db.createObjectStore('insights', { keyPath: 'channelId' });
+      if (!window.db.objectStoreNames.contains('insights')) {
+        window.db.createObjectStore('insights', { keyPath: 'channelId' });
       }
-      if (!db.objectStoreNames.contains('dailySubs')) {
-        db.createObjectStore('dailySubs', { keyPath: ['channelId', 'date'] });
+      if (!window.db.objectStoreNames.contains('dailySubs')) {
+        window.db.createObjectStore('dailySubs', { keyPath: ['channelId', 'date'] });
       }
-      if (!db.objectStoreNames.contains('doneVideos')) {
-        db.createObjectStore('doneVideos', { keyPath: ['channelId', 'videoId'] });
+      if (!window.db.objectStoreNames.contains('doneVideos')) {
+        window.db.createObjectStore('doneVideos', { keyPath: ['channelId', 'videoId'] });
       }
     };
     
     r.onsuccess = e => { 
-      db = e.target.result; 
-      res(db); 
+      window.db = e.target.result; 
+      res(window.db); 
     };
     
     r.onerror = e => rej(e);
@@ -75,3 +75,10 @@ function idbDel(store, key) {
     q.onerror = () => rej(q.error);
   })); 
 }
+
+// 전역으로 노출
+window.openDB = openDB;
+window.idbAll = idbAll;
+window.idbGet = idbGet;
+window.idbPut = idbPut;
+window.idbDel = idbDel;
