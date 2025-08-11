@@ -9,26 +9,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<style>
-/* CSS는 별도 파일로 분리할 예정이므로 여기서는 기본만 */
-:root {
-  --brand: #c4302b;
-  --bg: #0f0f23;
-  --card: #1a1a2e;
-  --text: #e4e6ea;
-  --border: #3a3a5c;
-  --gradient-mutant: linear-gradient(135deg, #ff4757 0%, #ffa502 50%, #2ed573 100%);
-}
-
-body.dark { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
-.container { max-width: 1600px; margin: 24px auto; background: var(--card); padding: 32px; border-radius: 24px; }
-h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.btn { padding: 8px 16px; border-radius: 12px; cursor: pointer; transition: all 0.3s; }
-</style>
+<link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="dark">
+
 <div class="container">
   <h1>로이가 만든 유튜브 채널 모니터</h1>
+  
   <div class="single-header">
     <button id="btn-analyze" class="analyze-btn">채널 분석</button>
     <div class="row">
@@ -58,7 +45,9 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
           </select>
         </label>
       </div>
-      <div id="channel-list" class="channel-list"><p class="muted">채널을 추가하세요.</p></div>
+      <div id="channel-list" class="channel-list">
+        <p class="muted">채널을 추가하세요.</p>
+      </div>
       <div id="channel-pagination" class="pagination"></div>
     </section>
 
@@ -85,12 +74,16 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
         </label>
       </div>
       <div id="mutant-keywords" class="keywords"></div>
-      <div id="mutant-list" class="video-list"><p class="muted">채널을 추가하여 영상을 분석해주세요.</p></div>
+      <div id="mutant-list" class="video-list">
+        <p class="muted">채널을 추가하여 영상을 분석해주세요.</p>
+      </div>
       <div id="mutant-pagination" class="pagination"></div>
     </section>
 
     <section class="col" data-col="latest">
-      <div class="col-head" draggable="true"><h2>최신 영상</h2></div>
+      <div class="col-head" draggable="true">
+        <h2>최신 영상</h2>
+      </div>
       <div class="sort-row">
         <label>정렬:
           <select id="sort-latest">
@@ -102,14 +95,16 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
         </label>
       </div>
       <div id="latest-keywords" class="keywords"></div>
-      <div id="latest-list" class="video-list"><p class="muted">채널을 추가하여 영상을 분석해주세요.</p></div>
+      <div id="latest-list" class="video-list">
+        <p class="muted">채널을 추가하여 영상을 분석해주세요.</p>
+      </div>
       <div id="latest-pagination" class="pagination"></div>
     </section>
   </div>
 </div>
 
 <!-- 모달들 -->
-<div id="modal-api" class="modal" style="display:none">
+<div id="modal-api" class="modal">
   <div class="content">
     <span class="close" data-close="modal-api">×</span>
     <h3>API 키 입력</h3>
@@ -126,7 +121,7 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
   </div>
 </div>
 
-<div id="modal-add" class="modal" style="display:none">
+<div id="modal-add" class="modal">
   <div class="content">
     <span class="close" data-close="modal-add">×</span>
     <h3>채널 추가</h3>
@@ -135,16 +130,33 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
       <button class="tab" data-tab="tab-vid-search">영상 검색(롱폼만)</button>
       <button class="tab" data-tab="tab-url-add">URL 직접 입력</button>
     </div>
+    
     <div id="tab-ch-search" class="tabpanel active">
-      <div class="row"><input id="ch-query" class="search-input" placeholder="채널명으로 검색"/><button id="btn-ch-search" class="btn">검색</button><span style="flex:1"></span><label style="font-size:12px">정렬: <select id="ch-sort"><option value="subs" selected>구독자순</option><option value="videos">영상수순</option><option value="latest">최신업로드순</option></select></label></div>
+      <div class="row">
+        <input id="ch-query" class="search-input" placeholder="채널명으로 검색"/>
+        <button id="btn-ch-search" class="btn">검색</button>
+        <span style="flex:1"></span>
+        <label style="font-size:12px">정렬: 
+          <select id="ch-sort">
+            <option value="subs" selected>구독자순</option>
+            <option value="videos">영상수순</option>
+            <option value="latest">최신업로드순</option>
+          </select>
+        </label>
+      </div>
       <div id="ch-results" class="result-list"></div>
       <div id="ch-pagination" class="pagination"></div>
     </div>
+    
     <div id="tab-vid-search" class="tabpanel">
-      <div class="row"><input id="vid-query" class="search-input" placeholder="검색어 입력(롱폼만 표시)"/><button id="btn-vid-search" class="btn">검색</button></div>
+      <div class="row">
+        <input id="vid-query" class="search-input" placeholder="검색어 입력(롱폼만 표시)"/>
+        <button id="btn-vid-search" class="btn">검색</button>
+      </div>
       <div id="vid-results" class="result-list"></div>
       <div id="vid-pagination" class="pagination"></div>
     </div>
+    
     <div id="tab-url-add" class="tabpanel">
       <div class="row">
         <input id="url-input" class="search-input" placeholder="채널 URL 또는 채널 ID 입력"/>
@@ -155,7 +167,7 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
   </div>
 </div>
 
-<div id="modal-analyze" class="modal" style="display:none">
+<div id="modal-analyze" class="modal">
   <div class="content">
     <span class="close" data-close="modal-analyze">×</span>
     <h3>분석할 채널 선택</h3>
@@ -164,771 +176,19 @@ h1 { text-align: center; font-size: 2.5rem; background: var(--gradient-mutant); 
   </div>
 </div>
 
-<div id="toast" class="toast" style="display:none"></div>
+<div id="toast" class="toast"></div>
 
-<script>
-// 설정 및 전역 변수
-if (typeof moment !== 'undefined') {
-  moment.tz.setDefault('Asia/Seoul');
-}
+<!-- JavaScript 파일들 로드 -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/database.js"></script>
+<script src="js/video-renderer.js"></script>
+<script src="js/channels.js"></script>
+<script src="js/videos.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
 
-window.CONFIG = {
-  API_BASE: 'https://www.googleapis.com/youtube/v3/',
-  PAGINATION: { CHANNELS: 8, VIDEOS: 5, SEARCH_CHANNELS: 4, SEARCH_VIDEOS: 4 },
-  TIMEOUT: 30000,
-  MUTANT_THRESHOLD: 2.0
-};
-
-window.state = {
-  currentMutantPeriod: '6m',
-  currentView: 'home',
-  currentPage: { channels: 1, mutant: 1, latest: 1 }
-};
-
-window.apiKeys = JSON.parse(localStorage.getItem('youtubeApiKeys') || localStorage.getItem('apiKeys') || '[]');
-window.keyIdx = 0;
-
-// 유틸리티 함수
-window.qs = id => document.getElementById(id);
-window.fmt = n => { 
-  const x = parseInt(n || '0', 10); 
-  return isNaN(x) ? '0' : x.toLocaleString(); 
-};
-window.seconds = iso => moment.duration(iso).asSeconds();
-
-const stopWords = new Set([
-  '은', '는', '이', '가', '을', '를', '에', '의', '와', '과', '도', '로', '으로',
-  'the', 'a', 'an', 'of', 'to', 'in', 'on', 'for', 'and', 'or', 'but', 'with', 'about',
-  '에서', '같은', '뿐', '위해', '합니다', '했다', '하는', '하기', '진짜', '무너졌다', 'into'
-]);
-
-function toast(msg, ms = 1800) {
-  const t = qs('toast');
-  if (t) {
-    t.textContent = msg;
-    t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', ms);
-  }
-}
-
-function extractKeywords(text) {
-  const freq = new Map();
-  if (!text) return [];
-  
-  text.replace(/[#"'.!?()/\-:;[\]{}|<>~^%$@*&+=]/g, ' ')
-    .split(/\s+/)
-    .forEach(w => {
-      w = w.trim().toLowerCase();
-      const hasKo = /[가-힣]/.test(w);
-      if (!w) return;
-      if ((hasKo && w.length < 2) || (!hasKo && w.length < 3)) return;
-      if (stopWords.has(w)) return;
-      freq.set(w, (freq.get(w) || 0) + 1);
-    });
-    
-  return [...freq.entries()]
-    .filter(([word, count]) => count > 1)
-    .sort((a, b) => b[1] - a[1]);
-}
-
-function truncateText(text, maxLength) {
-  if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + '...';
-}
-
-// API 함수
-async function yt(endpoint, params, attempt = 0) {
-  if (!window.apiKeys.length) {
-    throw new Error('API 키가 설정되지 않았습니다.');
-  }
-  
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort('timeout'), CONFIG.TIMEOUT);
-  
-  const p = new URLSearchParams(params);
-  p.set('key', window.apiKeys[window.keyIdx]);
-  const url = CONFIG.API_BASE + endpoint + '?' + p.toString();
-  
-  try {
-    const r = await fetch(url, { signal: ctrl.signal });
-    const data = await r.json();
-    clearTimeout(timeout);
-    
-    if (data.error) {
-      if (data.error.code === 403 && /quota/i.test(data.error.message || '')) {
-        throw new Error('API 할당량이 초과되었습니다.');
-      }
-      if (attempt < window.apiKeys.length - 1) {
-        window.keyIdx = (window.keyIdx + 1) % window.apiKeys.length;
-        return yt(endpoint, params, attempt + 1);
-      }
-      throw new Error(data.error.message || 'API 오류');
-    }
-    return data;
-  } catch (e) {
-    clearTimeout(timeout);
-    if (attempt < window.apiKeys.length - 1) {
-      window.keyIdx = (window.keyIdx + 1) % window.apiKeys.length;
-      return yt(endpoint, params, attempt + 1);
-    }
-    throw e;
-  }
-}
-
-// IndexedDB 관리
-let db = null;
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    if (db) return resolve(db);
-    const request = indexedDB.open('myChannelDB', 4);
-    
-    request.onupgradeneeded = e => {
-      db = e.target.result;
-      if (!db.objectStoreNames.contains('my_channels')) {
-        db.createObjectStore('my_channels', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('insights')) {
-        db.createObjectStore('insights', { keyPath: 'channelId' });
-      }
-      if (!db.objectStoreNames.contains('dailySubs')) {
-        db.createObjectStore('dailySubs', { keyPath: ['channelId', 'date'] });
-      }
-      if (!db.objectStoreNames.contains('doneVideos')) {
-        db.createObjectStore('doneVideos', { keyPath: ['channelId', 'videoId'] });
-      }
-    };
-    
-    request.onsuccess = e => {
-      db = e.target.result;
-      resolve(db);
-    };
-    
-    request.onerror = e => reject(e);
-  });
-}
-
-function idbAll(store) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(store, 'readonly');
-    const s = tx.objectStore(store);
-    const q = s.getAll();
-    q.onsuccess = () => resolve(q.result);
-    q.onerror = () => reject(q.error);
-  }));
-}
-
-function idbGet(store, key) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(store, 'readonly');
-    const s = tx.objectStore(store);
-    const q = s.get(key);
-    q.onsuccess = () => resolve(q.result);
-    q.onerror = () => reject(q.error);
-  }));
-}
-
-function idbPut(store, obj) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    try {
-      const tx = db.transaction(store, 'readwrite');
-      const s = tx.objectStore(store);
-      const q = s.put(obj);
-      q.onsuccess = () => resolve();
-      q.onerror = () => reject(q.error);
-    } catch (e) {
-      reject(e);
-    }
-  }));
-}
-
-function idbDel(store, key) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(store, 'readwrite');
-    const s = tx.objectStore(store);
-    const q = s.delete(key);
-    q.onsuccess = () => resolve();
-    q.onerror = () => reject(q.error);
-  }));
-}
-
-// 채널 분석 함수 (완전한 기능)
-async function startAnalysis(channelId) {
-  const container = document.body.querySelector('.container');
-  const mainContent = qs('main-content');
-  if (mainContent) mainContent.style.display = 'none';
-  
-  // 기존 분석 섹션 제거
-  const existingAnalysis = qs('analysis-section');
-  if (existingAnalysis) existingAnalysis.remove();
-  
-  const loadingDiv = document.createElement('div');
-  loadingDiv.id = 'analysis-section';
-  loadingDiv.className = 'analysis-page';
-  loadingDiv.innerHTML = `
-    <div class="loading-text">
-      <div class="loading"></div>
-      채널 데이터를 분석 중입니다. 잠시만 기다려주세요...
-    </div>`;
-  container.appendChild(loadingDiv);
-  
-  window.state.currentView = 'analysis';
-  
-  try {
-    const ch = await idbGet('my_channels', channelId);
-    if (!ch) throw new Error('채널을 찾을 수 없습니다.');
-    
-    // 채널 분석 데이터 수집
-    const analysisData = await performCompleteAnalysis(ch);
-    
-    // UI 렌더링
-    renderCompleteAnalysis(ch, analysisData);
-    
-  } catch (e) {
-    qs('analysis-section').innerHTML = `
-      <button id="btn-back-home" class="btn" onclick="showHome()">← 메인으로 돌아가기</button>
-      <div class="error-message" style="text-align: center; margin-top: 40px;">
-        채널 분석 중 오류가 발생했습니다: ${e.message}
-      </div>`;
-    console.error(e);
-  }
-}
-
-async function performCompleteAnalysis(channel) {
-  const subscriberCount = parseInt(channel.subscriberCount || '1');
-  
-  // 1. 최근 100개 영상 데이터 수집
-  const videos = await getLongformVideos(channel.uploadsPlaylistId, 100);
-  
-  // 2. 기본 통계
-  const totalViews = videos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0);
-  const avgViews = totalViews / videos.length || 0;
-  const avgDuration = videos.reduce((sum, v) => sum + (moment.duration(v.contentDetails.duration).asSeconds() || 0), 0) / videos.length || 0;
-  
-  // 3. 상위 영상들
-  const topVideos = [...videos].sort((a, b) => parseInt(b.statistics.viewCount) - parseInt(a.statistics.viewCount)).slice(0, 10);
-  
-  // 4. 돌연변이 영상들 (구독자 대비 높은 조회수)
-  const mutantVideos = videos.filter(v => {
-    const views = parseInt(v.statistics.viewCount || 0);
-    return views >= (subscriberCount * CONFIG.MUTANT_THRESHOLD);
-  });
-  
-  // 5. 업로드 패턴 분석
-  const weeklyUploads = new Array(7).fill(0);
-  const hourlyUploads = new Array(24).fill(0);
-  const monthlyUploads = new Array(12).fill(0);
-  
-  videos.forEach(v => {
-    const publishedMoment = moment(v.snippet.publishedAt);
-    weeklyUploads[publishedMoment.day()]++;
-    hourlyUploads[publishedMoment.hour()]++;
-    monthlyUploads[publishedMoment.month()]++;
-  });
-  
-  // 6. 참여도 분석
-  const totalLikes = videos.reduce((sum, v) => sum + parseInt(v.statistics.likeCount || 0), 0);
-  const totalComments = videos.reduce((sum, v) => sum + parseInt(v.statistics.commentCount || 0), 0);
-  const engagementRate = totalViews > 0 ? ((totalLikes + totalComments) / totalViews * 100) : 0;
-  
-  // 7. 카테고리 분석
-  const categories = {};
-  videos.forEach(v => {
-    const cat = v.snippet.categoryId || '미분류';
-    categories[cat] = (categories[cat] || 0) + 1;
-  });
-  
-  // 8. 키워드 분석
-  const allTitles = videos.map(v => v.snippet.title).join(' ');
-  const keywords = extractKeywords(allTitles).slice(0, 20);
-  
-  // 9. 성장 분석
-  const recentVideos = videos.slice(0, 10);
-  const olderVideos = videos.slice(-10);
-  const recentAvgViews = recentVideos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0) / recentVideos.length || 0;
-  const olderAvgViews = olderVideos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || 0), 0) / olderVideos.length || 0;
-  const viewsGrowthRate = olderAvgViews > 0 ? ((recentAvgViews - olderAvgViews) / olderAvgViews * 100) : 0;
-  
-  // 10. 최적 업로드 시간 찾기
-  const bestDay = weeklyUploads.indexOf(Math.max(...weeklyUploads));
-  const bestHour = hourlyUploads.indexOf(Math.max(...hourlyUploads));
-  const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  
-  return {
-    // 기본 통계
-    totalViews,
-    avgViews,
-    avgDuration,
-    totalVideos: videos.length,
-    engagementRate,
-    viewsGrowthRate,
-    
-    // 영상 데이터
-    topVideos,
-    mutantVideos,
-    recentVideos: videos.slice(0, 5),
-    
-    // 패턴 분석
-    weeklyUploads,
-    hourlyUploads,
-    monthlyUploads,
-    bestUploadTime: `${dayNames[bestDay]} ${bestHour}시`,
-    
-    // 콘텐츠 분석
-    keywords,
-    categories,
-    
-    // 성과 분석
-    topPerformingDay: dayNames[bestDay],
-    uploadConsistency: Math.max(...weeklyUploads) / Math.min(...weeklyUploads.filter(x => x > 0)) || 1
-  };
-}
-
-function renderCompleteAnalysis(channel, data) {
-  const analysisSection = qs('analysis-section');
-  
-  analysisSection.innerHTML = `
-    <div class="analysis-header">
-      <button id="btn-back-home" class="nav-btn" onclick="showHome()">← 메인으로 돌아가기</button>
-      <img class="thumb" src="${channel.thumbnail}" alt="${channel.title}">
-      <div class="info">
-        <h2>${channel.title}</h2>
-        <p>구독자: ${fmt(channel.subscriberCount)}명</p>
-        <div class="analysis-stats">
-          <div class="stat-item">
-            <div class="stat-value">${fmt(Math.round(data.avgViews))}</div>
-            <div class="stat-label">평균 조회수</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value ${data.viewsGrowthRate >= 0 ? 'positive' : 'negative'}">${data.viewsGrowthRate >= 0 ? '+' : ''}${data.viewsGrowthRate.toFixed(1)}%</div>
-            <div class="stat-label">조회수 성장률</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">${data.engagementRate.toFixed(2)}%</div>
-            <div class="stat-label">참여도</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">${Math.round(data.avgDuration / 60)}</div>
-            <div class="stat-label">평균 길이(분)</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="analysis-content">
-      <div class="analysis-card">
-        <h3>📊 핵심 성과 지표</h3>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-value positive">${data.mutantVideos.length}</div>
-            <div class="metric-label">돌연변이 영상</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${fmt(data.totalViews)}</div>
-            <div class="metric-label">총 조회수</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${data.totalVideos}</div>
-            <div class="metric-label">분석 영상수</div>
-          </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${data.uploadConsistency.toFixed(1)}x</div>
-            <div class="metric-label">업로드 일관성</div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="analysis-card">
-        <h3>🔥 상위 성과 영상</h3>
-        <div class="analysis-videos">
-          <div class="video-list">
-            ${data.topVideos.map(v => `
-              <div class="analysis-video-card">
-                <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">
-                  <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}">
-                </a>
-                <div class="analysis-video-meta">
-                  <h4>${truncateText(v.snippet.title, 60)}</h4>
-                  <p>조회수: ${fmt(v.statistics.viewCount)} · ${moment(v.snippet.publishedAt).fromNow()}</p>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-      
-      <div class="analysis-card">
-        <h3>🚀 돌연변이 영상 (${data.mutantVideos.length}개)</h3>
-        <div class="analysis-videos">
-          <div class="video-list">
-            ${data.mutantVideos.slice(0, 5).map(v => `
-              <div class="analysis-video-card">
-                <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">
-                  <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}">
-                </a>
-                <div class="analysis-video-meta">
-                  <h4>${truncateText(v.snippet.title, 60)}</h4>
-                  <p>조회수: ${fmt(v.statistics.viewCount)} · 돌연변이지수: ${(parseInt(v.statistics.viewCount) / parseInt(channel.subscriberCount)).toFixed(2)}</p>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-      
-      <div class="analysis-card">
-        <h3>📅 업로드 패턴 분석</h3>
-        <div class="chart-container">
-          <canvas id="weekly-upload-chart"></canvas>
-        </div>
-        <div class="chart-label">요일별 업로드 패턴</div>
-        <p style="text-align: center; margin-top: 16px; color: var(--brand); font-weight: 600;">
-          최적 업로드 시간: ${data.bestUploadTime}
-        </p>
-      </div>
-      
-      <div class="analysis-card">
-        <h3>🏷️ 주요 키워드</h3>
-        <div class="tag-cloud">
-          ${data.keywords.map(([word, count]) => `
-            <span class="tag" style="font-size: ${Math.min(1.5, 0.8 + count * 0.1)}rem">${word} (${count})</span>
-          `).join('')}
-        </div>
-      </div>
-      
-      <div class="analysis-card">
-        <h3>⏰ 시간대별 업로드</h3>
-        <div class="chart-container">
-          <canvas id="hourly-upload-chart"><!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>로이가 만든 유튜브 채널 모니터</title>
-<link rel="icon" href="favicon.ico"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<style>
-/* CSS 내용은 방금 만든 enhanced_styles.css 내용을 여기에 삽입 */
-/* 테마 변수 */
-:root {
-  --brand: #c4302b;
-  --brand-light: #e74c3c;
-  --brand-dark: #a02622;
-  --bg: #f6f7fb;
-  --card: #fff;
-  --muted: #888;
-  --shadow: 0 6px 22px rgba(0,0,0,.07);
-  --shadow-hover: 0 12px 40px rgba(0,0,0,.12);
-  --pastel1: #fff6f1;
-  --pastel2: #f1fbff;
-  --pastel3: #f8fff4;
-  --text: #333;
-  --border: #f0f0f0;
-  --placeholder: #ccc;
-  --modal-bg: rgba(0,0,0,.45);
-  --gradient-mutant: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 50%, #6bcf7f 100%);
-  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  --gradient-warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  --gradient-info: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-  --glass-bg: rgba(255, 255, 255, 0.25);
-  --glass-border: rgba(255, 255, 255, 0.18);
-}
-
-/* 나이트 모드 변수 */
-body.dark {
-  --bg: #0f0f23;
-  --card: #1a1a2e;
-  --muted: #b0b3b8;
-  --shadow: 0 6px 22px rgba(0,0,0,.4);
-  --shadow-hover: 0 12px 40px rgba(0,0,0,.6);
-  --pastel1: #2d1b69;
-  --pastel2: #0f3460;
-  --pastel3: #16213e;
-  --text: #e4e6ea;
-  --border: #3a3a5c;
-  --placeholder: #65676b;
-  --modal-bg: rgba(0,0,0,.7);
-  --gradient-mutant: linear-gradient(135deg, #ff4757 0%, #ffa502 50%, #2ed573 100%);
-  --gradient-primary: linear-gradient(135deg, #4b79a1 0%, #283c86 100%);
-  --gradient-success: linear-gradient(135deg, #0072ff 0%, #00c6ff 100%);
-  --gradient-warning: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
-  --gradient-info: linear-gradient(135deg, #fdbb2d 0%, #22c1c3 100%);
-  --glass-bg: rgba(26, 26, 46, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.1);
-}
-
-/* 기본 스타일 */
-* { box-sizing: border-box; }
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes shine {
-  0% { left: -100%; }
-  100% { left: 100%; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  line-height: 1.6;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.container {
-  max-width: 1600px;
-  margin: 24px auto;
-  background: var(--card);
-  padding: 32px;
-  border-radius: 24px;
-  box-shadow: var(--shadow);
-  animation: fadeInUp 0.6s ease-out;
-  position: relative;
-}
-
-.container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--gradient-mutant);
-  border-radius: 24px 24px 0 0;
-}
-
-h1 {
-  margin: 0 0 32px;
-  text-align: center;
-  color: var(--brand);
-  font-size: 2.5rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-  background: var(--gradient-mutant);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: float 3s ease-in-out infinite;
-}
-
-.single-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-  gap: 16px;
-  padding: 16px 24px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  border: 1px solid var(--glass-border);
-}
-
-.api-btn, .analyze-btn, .toggle-btn {
-  background: var(--gradient-primary);
-  color: #fff;
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 24px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-.analyze-btn {
-  background: var(--gradient-mutant);
-}
-
-.toggle-btn {
-  background: var(--gradient-warning);
-}
-
-.btn:hover, .api-btn:hover, .analyze-btn:hover, .toggle-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-}
-
-.three-col {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-
-@media (max-width: 768px) {
-  .three-col { grid-template-columns: 1fr; }
-}
-
-.col {
-  background: var(--card);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  padding: 24px;
-  border: 1px solid var(--border);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.col:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-hover);
-}
-
-.col-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 2px solid var(--border);
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-}
-
-.btn {
-  border: 2px solid var(--border);
-  background: var(--card);
-  color: var(--brand);
-  border-radius: 12px;
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-weight: 600;
-}
-
-.btn:hover {
-  background: var(--brand);
-  color: #fff;
-}
-
-.btn-danger {
-  background: var(--gradient-warning);
-  color: #fff;
-  border: none;
-}
-
-/* 채널 카드 */
-.channel-card {
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 20px;
-  align-items: center;
-  border: 2px solid var(--border);
-  background: var(--glass-bg);
-  border-radius: 20px;
-  padding: 20px;
-  transition: all 0.3s;
-  margin-bottom: 16px;
-}
-
-.channel-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--brand);
-}
-
-.channel-thumb {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  border: 3px solid var(--brand);
-}
-
-/* 영상 카드 */
-.video-card {
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  background: var(--card);
-  border: 2px solid var(--border);
-  transition: all 0.4s;
-  margin-bottom: 20px;
-}
-
-.video-card:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-hover);
-}
-
-.video-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-  padding: 20px;
-}
-
-.thumb {
-  width: 100%;
-  aspect-ratio: 16/9;
-  border-radius: 12px;
-  transition: transform 0.4s;
-}
-
-.video-card:hover .thumb {
-  transform: scale(1.05);
-}
-
-.v-title {
-  font-weight: 700;
-  margin: 16px 4px 12px;
-  font-size: 1.1rem;
-}
-
-.v-meta {
-  display: grid;
-  grid-template-rows: auto auto;
-  gap: 12px;
-}
-
-.v-meta-top {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  text-align: center;
-}
-
-.v-meta-top > span {
-  padding: 8px 12px;
-  background: var(--glass-bg);
-  border-radius: 12px;
-  font-weight: 600;
-  border: 1px solid var(--border);
-}
-
-.v-meta-bottom {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  align-items: center;
-  text-align: center;
-}
-
-.mutant-badge {
-  background: var(--gradient-mutant);
-  color: #fff;
-  border-radius: 25px;
-  padding: 8px 16px;
-  font-weight: 800;
-  position: relative;
-  overflow: hidden;
-  animation: pulse 2s infinite;
-}
-
-.mutant-badge::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100
+</body>
+</html>
