@@ -1,172 +1,309 @@
-// main.js의 DOMContentLoaded 이벤트에 다음 코드를 추가해주세요
+// main.js - 안전한 초기화 버전
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadTheme();
-  initDrag();
-  
-  // 기본 UI 이벤트
-  qs('btn-toggle-theme').onclick = toggleTheme;
-  qs('btn-analyze').onclick = openAnalyzeModal;
-  
-  // 채널 관련 이벤트
-  if (qs('btn-export-channels')) qs('btn-export-channels').onclick = exportChannels;
-  if (qs('btn-import-channels')) qs('btn-import-channels').onclick = () => qs('file-import-channels').click();
-  if (qs('file-import-channels')) {
-    qs('file-import-channels').onchange = (e) => { 
-      const f = e.target.files[0]; 
-      if (f) importChannelsFromFile(f); 
-      e.target.value = ''; 
-    };
-  }
-
-  // 분석 페이지에서 뒤로가기 처리 (전역 이벤트)
-  document.addEventListener('click', (e) => {
-    // 뒤로가기 버튼 처리
-    if (e.target && e.target.id === 'btn-back-home') {
-      e.preventDefault();
-      showHome();
+  try {
+    // 필수 함수들이 로드되었는지 확인
+    if (typeof loadTheme === 'undefined') {
+      console.error('loadTheme 함수가 정의되지 않았습니다. ui.js를 확인해주세요.');
       return;
     }
     
-    // 기존 탭/모달 이벤트
-    if (e.target.classList.contains('tab')) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
-      e.target.classList.add('active'); 
-      qs(e.target.dataset.tab).classList.add('active');
+    if (typeof initDrag === 'undefined') {
+      console.error('initDrag 함수가 정의되지 않았습니다. ui.js를 확인해주세요.');
+      return;
     }
     
-    if (e.target.dataset.period) {
-      document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active'); 
-      state.currentMutantPeriod = e.target.dataset.period; 
-      state.currentPage.mutant = 1;
-      refreshAll('mutant');
+    // UI 초기화
+    loadTheme();
+    initDrag();
+    
+    // Chart.js 로딩 확인
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js가 로드되지 않았습니다.');
+      toast('차트 라이브러리 로딩 오류가 발생했습니다.');
+    } else {
+      console.log('Chart.js 버전:', Chart.version);
     }
-  });
+    
+    // Moment.js 확인
+    if (typeof moment === 'undefined') {
+      console.error('Moment.js가 로드되지 않았습니다.');
+    } else {
+      console.log('Moment.js 버전:', moment.version);
+    }
+    
+    // 기본 UI 이벤트
+    const btnToggleTheme = qs('btn-toggle-theme');
+    const btnAnalyze = qs('btn-analyze');
+    
+    if (btnToggleTheme && typeof toggleTheme === 'function') {
+      btnToggleTheme.onclick = toggleTheme;
+    }
+    
+    if (btnAnalyze && typeof openAnalyzeModal === 'function') {
+      btnAnalyze.onclick = openAnalyzeModal;
+    }
+    
+    // 채널 관련 이벤트
+    const btnExportChannels = qs('btn-export-channels');
+    const btnImportChannels = qs('btn-import-channels');
+    const fileImportChannels = qs('file-import-channels');
+    
+    if (btnExportChannels && typeof exportChannels === 'function') {
+      btnExportChannels.onclick = exportChannels;
+    }
+    
+    if (btnImportChannels && fileImportChannels) {
+      btnImportChannels.onclick = () => fileImportChannels.click();
+    }
+    
+    if (fileImportChannels && typeof importChannelsFromFile === 'function') {
+      fileImportChannels.onchange = (e) => { 
+        const f = e.target.files[0]; 
+        if (f) importChannelsFromFile(f); 
+        e.target.value = ''; 
+      };
+    }
 
-  // API 키 모달 이벤트
-  qs('btn-api').onclick = () => { 
-    const box = qs('api-inputs'); 
-    box.innerHTML = ''; 
-    for (let i = 0; i < 5; i++) { 
-      box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${apiKeys[i] || ''}">`);
-    } 
-    qs('api-test-result').textContent = ''; 
-    openModal('modal-api'); 
-  };
-  
-  document.querySelectorAll('.close').forEach(x => x.onclick = e => closeModal(e.target.dataset.close));
-  
-  qs('api-file-btn').onclick = () => qs('api-file').click();
-  qs('api-file').onchange = e => { 
-    const f = e.target.files[0]; 
-    if (!f) return; 
-    const r = new FileReader(); 
-    r.onload = () => { 
-      const keys = r.result.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 5); 
-      const box = qs('api-inputs'); 
-      box.innerHTML = ''; 
-      for (let i = 0; i < 5; i++) { 
-        box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${keys[i] || ''}">`);
-      } 
-      qs('api-test-result').textContent = '파일에서 불러왔습니다. [저장]을 눌러 반영하세요.'; 
-    }; 
-    r.readAsText(f); 
-  };
-  
-  qs('api-save').onclick = () => { 
-    const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
-    setApiKeys(keys); 
-    toast('API 키가 저장되었습니다.'); 
-    qs('api-test-result').textContent = ''; 
-    closeModal('modal-api'); 
-    refreshAll(); 
-  };
-  
-  qs('api-download').onclick = () => { 
-    if (!apiKeys.length) { 
-      toast('저장된 키가 없습니다.'); 
-      return; 
-    } 
-    const blob = new Blob([apiKeys.join('\n')], { type: 'text/plain' }); 
-    const url = URL.createObjectURL(blob); 
-    const a = document.createElement('a'); 
-    a.href = url; 
-    a.download = 'api_keys.txt'; 
-    document.body.appendChild(a); 
-    a.click(); 
-    a.remove(); 
-    URL.revokeObjectURL(url); 
-  };
-  
-  qs('api-test').onclick = async () => { 
-    const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
-    const testKeys = keys.length ? keys : apiKeys; 
-    if (!testKeys.length) { 
-      qs('api-test-result').innerHTML = '<span class="test-bad">저장된 키가 없습니다.</span>'; 
-      return; 
-    } 
-    qs('api-test-result').textContent = 'API 키 테스트 중...'; 
-    let ok = false, lastErr = ''; 
-    for (const k of testKeys) { 
-      try { 
-        const u = `${CONFIG.API_BASE}channels?part=id&id=UC_x5XG1OV2P6uZZ5FSM9Ttw&key=${encodeURIComponent(k)}`; 
-        const r = await fetch(u); 
-        const j = await r.json(); 
-        if (!j.error) { 
-          ok = true; 
-          break; 
+    // 분석 페이지에서 뒤로가기 처리 (전역 이벤트)
+    document.addEventListener('click', (e) => {
+      // 뒤로가기 버튼 처리
+      if (e.target && e.target.id === 'btn-back-home') {
+        e.preventDefault();
+        if (typeof showHome === 'function') {
+          showHome();
+        }
+        return;
+      }
+      
+      // 기존 탭/모달 이벤트
+      if (e.target && e.target.classList.contains('tab')) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active'); 
+        const tabPanel = qs(e.target.dataset.tab);
+        if (tabPanel) tabPanel.classList.add('active');
+      }
+      
+      if (e.target && e.target.dataset && e.target.dataset.period) {
+        document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active'); 
+        if (window.state) {
+          window.state.currentMutantPeriod = e.target.dataset.period; 
+          if (window.state.currentPage) {
+            window.state.currentPage.mutant = 1;
+          }
+        }
+        if (typeof refreshAll === 'function') {
+          refreshAll('mutant');
+        }
+      }
+    });
+
+    // API 키 모달 이벤트
+    const btnApi = qs('btn-api');
+    if (btnApi) {
+      btnApi.onclick = () => { 
+        const box = qs('api-inputs'); 
+        if (box) {
+          box.innerHTML = ''; 
+          for (let i = 0; i < 5; i++) { 
+            const apiKey = (window.apiKeys && window.apiKeys[i]) || '';
+            box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${apiKey}">`);
+          } 
+          const testResult = qs('api-test-result');
+          if (testResult) testResult.textContent = ''; 
+          openModal('modal-api');
+        }
+      };
+    }
+    
+    // 모달 닫기 이벤트
+    document.querySelectorAll('.close').forEach(x => {
+      x.onclick = e => {
+        if (e.target.dataset && e.target.dataset.close && typeof closeModal === 'function') {
+          closeModal(e.target.dataset.close);
+        }
+      };
+    });
+    
+    // API 파일 업로드 이벤트
+    const apiFileBtn = qs('api-file-btn');
+    const apiFile = qs('api-file');
+    
+    if (apiFileBtn && apiFile) {
+      apiFileBtn.onclick = () => apiFile.click();
+    }
+    
+    if (apiFile) {
+      apiFile.onchange = e => { 
+        const f = e.target.files[0]; 
+        if (!f) return; 
+        const r = new FileReader(); 
+        r.onload = () => { 
+          const keys = r.result.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 5); 
+          const box = qs('api-inputs'); 
+          if (box) {
+            box.innerHTML = ''; 
+            for (let i = 0; i < 5; i++) { 
+              box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${keys[i] || ''}">`);
+            } 
+            const testResult = qs('api-test-result');
+            if (testResult) testResult.textContent = '파일에서 불러왔습니다. [저장]을 눌러 반영하세요.'; 
+          }
+        }; 
+        r.readAsText(f); 
+      };
+    }
+    
+    // API 키 저장 이벤트
+    const apiSave = qs('api-save');
+    if (apiSave && typeof setApiKeys === 'function') {
+      apiSave.onclick = () => { 
+        const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
+        setApiKeys(keys); 
+        toast('API 키가 저장되었습니다.'); 
+        const testResult = qs('api-test-result');
+        if (testResult) testResult.textContent = ''; 
+        closeModal('modal-api'); 
+        if (typeof refreshAll === 'function') {
+          refreshAll();
+        }
+      };
+    }
+    
+    // API 키 다운로드 이벤트
+    const apiDownload = qs('api-download');
+    if (apiDownload) {
+      apiDownload.onclick = () => { 
+        if (!window.apiKeys || !window.apiKeys.length) { 
+          toast('저장된 키가 없습니다.'); 
+          return; 
         } 
-        lastErr = j.error.message || JSON.stringify(j.error); 
-      } catch (e) { 
-        lastErr = e.message || String(e); 
-      } 
-    } 
-    qs('api-test-result').innerHTML = ok ? 
-      '<span class="test-ok">✓ API 키가 정상적으로 작동합니다!</span>' : 
-      `<span class="test-bad">✗ API 키 테스트 실패: ${lastErr}<br><small>Google Cloud Console에서 YouTube Data API v3 활성화 및 리퍼러 설정을 확인해주세요.</small></span>`; 
-  };
+        const blob = new Blob([window.apiKeys.join('\n')], { type: 'text/plain' }); 
+        const url = URL.createObjectURL(blob); 
+        const a = document.createElement('a'); 
+        a.href = url; 
+        a.download = 'api_keys.txt'; 
+        document.body.appendChild(a); 
+        a.click(); 
+        a.remove(); 
+        URL.revokeObjectURL(url); 
+      };
+    }
+    
+    // API 키 테스트 이벤트
+    const apiTest = qs('api-test');
+    if (apiTest && window.CONFIG) {
+      apiTest.onclick = async () => { 
+        const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
+        const testKeys = keys.length ? keys : (window.apiKeys || []); 
+        const testResult = qs('api-test-result');
+        
+        if (!testKeys.length) { 
+          if (testResult) {
+            testResult.innerHTML = '<span class="test-bad">저장된 키가 없습니다.</span>'; 
+          }
+          return; 
+        } 
+        
+        if (testResult) testResult.textContent = 'API 키 테스트 중...'; 
+        let ok = false, lastErr = ''; 
+        
+        for (const k of testKeys) { 
+          try { 
+            const u = `${window.CONFIG.API_BASE}channels?part=id&id=UC_x5XG1OV2P6uZZ5FSM9Ttw&key=${encodeURIComponent(k)}`; 
+            const r = await fetch(u); 
+            const j = await r.json(); 
+            if (!j.error) { 
+              ok = true; 
+              break; 
+            } 
+            lastErr = j.error.message || JSON.stringify(j.error); 
+          } catch (e) { 
+            lastErr = e.message || String(e); 
+          } 
+        } 
+        
+        if (testResult) {
+          testResult.innerHTML = ok ? 
+            '<span class="test-ok">✓ API 키가 정상적으로 작동합니다!</span>' : 
+            `<span class="test-bad">✗ API 키 테스트 실패: ${lastErr}<br><small>Google Cloud Console에서 YouTube Data API v3 활성화 및 리퍼러 설정을 확인해주세요.</small></span>`; 
+        }
+      };
+    }
 
-  // 채널 추가 모달
-  qs('btn-add-channel').onclick = () => { 
-    if (!hasKeys()) { 
-      toast('먼저 API 키를 설정해주세요.'); 
-      return; 
-    } 
-    openModal('modal-add'); 
-  };
+    // 채널 추가 모달
+    const btnAddChannel = qs('btn-add-channel');
+    if (btnAddChannel) {
+      btnAddChannel.onclick = () => { 
+        if (!hasKeys || !hasKeys()) { 
+          toast('먼저 API 키를 설정해주세요.'); 
+          return; 
+        } 
+        openModal('modal-add'); 
+      };
+    }
 
-  // 정렬 변경 이벤트
-  const sortChannels = qs('sort-channels');
-  const sortMutant = qs('sort-mutant');
-  const sortLatest = qs('sort-latest');
-  
-  if (sortChannels) {
-    sortChannels.onchange = () => {
-      state.currentPage.channels = 1;
-      refreshAll('channels');
-    };
-  }
-  if (sortMutant) {
-    sortMutant.onchange = () => {
-      state.currentPage.mutant = 1;
-      refreshAll('mutant');
-    };
-  }
-  if (sortLatest) {
-    sortLatest.onchange = () => {
-      state.currentPage.latest = 1;
-      refreshAll('latest');
-    };
-  }
+    // 정렬 변경 이벤트
+    const sortChannels = qs('sort-channels');
+    const sortMutant = qs('sort-mutant');
+    const sortLatest = qs('sort-latest');
+    
+    if (sortChannels && typeof refreshAll === 'function') {
+      sortChannels.onchange = () => {
+        if (window.state && window.state.currentPage) {
+          window.state.currentPage.channels = 1;
+        }
+        refreshAll('channels');
+      };
+    }
+    
+    if (sortMutant && typeof refreshAll === 'function') {
+      sortMutant.onchange = () => {
+        if (window.state && window.state.currentPage) {
+          window.state.currentPage.mutant = 1;
+        }
+        refreshAll('mutant');
+      };
+    }
+    
+    if (sortLatest && typeof refreshAll === 'function') {
+      sortLatest.onchange = () => {
+        if (window.state && window.state.currentPage) {
+          window.state.currentPage.latest = 1;
+        }
+        refreshAll('latest');
+      };
+    }
 
-  // 채널 검색 기능
-  const CH_PSIZE = CONFIG.PAGINATION.SEARCH_CHANNELS; 
+    // 채널 검색 기능 (안전한 버전)
+    setupChannelSearch();
+    setupVideoSearch();
+    setupUrlAdd();
+
+    // 첫 로드
+    if (hasKeys && hasKeys() && typeof refreshAll === 'function') {
+      refreshAll();
+    } else {
+      toast('API 키를 설정해주세요.');
+    }
+    
+    console.log('메인 초기화 완료');
+    
+  } catch (error) {
+    console.error('메인 초기화 오류:', error);
+    toast('애플리케이션 초기화 중 오류가 발생했습니다.');
+  }
+});
+
+// 채널 검색 기능 설정
+function setupChannelSearch() {
+  const CH_PSIZE = window.CONFIG ? window.CONFIG.PAGINATION.SEARCH_CHANNELS : 4; 
   let chCache = [], chPage = 1;
   
   const daysAgoStr = iso => { 
-    if (!iso) return '-'; 
+    if (!iso || typeof moment === 'undefined') return '-'; 
     const d = moment(iso); 
     const diff = moment().diff(d, 'days'); 
     if (diff <= 0) return '오늘'; 
@@ -208,27 +345,34 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <button class="btn" data-add-ch="${ch.id}">추가</button>`;
       
-      row.querySelector('[data-add-ch]').onclick = async () => {
-        const b = row.querySelector('[data-add-ch]'); 
-        const t = b.textContent; 
-        b.textContent = '추가 중…'; 
-        b.disabled = true;
-        try { 
-          const ok = await addChannelById(ch.id); 
-          if (ok) { 
-            b.textContent = '완료!'; 
-            b.style.background = '#1db954'; 
-            setTimeout(() => closeModal('modal-add'), 800);
-          } else { 
+      const addBtn = row.querySelector('[data-add-ch]');
+      if (addBtn && typeof addChannelById === 'function') {
+        addBtn.onclick = async () => {
+          const b = addBtn; 
+          const t = b.textContent; 
+          b.textContent = '추가 중…'; 
+          b.disabled = true;
+          try { 
+            const ok = await addChannelById(ch.id); 
+            if (ok) { 
+              b.textContent = '완료!'; 
+              b.style.background = '#1db954'; 
+              setTimeout(() => {
+                if (typeof closeModal === 'function') {
+                  closeModal('modal-add');
+                }
+              }, 800);
+            } else { 
+              b.textContent = t; 
+              b.disabled = false; 
+            } 
+          } catch (error) { 
             b.textContent = t; 
             b.disabled = false; 
-          } 
-        } catch { 
-          b.textContent = t; 
-          b.disabled = false; 
-          toast('채널 추가 중 오류'); 
-        }
-      };
+            toast('채널 추가 중 오류'); 
+          }
+        };
+      }
       list.appendChild(row);
     });
     
@@ -257,7 +401,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = queryInput.value.trim(); 
     if (!q) { 
       const resultsEl = qs('ch-results');
-      if (resultsEl) showError('ch-results', '검색어를 입력해주세요.'); 
+      if (resultsEl && typeof showError === 'function') {
+        showError('ch-results', '검색어를 입력해주세요.'); 
+      }
       return; 
     }
     
@@ -268,6 +414,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (paginationEl) paginationEl.innerHTML = '';
     
     try {
+      if (typeof yt !== 'function') {
+        throw new Error('YouTube API 함수가 로드되지 않았습니다.');
+      }
+      
       const res = await yt('search', { part: 'snippet', q, type: 'channel', maxResults: 25 });
       if (!res.items?.length) { 
         if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
@@ -295,7 +445,9 @@ document.addEventListener('DOMContentLoaded', () => {
       renderChPage();
     } catch (error) {
       console.error('채널 검색 오류:', error);
-      if (resultsEl) showError('ch-results', '검색 중 오류가 발생했습니다.');
+      if (resultsEl && typeof showError === 'function') {
+        showError('ch-results', '검색 중 오류가 발생했습니다.');
+      }
     }
   }
   
@@ -306,9 +458,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnChSearch) btnChSearch.onclick = searchChannels; 
   if (chQueryInput) chQueryInput.onkeydown = e => { if (e.key === 'Enter') searchChannels(); }; 
   if (chSortSelect) chSortSelect.onchange = () => renderChPage();
+}
 
-  // 영상 검색(롱폼)
-  const VID_PSIZE = CONFIG.PAGINATION.SEARCH_VIDEOS; 
+// 영상 검색 기능 설정
+function setupVideoSearch() {
+  const VID_PSIZE = window.CONFIG ? window.CONFIG.PAGINATION.SEARCH_VIDEOS : 4; 
   let vidCache = [], vidPage = 1;
   
   async function renderVidPage() {
@@ -340,31 +494,38 @@ document.addEventListener('DOMContentLoaded', () => {
         </a>
         <div>
           <div class="r-title">${v.snippet.title}</div>
-          <div class="r-sub">${v.snippet.channelTitle} · 채널 구독자: ${fmt(v.__ch?.subscriberCount)} · 채널 영상: ${fmt(v.__ch?.videoCount)} · 영상 조회수: ${fmt(v.__vid?.viewCount)} · 업로드: ${moment(v.snippet.publishedAt).format('YYYY-MM-DD')}</div>
+          <div class="r-sub">${v.snippet.channelTitle} · 채널 구독자: ${fmt(v.__ch?.subscriberCount)} · 채널 영상: ${fmt(v.__ch?.videoCount)} · 영상 조회수: ${fmt(v.__vid?.viewCount)} · 업로드: ${typeof moment !== 'undefined' ? moment(v.snippet.publishedAt).format('YYYY-MM-DD') : v.snippet.publishedAt.slice(0, 10)}</div>
         </div>
         <button class="btn" data-add-ch-from-vid="${v.snippet.channelId}">채널 추가</button>`;
       
-      row.querySelector('[data-add-ch-from-vid]').onclick = async () => {
-        const b = row.querySelector('[data-add-ch-from-vid]'); 
-        const t = b.textContent; 
-        b.textContent = '추가 중…'; 
-        b.disabled = true;
-        try { 
-          const ok = await addChannelById(v.snippet.channelId); 
-          if (ok) { 
-            b.textContent = '완료!'; 
-            b.style.background = '#1db954'; 
-            setTimeout(() => closeModal('modal-add'), 800);
-          } else { 
+      const addBtn = row.querySelector('[data-add-ch-from-vid]');
+      if (addBtn && typeof addChannelById === 'function') {
+        addBtn.onclick = async () => {
+          const b = addBtn; 
+          const t = b.textContent; 
+          b.textContent = '추가 중…'; 
+          b.disabled = true;
+          try { 
+            const ok = await addChannelById(v.snippet.channelId); 
+            if (ok) { 
+              b.textContent = '완료!'; 
+              b.style.background = '#1db954'; 
+              setTimeout(() => {
+                if (typeof closeModal === 'function') {
+                  closeModal('modal-add');
+                }
+              }, 800);
+            } else { 
+              b.textContent = t; 
+              b.disabled = false; 
+            } 
+          } catch (error) { 
             b.textContent = t; 
             b.disabled = false; 
-          } 
-        } catch { 
-          b.textContent = t; 
-          b.disabled = false; 
-          toast('채널 추가 중 오류'); 
-        }
-      };
+            toast('채널 추가 중 오류'); 
+          }
+        };
+      }
       list.appendChild(row);
     });
     
@@ -400,6 +561,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (paginationEl) paginationEl.innerHTML = '';
     
     try {
+      if (typeof yt !== 'function') {
+        throw new Error('YouTube API 함수가 로드되지 않았습니다.');
+      }
+      
       const res = await yt('search', { part: 'snippet', q, type: 'video', videoDuration: 'long', maxResults: 25 });
       if (!res.items?.length) { 
         if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
@@ -437,7 +602,9 @@ document.addEventListener('DOMContentLoaded', () => {
       renderVidPage();
     } catch (error) {
       console.error('영상 검색 오류:', error);
-      if (resultsEl) showError('vid-results', '검색 중 오류가 발생했습니다.');
+      if (resultsEl && typeof showError === 'function') {
+        showError('vid-results', '검색 중 오류가 발생했습니다.');
+      }
     }
   }
   
@@ -448,8 +615,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnVidSearch) btnVidSearch.onclick = searchVideos; 
   if (vidQueryInput) vidQueryInput.onkeydown = e => { if (e.key === 'Enter') searchVideos(); }; 
   if (vidSortSelect) vidSortSelect.onchange = () => renderVidPage();
+}
 
-  // URL 직접 추가
+// URL 직접 추가 기능 설정
+function setupUrlAdd() {
   function extractChannelId(url) {
     if (!url) return null; 
     url = url.trim();
@@ -478,7 +647,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const input = urlInput.value.trim(); 
       if (!input) { 
-        showError('url-result', '채널 URL 또는 ID를 입력해주세요.'); 
+        if (typeof showError === 'function') {
+          showError('url-result', '채널 URL 또는 ID를 입력해주세요.'); 
+        }
         return; 
       }
       
@@ -487,46 +658,60 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (channelRef && channelRef.videoId) {
         try { 
-          const vd = await yt('videos', { part: 'snippet', id: channelRef.videoId }); 
-          channelId = vd.items?.[0]?.snippet?.channelId || null; 
+          if (typeof yt === 'function') {
+            const vd = await yt('videos', { part: 'snippet', id: channelRef.videoId }); 
+            channelId = vd.items?.[0]?.snippet?.channelId || null; 
+          }
         } catch {}
       }
       
       if (channelRef && channelRef.playlistId && !channelId) {
         try { 
-          const pd = await yt('playlists', { part: 'snippet', id: channelRef.playlistId }); 
-          channelId = pd.items?.[0]?.snippet?.channelId || null; 
+          if (typeof yt === 'function') {
+            const pd = await yt('playlists', { part: 'snippet', id: channelRef.playlistId }); 
+            channelId = pd.items?.[0]?.snippet?.channelId || null; 
+          }
         } catch {}
       }
       
       if (!channelId) {
         try {
-          showSuccess('url-result', '채널을 검색하는 중...');
-          const searchRes = await yt('search', { part: 'snippet', q: input.replace(/^@/, ''), type: 'channel', maxResults: 1 });
-          if (searchRes.items?.[0]) channelId = searchRes.items[0].snippet.channelId;
-          else throw new Error('채널을 찾을 수 없습니다.');
+          if (typeof showSuccess === 'function') {
+            showSuccess('url-result', '채널을 검색하는 중...');
+          }
+          if (typeof yt === 'function') {
+            const searchRes = await yt('search', { part: 'snippet', q: input.replace(/^@/, ''), type: 'channel', maxResults: 1 });
+            if (searchRes.items?.[0]) channelId = searchRes.items[0].snippet.channelId;
+            else throw new Error('채널을 찾을 수 없습니다.');
+          }
         } catch { 
-          showError('url-result', '채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요.'); 
+          if (typeof showError === 'function') {
+            showError('url-result', '채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요.'); 
+          }
           return; 
         }
       }
       
       try {
-        showSuccess('url-result', '채널을 추가하는 중...');
-        const ok = await addChannelById(channelId); 
-        if (ok) { 
-          closeModal('modal-add'); 
-          urlInput.value = ''; 
-          const urlResult = qs('url-result');
-          if (urlResult) urlResult.innerHTML = ''; 
+        if (typeof showSuccess === 'function') {
+          showSuccess('url-result', '채널을 추가하는 중...');
+        }
+        if (typeof addChannelById === 'function') {
+          const ok = await addChannelById(channelId); 
+          if (ok) { 
+            if (typeof closeModal === 'function') {
+              closeModal('modal-add'); 
+            }
+            urlInput.value = ''; 
+            const urlResult = qs('url-result');
+            if (urlResult) urlResult.innerHTML = ''; 
+          }
         }
       } catch (e) { 
-        showError('url-result', '채널 추가 실패: ' + e.message); 
+        if (typeof showError === 'function') {
+          showError('url-result', '채널 추가 실패: ' + e.message); 
+        }
       }
     };
   }
-
-  // 첫 로드
-  if (hasKeys()) refreshAll(); 
-  else toast('API 키를 설정해주세요.');
-});
+}
