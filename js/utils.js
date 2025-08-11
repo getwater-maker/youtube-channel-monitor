@@ -1,31 +1,48 @@
-// 유틸리티 함수들
-const qs = id => document.getElementById(id);
-const fmt = n => { 
-  const x = parseInt(n || '0', 10); 
-  return isNaN(x) ? '0' : x.toLocaleString(); 
-};
-const seconds = iso => moment.duration(iso).asSeconds();
+// 유틸리티 함수들 - 중복 선언 방지
+if (!window.qs) {
+  window.qs = id => document.getElementById(id);
+}
+
+if (!window.fmt) {
+  window.fmt = n => { 
+    const x = parseInt(n || '0', 10); 
+    return isNaN(x) ? '0' : x.toLocaleString(); 
+  };
+}
+
+if (!window.seconds) {
+  window.seconds = iso => {
+    if (typeof moment !== 'undefined') {
+      return moment.duration(iso).asSeconds();
+    }
+    return 0;
+  };
+}
 
 // 불용어 목록
-const stopWords = new Set([
+window.stopWords = window.stopWords || new Set([
   '은', '는', '이', '가', '을', '를', '에', '의', '와', '과', '도', '로', '으로',
   'the', 'a', 'an', 'of', 'to', 'in', 'on', 'for', 'and', 'or', 'but', 'with', 'about',
   '에서', '같은', '뿐', '위해', '합니다', '했다', '하는', '하기', '진짜', '무너졌다', 'into'
 ]);
 
 function toast(msg, ms = 1800) { 
-  const t = qs('toast'); 
-  t.textContent = msg; 
-  t.style.display = 'block'; 
-  setTimeout(() => t.style.display = 'none', ms); 
+  const t = window.qs('toast'); 
+  if (t) {
+    t.textContent = msg; 
+    t.style.display = 'block'; 
+    setTimeout(() => t.style.display = 'none', ms); 
+  }
 }
 
 function showError(elementId, message) { 
-  qs(elementId).innerHTML = `<div class="error-message">${message}</div>`; 
+  const el = window.qs(elementId);
+  if (el) el.innerHTML = `<div class="error-message">${message}</div>`; 
 }
 
 function showSuccess(elementId, message) { 
-  qs(elementId).innerHTML = `<div class="success-message">${message}</div>`; 
+  const el = window.qs(elementId);
+  if (el) el.innerHTML = `<div class="success-message">${message}</div>`; 
 }
 
 function extractKeywords(text) {
@@ -39,7 +56,7 @@ function extractKeywords(text) {
       const hasKo = /[가-힣]/.test(w);
       if (!w) return;
       if ((hasKo && w.length < 2) || (!hasKo && w.length < 3)) return;
-      if (stopWords.has(w)) return;
+      if (window.stopWords.has(w)) return;
       freq.set(w, (freq.get(w) || 0) + 1);
     });
     
@@ -57,7 +74,7 @@ function truncateText(text, maxLength) {
 
 // 페이지네이션 렌더링
 function renderPagination(containerId, currentPage, totalItems, itemsPerPage, onPageChange) {
-  const container = qs(containerId);
+  const container = window.qs(containerId);
   if (!container) return;
   
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -99,3 +116,11 @@ function renderPagination(containerId, currentPage, totalItems, itemsPerPage, on
     container.appendChild(nextBtn);
   }
 }
+
+// 전역으로 노출
+window.toast = toast;
+window.showError = showError;
+window.showSuccess = showSuccess;
+window.extractKeywords = extractKeywords;
+window.truncateText = truncateText;
+window.renderPagination = renderPagination;
