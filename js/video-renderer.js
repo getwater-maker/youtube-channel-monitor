@@ -25,7 +25,10 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
     const channelName = v.__ch?.title || v.snippet?.channelTitle || '알 수 없음';
     const uploadDate = moment(v.publishedAt).format('MM-DD');
     const subscriberCount = fmt(v.__ch?.subscriberCount || 0);
-    const mutantIndex = v.mutantIndex || '0.00';
+    const mutantIndex = parseFloat(v.mutantIndex || '0.00');
+    
+    // 돌연변이 배지 표시 여부 결정 (모든 섹션에서 임계값 이상일 때 표시)
+    const showMutantBadge = mutantIndex >= CONFIG.MUTANT_THRESHOLD;
     
     card.innerHTML = `
       <a class="video-link" target="_blank" href="https://www.youtube.com/watch?v=${v.id}">
@@ -40,9 +43,9 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
             <span>${subscriberCount}</span>
           </div>
           <div class="v-meta-bottom">
-            ${parseFloat(mutantIndex) >= CONFIG.MUTANT_THRESHOLD ? 
-              `<div class="mutant-badge">${mutantIndex}</div>` : 
-              `<div></div>`
+            ${showMutantBadge ? 
+              `<div class="mutant-badge">🚀 ${mutantIndex.toFixed(2)}</div>` : 
+              `<div class="mutant-indicator">${mutantIndex.toFixed(2)}</div>`
             }
             <label class="video-done-checkbox">
               <input type="checkbox" data-done="${v.id}"/> 완료
