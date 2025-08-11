@@ -146,9 +146,20 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
 
 .v-meta-bottom{
   display:grid;
-  grid-template-columns:auto 1fr;
+  grid-template-columns:auto auto 1fr;
   gap:8px;
   align-items:center;
+}
+
+/* 업로드 날짜 스타일 */
+.upload-date{
+  font-size:11px;
+  color:var(--muted);
+  background:var(--bg);
+  padding:3px 6px;
+  border-radius:4px;
+  border:1px solid var(--border);
+  justify-self:center;
 }
 
 /* 돌연변이 배지 - 향상된 디자인 */
@@ -221,7 +232,15 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
   accent-color:var(--brand);
 }
 
-.keywords{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+/* 키워드 섹션 통일 */
+.keywords{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:8px;
+  min-height:32px; /* 최소 높이로 섹션 크기 통일 */
+  align-items:flex-start;
+}
 .kw{
   font-size:12px;
   background:var(--border);
