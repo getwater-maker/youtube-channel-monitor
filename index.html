@@ -687,7 +687,12 @@ async function openAnalyzeModal(){
         <div class="r-sub">구독자: ${fmt(ch.subscriberCount)}</div>
       </div>
       <button class="btn" data-analyze-ch="${ch.id}">분석</button>`;
-    el.querySelector('button').onclick = () => {
+    el.onclick = () => { // 채널 카드 클릭 시 분석 시작
+      startAnalysis(ch.id);
+      closeModal('modal-analyze');
+    };
+    el.querySelector('button').onclick = (e) => { // 버튼 클릭 시 버블링 방지
+      e.stopPropagation();
       startAnalysis(ch.id);
       closeModal('modal-analyze');
     };
@@ -696,6 +701,7 @@ async function openAnalyzeModal(){
 }
 
 async function startAnalysis(channelId) {
+  const container = document.body.querySelector('.container');
   const mainContent = qs('main-content');
   if (mainContent) { mainContent.remove(); }
   
@@ -703,7 +709,7 @@ async function startAnalysis(channelId) {
   loadingDiv.id = 'analysis-section';
   loadingDiv.className = 'analysis-page';
   loadingDiv.innerHTML = '<p class="muted" style="text-align: center;">채널 데이터를 분석 중입니다. 잠시만 기다려주세요...</p>';
-  document.body.querySelector('.container').appendChild(loadingDiv);
+  container.appendChild(loadingDiv);
   currentView = 'analysis';
   
   try {
@@ -714,7 +720,7 @@ async function startAnalysis(channelId) {
     const videos = await getLongformVideos(ch.uploadsPlaylistId);
     
     // 분석
-    const analysisResult = analyzeVideos(videos, ch.subscriberCount);
+    const analysisResult = analyzeVideos(videos, ch);
     
     // UI 렌더링
     renderAnalysisResult(ch, analysisResult);
@@ -766,31 +772,29 @@ async function getLongformVideos(uploadsPlaylistId, videoCount = 100) {
   return videos;
 }
 
-function analyzeVideos(videos, subscriberCount) {
+function analyzeVideos(videos, channel) {
+  const subscriberCount = parseInt(channel.subscriberCount || '1');
   const topVideos = [...videos].sort((a, b) => parseInt(b.statistics.viewCount) - parseInt(a.statistics.viewCount)).slice(0, 10);
   
   const allTitles = videos.map(v => v.snippet.title).join(' ');
   const keywords = extractKeywords(allTitles).slice(0, 15);
   
-  const avgViewCount = videos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount), 0) / videos.length;
+  const totalViews = videos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount), 0);
+  const avgViewCount = totalViews / videos.length;
   
   const weeklyUploads = new Array(7).fill(0); // 일요일(0) ~ 토요일(6)
   const hourlyUploads = new Array(24).fill(0); // 0시 ~ 23시
-  const durationBuckets = [0, 0, 0, 0]; // <5분, 5-10분, 10-20분, >20분
   
   videos.forEach(v => {
     const publishedMoment = moment(v.snippet.publishedAt);
     weeklyUploads[publishedMoment.day()]++;
     hourlyUploads[publishedMoment.hour()]++;
-    
-    const duration = moment.duration(v.contentDetails.duration).asMinutes();
-    if (duration < 5) durationBuckets[0]++;
-    else if (duration < 10) durationBuckets[1]++;
-    else if (duration < 20) durationBuckets[2]++;
-    else durationBuckets[3]++;
   });
   
-  const mutantVideos = videos.filter(v => parseInt(v.statistics.viewCount) > (parseInt(subscriberCount) * 2));
+  const mutantVideos = videos.filter(v => {
+    const views = parseInt(v.statistics.viewCount);
+    return views >= (subscriberCount * 2); // 돌연변이 기준
+  });
   
   return {
     topVideos,
@@ -798,17 +802,29 @@ function analyzeVideos(videos, subscriberCount) {
     avgViewCount,
     weeklyUploads,
     hourlyUploads,
-    durationBuckets,
     mutantVideos
   };
 }
 
 function renderAnalysisResult(channel, result) {
+  const container = document.body.querySelector('.container');
   const analysisPage = document.createElement('div');
   analysisPage.id = 'analysis-section';
   analysisPage.className = 'analysis-page';
 
+  const subDiff = async () => {
+    const y = await getYesterdaySubCount(channel);
+    const today = parseInt(channel.subscriberCount || '0', 10);
+    const diff = y == null ? null : today - y;
+    const diffStr = y == null ? '<span class="v" style="color:#888">(전일 정보 없음)</span>'
+        : diff > 0 ? `<span class="v" style="color:#1db954">+${fmt(diff)}</span>`
+        : diff < 0 ? `<span class="v" style="color:#c4302b">${fmt(diff)}</span>`
+        : `<span class="v" style="color:#888">0</span>`;
+    return diffStr;
+  };
+  
   analysisPage.innerHTML = `
+    <button id="btn-back-home" class="btn">메인 페이지로 돌아가기</button>
     <div class="analysis-header">
       <img class="thumb" src="${channel.thumbnail}" alt="${channel.title}">
       <div>
@@ -816,7 +832,14 @@ function renderAnalysisResult(channel, result) {
         <p>구독자: ${fmt(channel.subscriberCount)}</p>
       </div>
     </div>
-
+    <div class="analysis-card analysis-insights">
+        <h3>채널 인사이트 요약</h3>
+        <div class="insights">
+          <div><span class="k">전일대비</span> <span id="sub-diff-insight" class="v">...</span></div>
+          <div><span class="k">평균조회수</span> <span class="v">${fmt(Math.round(result.avgViewCount))}회</span></div>
+          <div><span class="k">업로드 영상</span> <span class="v">${fmt(channel.videoCount)}개</span></div>
+        </div>
+    </div>
     <div class="analysis-content">
       <div class="analysis-card analysis-videos">
         <h3>주요 히트 영상 (조회수 상위 10개)</h3>
@@ -824,9 +847,7 @@ function renderAnalysisResult(channel, result) {
       </div>
       
       <div class="analysis-card analysis-insights">
-        <h3>채널 인사이트 요약</h3>
-        <p><strong>평균 조회수:</strong> 약 ${fmt(Math.round(result.avgViewCount))}회</p>
-        <p><strong>발견된 키워드:</strong></p>
+        <h3>주요 키워드</h3>
         <div class="keywords" id="analysis-keywords"></div>
       </div>
 
@@ -849,8 +870,13 @@ function renderAnalysisResult(channel, result) {
     </div>
   `;
   
-  document.body.querySelector('.container').appendChild(analysisPage);
+  container.appendChild(analysisPage);
   
+  // 전일대비 구독자수 비동기 업데이트
+  subDiff().then(diffStr => {
+    qs('sub-diff-insight').innerHTML = diffStr;
+  });
+
   // 주요 영상 렌더링
   const topVideosList = qs('analysis-top-videos');
   result.topVideos.forEach(v => {
@@ -890,6 +916,9 @@ function renderAnalysisResult(channel, result) {
   
   // 차트 렌더링
   renderCharts(result);
+
+  // 메인 페이지로 돌아가기 버튼 이벤트 리스너 추가
+  qs('btn-back-home').onclick = showHome;
 }
 
 function renderCharts(result) {
@@ -960,6 +989,20 @@ function renderCharts(result) {
   new Chart(qs('hourly-chart'), hourlyConfig);
 }
 
+/* 메인 페이지로 돌아가기 */
+function showHome(){
+  const analysisSection = qs('analysis-section');
+  if(analysisSection){
+    const container = document.body.querySelector('.container');
+    const mainContent = document.createElement('div');
+    mainContent.id = 'main-content';
+    mainContent.className = 'three-col';
+    container.appendChild(mainContent);
+    analysisSection.remove();
+    refreshAll();
+  }
+}
+
 /* 테마 토글 */
 function toggleTheme(){
   const body=document.body;
@@ -977,7 +1020,7 @@ function toggleTheme(){
   }
 }
 function loadTheme(){
-  const savedTheme=localStorage.getItem('theme')||'light';
+  const savedTheme=localStorage.getItem('theme')||'dark'; // 기본 테마를 'dark'로 설정
   document.body.classList.add(savedTheme);
   qs('btn-toggle-theme').textContent = savedTheme==='dark' ? '라이트 모드' : '다크 모드';
 }
@@ -1002,19 +1045,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   /* 채널 분석 버튼 */
   qs('btn-analyze').onclick = openAnalyzeModal;
   
-  // 홈으로 돌아가는 함수 추가
-  function showHome(){
-    const analysisSection = qs('analysis-section');
-    if(analysisSection){
-      const mainContent = document.createElement('div');
-      mainContent.id = 'main-content';
-      mainContent.className = 'three-col';
-      document.body.querySelector('.container').appendChild(mainContent);
-      analysisSection.remove();
-      refreshAll();
-    }
-  }
-
   /* 채널명 검색 */
   const CH_PSIZE=4; let chCache=[], chPage=1;
   const daysAgoStr=iso=>{ if(!iso) return '-'; const d=moment(iso); const diff=moment().diff(d,'days'); if(diff<=0) return '오늘'; if(diff===1) return '1일 전'; return `${diff}일 전`; };
