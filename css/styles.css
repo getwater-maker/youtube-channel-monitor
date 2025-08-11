@@ -1,4 +1,25 @@
-/* analysis.js에서 사용하는 추가 스타일들 */
+/* styles.css 파일에 추가해야 할 분석 페이지 스타일들 */
+
+/* 패턴 인사이트 스타일 (누락된 부분) */
+.pattern-insights {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--glass-bg);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(5px);
+}
+
+.pattern-insights p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.pattern-insights strong {
+  color: var(--brand);
+  font-weight: 700;
+}
 
 /* 키워드 클라우드 대형 버전 */
 .analysis-keywords-large {
@@ -56,7 +77,7 @@
   font-size: 0.8em;
 }
 
-/* 랭킹 배지 */
+/* 랭킹 및 돌연변이 배지 */
 .rank-badge, .mutant-rank {
   position: absolute;
   top: 8px;
@@ -82,6 +103,9 @@
   width: 40px;
   height: 32px;
   border-radius: 16px;
+  position: relative;
+  top: auto;
+  left: auto;
 }
 
 /* 참여도 메트릭 */
@@ -195,40 +219,18 @@
   text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
 }
 
-/* 패턴 인사이트 */
-.pattern-insights {
-  margin-top: 20px;
-  padding: 20px;
-  background: var(--glass-bg);
-  border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(5px);
-}
-
-.pattern-insights p {
-  margin: 8px 0;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.pattern-insights strong {
-  color: var(--brand);
-  font-weight: 700;
-}
-
-/* 분석 비디오 카드 개선 */
+/* 분석 비디오 카드 완전 재정의 */
 .analysis-video-card {
   display: flex;
   gap: 16px;
   align-items: center;
   padding: 16px;
-  border-bottom: 2px solid var(--border);
   transition: all 0.3s;
   border-radius: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   position: relative;
   background: var(--card);
-  border: 2px solid transparent;
+  border: 2px solid var(--border);
 }
 
 .analysis-video-card::before {
@@ -255,10 +257,6 @@
   box-shadow: 0 8px 25px rgba(196, 48, 43, 0.15);
 }
 
-.analysis-video-card:last-child {
-  border-bottom: none;
-}
-
 .analysis-video-card img {
   width: 120px;
   height: 68px;
@@ -266,7 +264,6 @@
   border-radius: 12px;
   transition: transform 0.3s;
   border: 2px solid var(--border);
-  position: relative;
 }
 
 .analysis-video-card:hover img {
@@ -284,9 +281,10 @@
   font-weight: 700;
   line-height: 1.4;
   color: var(--text);
+  transition: color 0.3s;
 }
 
-.analysis-video-meta h4:hover {
+.analysis-video-card:hover .analysis-video-meta h4 {
   color: var(--brand);
 }
 
@@ -297,7 +295,7 @@
   font-weight: 500;
 }
 
-/* 반응형 개선 */
+/* 반응형 분석 페이지 */
 @media (max-width: 768px) {
   .length-comparison {
     grid-template-columns: 1fr;
@@ -309,6 +307,7 @@
   
   .tag-cloud-large {
     padding: 16px;
+    gap: 8px;
   }
   
   .tag-large {
@@ -319,81 +318,30 @@
   .analysis-video-card {
     flex-direction: column;
     text-align: center;
+    align-items: center;
   }
   
   .analysis-video-card img {
     width: 100%;
     height: auto;
-    max-width: 300px;
+    max-width: 280px;
   }
   
   .rank-badge, .mutant-rank {
     position: relative;
     margin-bottom: 8px;
+    top: auto;
+    left: auto;
   }
-}
-
-/* 추가 애니메이션 */
-.analysis-card {
-  animation: fadeInUp 0.6s ease-out;
-}
-
-.analysis-card:nth-child(1) { animation-delay: 0.1s; }
-.analysis-card:nth-child(2) { animation-delay: 0.2s; }
-.analysis-card:nth-child(3) { animation-delay: 0.3s; }
-.analysis-card:nth-child(4) { animation-delay: 0.4s; }
-.analysis-card:nth-child(5) { animation-delay: 0.5s; }
-.analysis-card:nth-child(6) { animation-delay: 0.6s; }
-
-/* 차트 컨테이너 개선 */
-.chart-container {
-  position: relative;
-  background: var(--glass-bg);
-  border-radius: 16px;
-  padding: 20px;
-  border: 2px solid var(--border);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s;
-}
-
-.chart-container:hover {
-  border-color: var(--brand);
-  box-shadow: 0 8px 25px rgba(196, 48, 43, 0.1);
-}
-
-/* 메트릭 카드 개선 */
-.metric-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.metric-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  transition: left 0.6s;
-}
-
-.metric-card:hover::after {
-  left: 100%;
-}
-
-/* 분석 헤더 개선 */
-.analysis-header .info {
-  position: relative;
-}
-
-.analysis-header .info::before {
-  content: '';
-  position: absolute;
-  left: -20px;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--gradient-mutant);
-  border-radius: 2px;
+  
+  .analysis-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .analysis-header .thumb {
+    width: 100px;
+    height: 100px;
+  }
 }
