@@ -1,17 +1,36 @@
-// UI 관련 함수들 - 완전한 버전
+// UI 관련 함수들 - qs 함수 오류 수정 버전
+
+// 안전한 DOM 접근 함수 (utils.js 로드되기 전에도 사용 가능)
+function safeGetElement(id) {
+  try {
+    return document.getElementById(id);
+  } catch (e) {
+    console.warn(`Element with id '${id}' not found:`, e);
+    return null;
+  }
+}
+
+// qs 함수가 로드되지 않았을 때를 위한 대체 함수
+function getElement(id) {
+  // window.qs가 있으면 사용, 없으면 safeGetElement 사용
+  if (typeof window.qs === 'function') {
+    return window.qs(id);
+  }
+  return safeGetElement(id);
+}
 
 function openModal(id) { 
-  const modal = qs(id);
+  const modal = getElement(id);
   if (modal) modal.style.display = 'flex'; 
 }
 
 function closeModal(id) { 
-  const modal = qs(id);
+  const modal = getElement(id);
   if (modal) modal.style.display = 'none'; 
 }
 
 function initDrag() { 
-  const el = qs('main-content'); 
+  const el = getElement('main-content'); 
   if (!el) return;
   
   const saved = localStorage.getItem('colOrder'); 
@@ -38,7 +57,7 @@ function initDrag() {
 function loadTheme() {
   const savedTheme = localStorage.getItem('theme') || 'dark'; // 기본값을 dark로 변경
   const body = document.body;
-  const btn = qs('btn-toggle-theme');
+  const btn = getElement('btn-toggle-theme');
   
   // 기존 테마 클래스 제거
   body.classList.remove('dark', 'light');
@@ -53,7 +72,7 @@ function loadTheme() {
 
 function toggleTheme() {
   const body = document.body;
-  const btn = qs('btn-toggle-theme');
+  const btn = getElement('btn-toggle-theme');
   
   if (body.classList.contains('dark')) {
     body.classList.remove('dark');
@@ -75,11 +94,13 @@ function showHome(forceReload = false) {
   }
   
   const container = document.body.querySelector('.container');
-  const analysisSection = qs('analysis-section');
+  const analysisSection = getElement('analysis-section');
   if (analysisSection) analysisSection.remove();
   
-  let mainContent = qs('main-content');
-  state.currentView = 'home';
+  let mainContent = getElement('main-content');
+  if (window.state) {
+    window.state.currentView = 'home';
+  }
   
   if (!mainContent) {
     // main-content가 없는 경우 완전히 새로 생성
@@ -166,13 +187,16 @@ function showHome(forceReload = false) {
       </section>
     `;
     
-    container.appendChild(mainContent);
+    if (container) {
+      container.appendChild(mainContent);
+    }
     
     // 이벤트 리스너 재연결
-    rebindMainContentEvents();
-    
-    // 드래그 앤 드롭 초기화
-    initDrag();
+    setTimeout(() => {
+      rebindMainContentEvents();
+      // 드래그 앤 드롭 초기화
+      initDrag();
+    }, 100);
   } else {
     mainContent.style.display = '';
   }
@@ -180,23 +204,27 @@ function showHome(forceReload = false) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   
   // 데이터 새로고침
-  if (typeof refreshAll === 'function') {
-    refreshAll();
-  }
+  setTimeout(() => {
+    if (typeof refreshAll === 'function') {
+      refreshAll();
+    }
+  }, 200);
 }
 
 // 메인 콘텐츠 이벤트 리스너 재연결 함수
 function rebindMainContentEvents() {
   // 채널 관련 이벤트 재연결
-  const btnAddChannel = qs('btn-add-channel');
-  const btnExportChannels = qs('btn-export-channels');
-  const btnImportChannels = qs('btn-import-channels');
-  const fileImportChannels = qs('file-import-channels');
+  const btnAddChannel = getElement('btn-add-channel');
+  const btnExportChannels = getElement('btn-export-channels');
+  const btnImportChannels = getElement('btn-import-channels');
+  const fileImportChannels = getElement('file-import-channels');
   
   if (btnAddChannel) {
     btnAddChannel.onclick = () => { 
-      if (!hasKeys()) { 
-        toast('먼저 API 키를 설정해주세요.'); 
+      if (!window.hasKeys || !window.hasKeys()) { 
+        if (typeof toast === 'function') {
+          toast('먼저 API 키를 설정해주세요.');
+        }
         return; 
       } 
       openModal('modal-add'); 
@@ -220,14 +248,14 @@ function rebindMainContentEvents() {
   }
 
   // 정렬 변경 이벤트 재연결
-  const sortChannels = qs('sort-channels');
-  const sortMutant = qs('sort-mutant');
-  const sortLatest = qs('sort-latest');
+  const sortChannels = getElement('sort-channels');
+  const sortMutant = getElement('sort-mutant');
+  const sortLatest = getElement('sort-latest');
   
   if (sortChannels && typeof refreshAll === 'function') {
     sortChannels.onchange = () => {
-      if (state && state.currentPage) {
-        state.currentPage.channels = 1;
+      if (window.state && window.state.currentPage) {
+        window.state.currentPage.channels = 1;
       }
       refreshAll('channels');
     };
@@ -235,8 +263,8 @@ function rebindMainContentEvents() {
   
   if (sortMutant && typeof refreshAll === 'function') {
     sortMutant.onchange = () => {
-      if (state && state.currentPage) {
-        state.currentPage.mutant = 1;
+      if (window.state && window.state.currentPage) {
+        window.state.currentPage.mutant = 1;
       }
       refreshAll('mutant');
     };
@@ -244,8 +272,8 @@ function rebindMainContentEvents() {
   
   if (sortLatest && typeof refreshAll === 'function') {
     sortLatest.onchange = () => {
-      if (state && state.currentPage) {
-        state.currentPage.latest = 1;
+      if (window.state && window.state.currentPage) {
+        window.state.currentPage.latest = 1;
       }
       refreshAll('latest');
     };
@@ -254,12 +282,14 @@ function rebindMainContentEvents() {
 
 // 전체 갱신 함수
 async function refreshAll(which) {
-  if (!hasKeys()) { 
-    toast('API 키를 설정해주세요.'); 
+  if (!window.hasKeys || !window.hasKeys()) { 
+    if (typeof toast === 'function') {
+      toast('API 키를 설정해주세요.'); 
+    }
     return; 
   }
   
-  if (!state || state.currentView === 'home') {
+  if (!window.state || window.state.currentView === 'home') {
     try {
       if (!which || which === 'channels') {
         if (typeof refreshChannels === 'function') {
@@ -280,7 +310,7 @@ async function refreshAll(which) {
       console.error('데이터 새로고침 오류:', error);
       if (typeof handleAnalysisError === 'function') {
         handleAnalysisError(error, '데이터 새로고침 중');
-      } else {
+      } else if (typeof toast === 'function') {
         toast('데이터 새로고침 중 오류가 발생했습니다.');
       }
     }
@@ -312,13 +342,17 @@ function safeInit() {
   }
 }
 
-// 전역으로 노출
-window.openModal = openModal;
-window.closeModal = closeModal;
-window.initDrag = initDrag;
-window.loadTheme = loadTheme;
-window.toggleTheme = toggleTheme;
-window.showHome = showHome;
-window.rebindMainContentEvents = rebindMainContentEvents;
-window.refreshAll = refreshAll;
-window.safeInit = safeInit;
+// 전역으로 노출 (window 객체에 안전하게 할당)
+if (typeof window !== 'undefined') {
+  window.safeGetElement = safeGetElement;
+  window.getElement = getElement;
+  window.openModal = openModal;
+  window.closeModal = closeModal;
+  window.initDrag = initDrag;
+  window.loadTheme = loadTheme;
+  window.toggleTheme = toggleTheme;
+  window.showHome = showHome;
+  window.rebindMainContentEvents = rebindMainContentEvents;
+  window.refreshAll = refreshAll;
+  window.safeInit = safeInit;
+}
