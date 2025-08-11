@@ -251,26 +251,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function searchChannels() {
-    const chQuery = qs('ch-query');
-    if (!chQuery) return;
+    const queryInput = qs('ch-query');
+    if (!queryInput) return;
     
-    const q = chQuery.value.trim(); 
+    const q = queryInput.value.trim(); 
     if (!q) { 
-      const chResults = qs('ch-results');
-      if (chResults) showError('ch-results', '검색어를 입력해주세요.'); 
+      const resultsEl = qs('ch-results');
+      if (resultsEl) showError('ch-results', '검색어를 입력해주세요.'); 
       return; 
     }
     
-    const chResults = qs('ch-results');
-    const chPagination = qs('ch-pagination');
+    const resultsEl = qs('ch-results');
+    const paginationEl = qs('ch-pagination');
     
-    if (chResults) chResults.innerHTML = '<div class="muted">검색 중...</div>'; 
-    if (chPagination) chPagination.innerHTML = '';
+    if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 중...</div>'; 
+    if (paginationEl) paginationEl.innerHTML = '';
     
     try {
       const res = await yt('search', { part: 'snippet', q, type: 'channel', maxResults: 25 });
       if (!res.items?.length) { 
-        if (chResults) chResults.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
+        if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
         return; 
       }
       
@@ -295,17 +295,17 @@ document.addEventListener('DOMContentLoaded', () => {
       renderChPage();
     } catch (error) {
       console.error('채널 검색 오류:', error);
-      if (chResults) showError('ch-results', '검색 중 오류가 발생했습니다.');
+      if (resultsEl) showError('ch-results', '검색 중 오류가 발생했습니다.');
     }
   }
   
   const btnChSearch = qs('btn-ch-search');
   const chQueryInput = qs('ch-query');
-  const chSort = document.getElementById('ch-sort');
+  const chSortSelect = document.getElementById('ch-sort');
   
   if (btnChSearch) btnChSearch.onclick = searchChannels; 
   if (chQueryInput) chQueryInput.onkeydown = e => { if (e.key === 'Enter') searchChannels(); }; 
-  if (chSort) chSort.onchange = () => renderChPage();
+  if (chSortSelect) chSortSelect.onchange = () => renderChPage();
 
   // 영상 검색(롱폼)
   const VID_PSIZE = CONFIG.PAGINATION.SEARCH_VIDEOS; 
@@ -387,22 +387,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   async function searchVideos() {
-    const vidQuery = qs('vid-query');
-    if (!vidQuery) return;
+    const queryInput = qs('vid-query');
+    if (!queryInput) return;
     
-    const q = vidQuery.value.trim(); 
+    const q = queryInput.value.trim(); 
     if (!q) return;
     
-    const vidResults = qs('vid-results');
-    const vidPagination = qs('vid-pagination');
+    const resultsEl = qs('vid-results');
+    const paginationEl = qs('vid-pagination');
     
-    if (vidResults) vidResults.innerHTML = '<div class="muted">검색 중...</div>';
-    if (vidPagination) vidPagination.innerHTML = '';
+    if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 중...</div>';
+    if (paginationEl) paginationEl.innerHTML = '';
     
     try {
       const res = await yt('search', { part: 'snippet', q, type: 'video', videoDuration: 'long', maxResults: 25 });
       if (!res.items?.length) { 
-        if (vidResults) vidResults.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
+        if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
         return; 
       }
       
@@ -437,17 +437,17 @@ document.addEventListener('DOMContentLoaded', () => {
       renderVidPage();
     } catch (error) {
       console.error('영상 검색 오류:', error);
-      if (vidResults) showError('vid-results', '검색 중 오류가 발생했습니다.');
+      if (resultsEl) showError('vid-results', '검색 중 오류가 발생했습니다.');
     }
   }
   
   const btnVidSearch = qs('btn-vid-search');
   const vidQueryInput = qs('vid-query');
-  const vidSort = document.getElementById('vid-sort');
+  const vidSortSelect = document.getElementById('vid-sort');
   
   if (btnVidSearch) btnVidSearch.onclick = searchVideos; 
   if (vidQueryInput) vidQueryInput.onkeydown = e => { if (e.key === 'Enter') searchVideos(); }; 
-  if (vidSort) vidSort.onchange = () => renderVidPage();
+  if (vidSortSelect) vidSortSelect.onchange = () => renderVidPage();
 
   // URL 직접 추가
   function extractChannelId(url) {
@@ -473,16 +473,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnUrlAdd = qs('btn-url-add');
   if (btnUrlAdd) {
     btnUrlAdd.onclick = async () => {
-      const input = qs('url-input');
-      if (!input) return;
+      const urlInput = qs('url-input');
+      if (!urlInput) return;
       
-      const inputValue = input.value.trim(); 
-      if (!inputValue) { 
+      const input = urlInput.value.trim(); 
+      if (!input) { 
         showError('url-result', '채널 URL 또는 ID를 입력해주세요.'); 
         return; 
       }
       
-      let channelRef = extractChannelId(inputValue);
+      let channelRef = extractChannelId(input);
       let channelId = typeof channelRef === 'string' ? channelRef : null;
       
       if (channelRef && channelRef.videoId) {
@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!channelId) {
         try {
           showSuccess('url-result', '채널을 검색하는 중...');
-          const searchRes = await yt('search', { part: 'snippet', q: inputValue.replace(/^@/, ''), type: 'channel', maxResults: 1 });
+          const searchRes = await yt('search', { part: 'snippet', q: input.replace(/^@/, ''), type: 'channel', maxResults: 1 });
           if (searchRes.items?.[0]) channelId = searchRes.items[0].snippet.channelId;
           else throw new Error('채널을 찾을 수 없습니다.');
         } catch { 
@@ -516,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ok = await addChannelById(channelId); 
         if (ok) { 
           closeModal('modal-add'); 
-          input.value = ''; 
+          urlInput.value = ''; 
           const urlResult = qs('url-result');
           if (urlResult) urlResult.innerHTML = ''; 
         }
