@@ -1,11 +1,11 @@
 // 채널 관리 함수들
-async function getAllChannels() { 
-  return idbAll('my_channels'); 
+async function getAllChannels() {
+  return idbAll('my_channels');
 }
 
-async function deleteChannel(id) { 
-  await idbDel('my_channels', id); 
-  await idbDel('insights', id); 
+async function deleteChannel(id) {
+  await idbDel('my_channels', id);
+  await idbDel('insights', id);
 }
 
 function sortChannels(list, mode) {
@@ -20,28 +20,28 @@ function sortChannels(list, mode) {
 
 async function ensureUploadsAndLatest(ch) {
   if (ch.uploadsPlaylistId && ch.latestUploadDate) return ch;
-  
+
   const info = await yt('channels', { part: 'contentDetails', id: ch.id });
   ch.uploadsPlaylistId = info.items?.[0]?.contentDetails?.relatedPlaylists?.uploads || '';
-  
+
   if (ch.uploadsPlaylistId) {
-    const pl = await yt('playlistItems', { 
-      part: 'snippet', 
-      playlistId: ch.uploadsPlaylistId, 
-      maxResults: 1 
+    const pl = await yt('playlistItems', {
+      part: 'snippet',
+      playlistId: ch.uploadsPlaylistId,
+      maxResults: 1
     });
     if (pl.items && pl.items[0]) {
       ch.latestUploadDate = pl.items[0].snippet.publishedAt;
     }
   }
-  
-  await idbPut('my_channels', ch); 
+
+  await idbPut('my_channels', ch);
   return ch;
 }
 
 async function getYesterdaySubCount(ch) {
   const y = moment().subtract(1, 'day').format('YYYY-MM-DD');
-  const rec = await idbGet('dailySubs', [ch.id, y]); 
+  const rec = await idbGet('dailySubs', [ch.id, y]);
   return rec ? rec.subCount : null;
 }
 
@@ -58,43 +58,43 @@ async function updateDailySubSnapshot(ch) {
 }
 
 async function addChannelById(channelId) {
-  if (!channelId) { 
-    toast('올바른 채널 ID가 아닙니다.'); 
-    return false; 
+  if (!channelId) {
+    toast('올바른 채널 ID가 아닙니다.');
+    return false;
   }
-  
-  const exist = await idbGet('my_channels', channelId); 
-  if (exist) { 
-    toast('이미 등록된 채널입니다.'); 
-    return false; 
+
+  const exist = await idbGet('my_channels', channelId);
+  if (exist) {
+    toast('이미 등록된 채널입니다.');
+    return false;
   }
-  
-  const ch = await yt('channels', { 
-    part: 'snippet,statistics,contentDetails', 
-    id: channelId 
+
+  const ch = await yt('channels', {
+    part: 'snippet,statistics,contentDetails',
+    id: channelId
   });
-  
-  const it = ch.items?.[0]; 
+
+  const it = ch.items?.[0];
   if (!it) throw new Error('채널을 찾을 수 없습니다.');
-  
-  const uploads = it.contentDetails?.relatedPlaylists?.uploads || ''; 
-  let latest = it.snippet.publishedAt; 
+
+  const uploads = it.contentDetails?.relatedPlaylists?.uploads || '';
+  let latest = it.snippet.publishedAt;
   const country = it.snippet.country || '-';
-  
-  if (uploads) { 
-    try { 
-      const pl = await yt('playlistItems', { 
-        part: 'snippet', 
-        playlistId: uploads, 
-        maxResults: 1 
-      }); 
+
+  if (uploads) {
+    try {
+      const pl = await yt('playlistItems', {
+        part: 'snippet',
+        playlistId: uploads,
+        maxResults: 1
+      });
       if (pl.items && pl.items[0]) {
-        latest = pl.items[0].snippet.publishedAt || latest; 
+        latest = pl.items[0].snippet.publishedAt || latest;
       }
-    } catch {} 
+    } catch {}
   }
-  
-  const data = { 
+
+  const data = {
     id: it.id,
     title: it.snippet.title,
     thumbnail: it.snippet.thumbnails?.default?.url || '',
@@ -102,43 +102,44 @@ async function addChannelById(channelId) {
     videoCount: it.statistics.videoCount || '0',
     uploadsPlaylistId: uploads,
     latestUploadDate: latest,
-    country 
+    country
   };
-  
-  await idbPut('my_channels', data); 
-  toast(`✅ ${data.title} 채널이 등록되었습니다.`); 
-  setTimeout(() => refreshAll('channels'), 50); 
+
+  await idbPut('my_channels', data);
+  toast(`✅ ${data.title} 채널이 등록되었습니다.`);
+  setTimeout(() => refreshAll('channels'), 50);
   return true;
 }
 
 async function refreshChannels() {
   const allChannels = await getAllChannels();
-  
+
   for (const ch of allChannels) {
     await ensureUploadsAndLatest(ch);
     await updateDailySubSnapshot(ch);
   }
-  
-  sortChannels(allChannels, qs('sort-channels').value);
-  
+
+  const sortMode = qs('sort-channels')?.value || 'subscribers';
+  sortChannels(allChannels, sortMode);
+
   const itemsPerPage = CONFIG.PAGINATION.CHANNELS;
   const currentPage = state.currentPage.channels;
   const totalItems = allChannels.length;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedChannels = allChannels.slice(startIndex, endIndex);
-  
+
   qs('channel-count').textContent = allChannels.length;
   const wrap = qs('channel-list');
-  
-  if (!allChannels.length) { 
-    wrap.innerHTML = '<p class="muted">채널을 추가하세요.</p>'; 
+
+  if (!allChannels.length) {
+    wrap.innerHTML = '<p class="muted">채널을 추가하세요.</p>';
     qs('channel-pagination').innerHTML = '';
-    return; 
+    return;
   }
-  
+
   wrap.innerHTML = '';
-  
+
   for (const ch of paginatedChannels) {
     const y = await getYesterdaySubCount(ch);
     const today = parseInt(ch.subscriberCount || '0', 10);
@@ -147,7 +148,7 @@ async function refreshChannels() {
       : diff > 0 ? `<span class="v" style="color:#1db954">+${fmt(diff)}</span>`
       : diff < 0 ? `<span class="v" style="color:#c4302b">${fmt(diff)}</span>`
       : `<span class="v" style="color:#888">0</span>`;
-    
+
     const el = document.createElement('div');
     el.className = 'channel-card';
     el.innerHTML = `
@@ -179,17 +180,17 @@ async function refreshChannels() {
           <div style="grid-column:1/-1"><span class="k">카테고리</span> <span class="v">-</span></div>
         </div>
       </div>`;
-    
-    el.querySelector('[data-del]').onclick = async () => { 
-      if (confirm('채널을 삭제할까요?')) { 
-        await deleteChannel(ch.id); 
-        refreshAll('channels'); 
-      } 
+
+    el.querySelector('[data-del]').onclick = async () => {
+      if (confirm('채널을 삭제할까요?')) {
+        await deleteChannel(ch.id);
+        refreshAll('channels');
+      }
     };
-    
+
     wrap.appendChild(el);
   }
-  
+
   // 채널 페이지네이션
   renderPagination('channel-pagination', currentPage, totalItems, itemsPerPage, (page) => {
     state.currentPage.channels = page;
@@ -200,12 +201,12 @@ async function refreshChannels() {
 // 채널 내보내기/가져오기
 async function exportChannels() {
   const list = await getAllChannels();
-  const data = { 
-    version: 1, 
-    exportedAt: new Date().toISOString(), 
-    channels: list.map(c => ({ id: c.id, title: c.title })) 
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    channels: list.map(c => ({ id: c.id, title: c.title }))
   };
-  
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -222,7 +223,7 @@ async function importChannelsFromFile(file) {
   try {
     const txt = await file.text();
     const parsed = JSON.parse(txt);
-    
+
     let ids = [];
     if (Array.isArray(parsed)) {
       ids = parsed.map(x => (typeof x === 'string' ? x : x.id)).filter(Boolean);
@@ -231,11 +232,11 @@ async function importChannelsFromFile(file) {
     } else {
       ids = Object.values(parsed).map(x => (typeof x === 'string' ? x : x.id)).filter(Boolean);
     }
-    
+
     ids = Array.from(new Set(ids));
-    if (!ids.length) { 
-      toast('가져올 채널 ID가 없습니다.'); 
-      return; 
+    if (!ids.length) {
+      toast('가져올 채널 ID가 없습니다.');
+      return;
     }
 
     const exist = await getAllChannels();
@@ -252,7 +253,7 @@ async function importChannelsFromFile(file) {
         fail++;
       }
     }
-    
+
     toast(`가져오기 완료: ${ok}개 추가${fail ? `, 실패 ${fail}개` : ''} (중복 제외)`);
     refreshAll('channels');
   } catch (e) {
