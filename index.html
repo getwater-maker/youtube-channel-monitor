@@ -64,11 +64,83 @@
   <main id="app">
     <!-- 홈 탭 -->
     <section id="home-panel" class="tabpanel active">
-      <div class="search-bar">
-        <input type="text" id="search-input" placeholder="채널 검색" />
-        <button id="search-btn">검색</button>
+      <div id="main-content" class="three-col">
+        <section class="col" data-col="channels">
+          <div class="col-head" draggable="true">
+            <h2>채널 추가</h2>
+            <div class="col-actions">
+              <button id="btn-add-channel" class="btn">+ 채널 추가</button> 
+              <button id="btn-export-channels" class="btn">내보내기</button> 
+              <button id="btn-import-channels" class="btn">가져오기</button> 
+              <input type="file" id="file-import-channels" accept="application/json" style="display:none" />
+              <span>등록: <span id="channel-count">0</span></span>
+            </div>
+          </div>
+          <div class="sort-row">
+            <label>정렬:
+              <select id="sort-channels">
+                <option value="subscribers" selected>구독자수</option>
+                <option value="videos">영상갯수</option>
+                <option value="latest">최근업로드</option>
+              </select>
+            </label>
+          </div>
+          <div id="channel-list" class="channel-list">
+            <p class="muted">채널을 추가하세요.</p>
+          </div>
+          <div id="channel-pagination" class="pagination"></div>
+        </section>
+
+        <section class="col" data-col="mutant">
+          <div class="col-head" draggable="true">
+            <h2>돌연변이 영상</h2>
+            <div class="col-actions">
+              <div class="date-range">
+                <button data-period="1m">1개월</button>
+                <button data-period="3m">3개월</button>
+                <button class="active" data-period="6m">6개월</button>
+                <button data-period="all">전체</button>
+              </div>
+            </div>
+          </div>
+          <div class="sort-row">
+            <label>정렬:
+              <select id="sort-mutant">
+                <option value="mutantIndex" selected>돌연변이지수</option>
+                <option value="views">조회수</option>
+                <option value="subscribers">구독자수</option>
+                <option value="latest">최근업로드</option>
+              </select>
+            </label>
+          </div>
+          <div id="mutant-keywords" class="keywords"></div>
+          <div id="mutant-list" class="video-list">
+            <p class="muted">채널을 추가하여 영상을 분석해주세요.</p>
+          </div>
+          <div id="mutant-pagination" class="pagination"></div>
+        </section>
+
+        <section class="col" data-col="latest">
+          <div class="col-head" draggable="true">
+            <h2>최신 영상</h2>
+          </div>
+          <div class="sort-row">
+            <label>정렬:
+              <select id="sort-latest">
+                <option value="views" selected>조회수</option>
+                <option value="subscribers">구독자수</option>
+                <option value="latest">최근업로드</option>
+                <option value="mutantIndex">돌연변이지수</option>
+              </select>
+            </label>
+          </div>
+          <div id="latest-keywords" class="keywords"></div>
+          <div id="latest-list" class="video-list">
+            <p class="muted">채널을 추가하여 영상을 분석해주세요.</p>
+          </div>
+          <div id="latest-pagination" class="pagination"></div>
+        </section>
       </div>
-      <div id="channels-container" class="channel-list"></div>
     </section>
 
     <!-- 분석 탭 -->
@@ -99,9 +171,9 @@
   </div>
 
   <!-- 채널 추가 모달 -->
-  <div id="modal-add-channel" class="modal">
+  <div id="modal-add" class="modal">
     <div class="modal-content">
-      <span class="close" data-close="modal-add-channel">&times;</span>
+      <span class="close" data-close="modal-add">&times;</span>
       <h3>채널 추가</h3>
       <input type="text" id="add-channel-id" placeholder="채널 ID 입력" />
       <div class="modal-actions">
