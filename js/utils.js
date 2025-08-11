@@ -1,126 +1,83 @@
-// 유틸리티 함수들 - 중복 선언 방지
-if (!window.qs) {
-  window.qs = id => document.getElementById(id);
+// utils.js 파일 끝에 다음 코드를 추가하여 누락된 전역 변수들을 확보해주세요
+
+// 전역 변수 안전 확보
+if (!window.apiKeys) {
+  window.apiKeys = JSON.parse(localStorage.getItem('youtubeApiKeys') || '[]');
 }
 
-if (!window.fmt) {
-  window.fmt = n => { 
-    const x = parseInt(n || '0', 10); 
-    return isNaN(x) ? '0' : x.toLocaleString(); 
-  };
+if (!window.keyIdx) {
+  window.keyIdx = 0;
 }
 
-if (!window.seconds) {
-  window.seconds = iso => {
-    if (typeof moment !== 'undefined') {
-      return moment.duration(iso).asSeconds();
-    }
-    return 0;
-  };
+// moment.js 안전성 확보
+if (typeof moment !== 'undefined') {
+  moment.tz.setDefault('Asia/Seoul');
+  moment.locale('ko');
 }
 
-// 불용어 목록
-window.stopWords = window.stopWords || new Set([
-  '은', '는', '이', '가', '을', '를', '에', '의', '와', '과', '도', '로', '으로',
-  'the', 'a', 'an', 'of', 'to', 'in', 'on', 'for', 'and', 'or', 'but', 'with', 'about',
-  '에서', '같은', '뿐', '위해', '합니다', '했다', '하는', '하기', '진짜', '무너졌다', 'into'
-]);
+// Chart.js 전역 설정 (Chart.js가 로드된 경우)
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+  Chart.defaults.plugins.legend.display = true;
+  Chart.defaults.animation.duration = 800;
+  Chart.defaults.elements.arc.borderWidth = 0;
+  Chart.defaults.elements.bar.borderRadius = 4;
+  Chart.defaults.elements.line.borderWidth = 3;
+  Chart.defaults.elements.point.radius = 6;
+  Chart.defaults.elements.point.hoverRadius = 8;
+}
 
-function toast(msg, ms = 1800) { 
-  const t = window.qs('toast'); 
-  if (t) {
-    t.textContent = msg; 
-    t.style.display = 'block'; 
-    setTimeout(() => t.style.display = 'none', ms); 
+// 에러 핸들링 함수
+function handleAnalysisError(error, context = '') {
+  console.error(`분석 오류 ${context}:`, error);
+  
+  if (error.message && error.message.includes('quota')) {
+    toast('API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+  } else if (error.message && error.message.includes('API')) {
+    toast('API 키 오류입니다. API 키를 확인해주세요.');
+  } else {
+    toast(`분석 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
   }
 }
 
-function showError(elementId, message) { 
-  const el = window.qs(elementId);
-  if (el) el.innerHTML = `<div class="error-message">${message}</div>`; 
-}
-
-function showSuccess(elementId, message) { 
-  const el = window.qs(elementId);
-  if (el) el.innerHTML = `<div class="success-message">${message}</div>`; 
-}
-
-function extractKeywords(text) {
-  const freq = new Map();
-  if (!text) return [];
-  
-  text.replace(/[#"'.!?()/\-:;[\]{}|<>~^%$@*&+=]/g, ' ')
-    .split(/\s+/)
-    .forEach(w => {
-      w = w.trim().toLowerCase(); 
-      const hasKo = /[가-힣]/.test(w);
-      if (!w) return;
-      if ((hasKo && w.length < 2) || (!hasKo && w.length < 3)) return;
-      if (window.stopWords.has(w)) return;
-      freq.set(w, (freq.get(w) || 0) + 1);
-    });
-    
-  // 1회만 등장한 키워드 제외
-  return [...freq.entries()]
-    .filter(([word, count]) => count > 1)
-    .sort((a, b) => b[1] - a[1]);
-}
-
-// 텍스트 줄이기 (말줄임표)
-function truncateText(text, maxLength) {
-  if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + '...';
-}
-
-// 페이지네이션 렌더링
-function renderPagination(containerId, currentPage, totalItems, itemsPerPage, onPageChange) {
-  const container = window.qs(containerId);
-  if (!container) return;
-  
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  
-  if (totalPages <= 1) {
-    container.innerHTML = '';
-    return;
+// 안전한 DOM 요소 접근
+function safeQs(id) {
+  try {
+    return document.getElementById(id);
+  } catch (e) {
+    console.warn(`Element with id '${id}' not found:`, e);
+    return null;
   }
-  
-  container.innerHTML = '';
-  
-  // 이전 페이지 버튼
-  if (currentPage > 1) {
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '이전';
-    prevBtn.onclick = () => onPageChange(currentPage - 1);
-    container.appendChild(prevBtn);
+}
+
+// 숫자 안전 파싱
+function safeParseInt(value, defaultValue = 0) {
+  const parsed = parseInt(value || defaultValue, 10);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
+// 안전한 배열 접근
+function safeArrayAccess(array, index, defaultValue = null) {
+  if (!Array.isArray(array) || index < 0 || index >= array.length) {
+    return defaultValue;
   }
-  
-  // 페이지 번호 버튼들
-  const startPage = Math.max(1, currentPage - 2);
-  const endPage = Math.min(totalPages, currentPage + 2);
-  
-  for (let i = startPage; i <= endPage; i++) {
-    const btn = document.createElement('button');
-    btn.textContent = i;
-    if (i === currentPage) {
-      btn.className = 'active';
-    }
-    btn.onclick = () => onPageChange(i);
-    container.appendChild(btn);
-  }
-  
-  // 다음 페이지 버튼
-  if (currentPage < totalPages) {
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '다음';
-    nextBtn.onclick = () => onPageChange(currentPage + 1);
-    container.appendChild(nextBtn);
+  return array[index];
+}
+
+// 로컬 스토리지 안전 접근
+function safeLocalStorage(key, defaultValue = null) {
+  try {
+    const item = localStorage.getItem(key);
+    return item !== null ? JSON.parse(item) : defaultValue;
+  } catch (e) {
+    console.warn(`로컬스토리지 접근 오류 (${key}):`, e);
+    return defaultValue;
   }
 }
 
 // 전역으로 노출
-window.toast = toast;
-window.showError = showError;
-window.showSuccess = showSuccess;
-window.extractKeywords = extractKeywords;
-window.truncateText = truncateText;
-window.renderPagination = renderPagination;
+window.handleAnalysisError = handleAnalysisError;
+window.safeQs = safeQs;
+window.safeParseInt = safeParseInt;
+window.safeArrayAccess = safeArrayAccess;
+window.safeLocalStorage = safeLocalStorage;
