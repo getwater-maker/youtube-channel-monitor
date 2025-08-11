@@ -52,7 +52,7 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
       }
     };
     
-    // 돌연변이 배지 표시 여부 결정 (모든 섹션에서 임계값 이상일 때 표시)
+    // 돌연변이 배지 표시 여부 결정
     const showMutantBadge = mutantIndex >= CONFIG.MUTANT_THRESHOLD;
     
     card.innerHTML = `
@@ -113,7 +113,10 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
   if (keywordsId) {
     const keywords = extractKeywords(videos.map(v => v.title || '').join(' '));
     const top = keywords.slice(0, 12);
-    qs(keywordsId).innerHTML = top.map(([w, c]) => `<span class="kw">${w} ${c}회</span>`).join('');
+    const keywordContainer = qs(keywordsId);
+    if (keywordContainer) {
+      keywordContainer.innerHTML = top.map(([w, c]) => `<span class="kw">${w} ${c}회</span>`).join('');
+    }
   }
   
   // 페이지네이션 렌더링
