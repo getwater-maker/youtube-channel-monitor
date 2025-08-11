@@ -1,4 +1,22 @@
-// main.js - 안전한 초기화 버전
+// main.js - 안전한 DOM 접근 버전
+
+// 안전한 DOM 접근 함수
+function safeGetElement(id) {
+  try {
+    return document.getElementById(id);
+  } catch (e) {
+    console.warn(`Element with id '${id}' not found:`, e);
+    return null;
+  }
+}
+
+// qs 함수가 로드되었는지 확인하고 사용
+function getEl(id) {
+  if (typeof window.qs === 'function') {
+    return window.qs(id);
+  }
+  return safeGetElement(id);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   try {
@@ -20,7 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Chart.js 로딩 확인
     if (typeof Chart === 'undefined') {
       console.error('Chart.js가 로드되지 않았습니다.');
-      toast('차트 라이브러리 로딩 오류가 발생했습니다.');
+      if (typeof toast === 'function') {
+        toast('차트 라이브러리 로딩 오류가 발생했습니다.');
+      }
     } else {
       console.log('Chart.js 버전:', Chart.version);
     }
@@ -33,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // 기본 UI 이벤트
-    const btnToggleTheme = qs('btn-toggle-theme');
-    const btnAnalyze = qs('btn-analyze');
+    const btnToggleTheme = getEl('btn-toggle-theme');
+    const btnAnalyze = getEl('btn-analyze');
     
     if (btnToggleTheme && typeof toggleTheme === 'function') {
       btnToggleTheme.onclick = toggleTheme;
@@ -45,9 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // 채널 관련 이벤트
-    const btnExportChannels = qs('btn-export-channels');
-    const btnImportChannels = qs('btn-import-channels');
-    const fileImportChannels = qs('file-import-channels');
+    const btnExportChannels = getEl('btn-export-channels');
+    const btnImportChannels = getEl('btn-import-channels');
+    const fileImportChannels = getEl('file-import-channels');
     
     if (btnExportChannels && typeof exportChannels === 'function') {
       btnExportChannels.onclick = exportChannels;
@@ -81,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
         e.target.classList.add('active'); 
-        const tabPanel = qs(e.target.dataset.tab);
+        const tabPanel = getEl(e.target.dataset.tab);
         if (tabPanel) tabPanel.classList.add('active');
       }
       
@@ -101,19 +121,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // API 키 모달 이벤트
-    const btnApi = qs('btn-api');
+    const btnApi = getEl('btn-api');
     if (btnApi) {
       btnApi.onclick = () => { 
-        const box = qs('api-inputs'); 
+        const box = getEl('api-inputs'); 
         if (box) {
           box.innerHTML = ''; 
           for (let i = 0; i < 5; i++) { 
             const apiKey = (window.apiKeys && window.apiKeys[i]) || '';
             box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${apiKey}">`);
           } 
-          const testResult = qs('api-test-result');
+          const testResult = getEl('api-test-result');
           if (testResult) testResult.textContent = ''; 
-          openModal('modal-api');
+          if (typeof openModal === 'function') {
+            openModal('modal-api');
+          }
         }
       };
     }
@@ -128,8 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // API 파일 업로드 이벤트
-    const apiFileBtn = qs('api-file-btn');
-    const apiFile = qs('api-file');
+    const apiFileBtn = getEl('api-file-btn');
+    const apiFile = getEl('api-file');
     
     if (apiFileBtn && apiFile) {
       apiFileBtn.onclick = () => apiFile.click();
@@ -142,13 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = new FileReader(); 
         r.onload = () => { 
           const keys = r.result.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 5); 
-          const box = qs('api-inputs'); 
+          const box = getEl('api-inputs'); 
           if (box) {
             box.innerHTML = ''; 
             for (let i = 0; i < 5; i++) { 
               box.insertAdjacentHTML('beforeend', `<input class="api-inp" placeholder="API Key ${i + 1}" value="${keys[i] || ''}">`);
             } 
-            const testResult = qs('api-test-result');
+            const testResult = getEl('api-test-result');
             if (testResult) testResult.textContent = '파일에서 불러왔습니다. [저장]을 눌러 반영하세요.'; 
           }
         }; 
@@ -157,15 +179,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // API 키 저장 이벤트
-    const apiSave = qs('api-save');
+    const apiSave = getEl('api-save');
     if (apiSave && typeof setApiKeys === 'function') {
       apiSave.onclick = () => { 
         const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
         setApiKeys(keys); 
-        toast('API 키가 저장되었습니다.'); 
-        const testResult = qs('api-test-result');
+        if (typeof toast === 'function') {
+          toast('API 키가 저장되었습니다.'); 
+        }
+        const testResult = getEl('api-test-result');
         if (testResult) testResult.textContent = ''; 
-        closeModal('modal-api'); 
+        if (typeof closeModal === 'function') {
+          closeModal('modal-api'); 
+        }
         if (typeof refreshAll === 'function') {
           refreshAll();
         }
@@ -173,11 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // API 키 다운로드 이벤트
-    const apiDownload = qs('api-download');
+    const apiDownload = getEl('api-download');
     if (apiDownload) {
       apiDownload.onclick = () => { 
         if (!window.apiKeys || !window.apiKeys.length) { 
-          toast('저장된 키가 없습니다.'); 
+          if (typeof toast === 'function') {
+            toast('저장된 키가 없습니다.'); 
+          }
           return; 
         } 
         const blob = new Blob([window.apiKeys.join('\n')], { type: 'text/plain' }); 
@@ -193,12 +221,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // API 키 테스트 이벤트
-    const apiTest = qs('api-test');
+    const apiTest = getEl('api-test');
     if (apiTest && window.CONFIG) {
       apiTest.onclick = async () => { 
         const keys = [...document.querySelectorAll('.api-inp')].map(i => i.value.trim()).filter(Boolean); 
         const testKeys = keys.length ? keys : (window.apiKeys || []); 
-        const testResult = qs('api-test-result');
+        const testResult = getEl('api-test-result');
         
         if (!testKeys.length) { 
           if (testResult) {
@@ -234,21 +262,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 채널 추가 모달
-    const btnAddChannel = qs('btn-add-channel');
+    const btnAddChannel = getEl('btn-add-channel');
     if (btnAddChannel) {
       btnAddChannel.onclick = () => { 
-        if (!hasKeys || !hasKeys()) { 
-          toast('먼저 API 키를 설정해주세요.'); 
+        if (!window.hasKeys || !window.hasKeys()) { 
+          if (typeof toast === 'function') {
+            toast('먼저 API 키를 설정해주세요.'); 
+          }
           return; 
         } 
-        openModal('modal-add'); 
+        if (typeof openModal === 'function') {
+          openModal('modal-add'); 
+        }
       };
     }
 
     // 정렬 변경 이벤트
-    const sortChannels = qs('sort-channels');
-    const sortMutant = qs('sort-mutant');
-    const sortLatest = qs('sort-latest');
+    const sortChannels = getEl('sort-channels');
+    const sortMutant = getEl('sort-mutant');
+    const sortLatest = getEl('sort-latest');
     
     if (sortChannels && typeof refreshAll === 'function') {
       sortChannels.onchange = () => {
@@ -283,9 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUrlAdd();
 
     // 첫 로드
-    if (hasKeys && hasKeys() && typeof refreshAll === 'function') {
+    if (window.hasKeys && window.hasKeys() && typeof refreshAll === 'function') {
       refreshAll();
-    } else {
+    } else if (typeof toast === 'function') {
       toast('API 키를 설정해주세요.');
     }
     
@@ -293,7 +325,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
   } catch (error) {
     console.error('메인 초기화 오류:', error);
-    toast('애플리케이션 초기화 중 오류가 발생했습니다.');
+    if (typeof toast === 'function') {
+      toast('애플리케이션 초기화 중 오류가 발생했습니다.');
+    }
   }
 });
 
@@ -312,7 +346,7 @@ function setupChannelSearch() {
   };
   
   async function renderChPage() {
-    const list = qs('ch-results'); 
+    const list = getEl('ch-results'); 
     if (!list) return;
     
     list.innerHTML = '';
@@ -326,11 +360,15 @@ function setupChannelSearch() {
     const items = sorted.slice((chPage - 1) * CH_PSIZE, chPage * CH_PSIZE);
     if (!items.length) { 
       list.innerHTML = '<div class="muted">결과가 없습니다.</div>'; 
-      const pagination = qs('ch-pagination');
+      const pagination = getEl('ch-pagination');
       if (pagination) pagination.innerHTML = ''; 
       return; 
     }
     
+    items.forEach(ch => {
+      const row = document.createElement('div'); 
+      row.className = 'result-row';
+      row.innerHTML = `
     items.forEach(ch => {
       const row = document.createElement('div'); 
       row.className = 'result-row';
@@ -341,7 +379,7 @@ function setupChannelSearch() {
         <div>
           <div class="r-title">${ch.snippet.title}</div>
           <div class="r-sub">${ch.snippet.description ? ch.snippet.description.substring(0, 100) + '...' : '설명 없음'}</div>
-          <div class="r-sub">구독자: ${fmt(ch.statistics?.subscriberCount || '0')} · 영상: ${fmt(ch.statistics?.videoCount || '0')} · 최신업로드: ${daysAgoStr(ch.latestUploadDate || '')}</div>
+          <div class="r-sub">구독자: ${typeof fmt === 'function' ? fmt(ch.statistics?.subscriberCount || '0') : (ch.statistics?.subscriberCount || '0')} · 영상: ${typeof fmt === 'function' ? fmt(ch.statistics?.videoCount || '0') : (ch.statistics?.videoCount || '0')} · 최신업로드: ${daysAgoStr(ch.latestUploadDate || '')}</div>
         </div>
         <button class="btn" data-add-ch="${ch.id}">추가</button>`;
       
@@ -369,7 +407,9 @@ function setupChannelSearch() {
           } catch (error) { 
             b.textContent = t; 
             b.disabled = false; 
-            toast('채널 추가 중 오류'); 
+            if (typeof toast === 'function') {
+              toast('채널 추가 중 오류'); 
+            }
           }
         };
       }
@@ -377,7 +417,7 @@ function setupChannelSearch() {
     });
     
     const total = Math.ceil(chCache.length / CH_PSIZE); 
-    const pg = qs('ch-pagination'); 
+    const pg = getEl('ch-pagination'); 
     if (pg) {
       pg.innerHTML = ''; 
       if (total > 1) { 
@@ -395,20 +435,20 @@ function setupChannelSearch() {
   }
   
   async function searchChannels() {
-    const queryInput = qs('ch-query');
+    const queryInput = getEl('ch-query');
     if (!queryInput) return;
     
     const q = queryInput.value.trim(); 
     if (!q) { 
-      const resultsEl = qs('ch-results');
+      const resultsEl = getEl('ch-results');
       if (resultsEl && typeof showError === 'function') {
         showError('ch-results', '검색어를 입력해주세요.'); 
       }
       return; 
     }
     
-    const resultsEl = qs('ch-results');
-    const paginationEl = qs('ch-pagination');
+    const resultsEl = getEl('ch-results');
+    const paginationEl = getEl('ch-pagination');
     
     if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 중...</div>'; 
     if (paginationEl) paginationEl.innerHTML = '';
@@ -451,8 +491,8 @@ function setupChannelSearch() {
     }
   }
   
-  const btnChSearch = qs('btn-ch-search');
-  const chQueryInput = qs('ch-query');
+  const btnChSearch = getEl('btn-ch-search');
+  const chQueryInput = getEl('ch-query');
   const chSortSelect = document.getElementById('ch-sort');
   
   if (btnChSearch) btnChSearch.onclick = searchChannels; 
@@ -466,7 +506,7 @@ function setupVideoSearch() {
   let vidCache = [], vidPage = 1;
   
   async function renderVidPage() {
-    const list = qs('vid-results'); 
+    const list = getEl('vid-results'); 
     if (!list) return;
     
     list.innerHTML = '';
@@ -480,7 +520,7 @@ function setupVideoSearch() {
     const items = sorted.slice((vidPage - 1) * VID_PSIZE, vidPage * VID_PSIZE);
     if (!items.length) { 
       list.innerHTML = '<div class="muted">결과가 없습니다.</div>'; 
-      const pagination = qs('vid-pagination');
+      const pagination = getEl('vid-pagination');
       if (pagination) pagination.innerHTML = ''; 
       return; 
     }
@@ -494,7 +534,7 @@ function setupVideoSearch() {
         </a>
         <div>
           <div class="r-title">${v.snippet.title}</div>
-          <div class="r-sub">${v.snippet.channelTitle} · 채널 구독자: ${fmt(v.__ch?.subscriberCount)} · 채널 영상: ${fmt(v.__ch?.videoCount)} · 영상 조회수: ${fmt(v.__vid?.viewCount)} · 업로드: ${typeof moment !== 'undefined' ? moment(v.snippet.publishedAt).format('YYYY-MM-DD') : v.snippet.publishedAt.slice(0, 10)}</div>
+          <div class="r-sub">${v.snippet.channelTitle} · 채널 구독자: ${typeof fmt === 'function' ? fmt(v.__ch?.subscriberCount) : (v.__ch?.subscriberCount || '0')} · 채널 영상: ${typeof fmt === 'function' ? fmt(v.__ch?.videoCount) : (v.__ch?.videoCount || '0')} · 영상 조회수: ${typeof fmt === 'function' ? fmt(v.__vid?.viewCount) : (v.__vid?.viewCount || '0')} · 업로드: ${typeof moment !== 'undefined' ? moment(v.snippet.publishedAt).format('YYYY-MM-DD') : v.snippet.publishedAt.slice(0, 10)}</div>
         </div>
         <button class="btn" data-add-ch-from-vid="${v.snippet.channelId}">채널 추가</button>`;
       
@@ -522,7 +562,9 @@ function setupVideoSearch() {
           } catch (error) { 
             b.textContent = t; 
             b.disabled = false; 
-            toast('채널 추가 중 오류'); 
+            if (typeof toast === 'function') {
+              toast('채널 추가 중 오류'); 
+            }
           }
         };
       }
@@ -530,7 +572,7 @@ function setupVideoSearch() {
     });
     
     const total = Math.ceil(vidCache.length / VID_PSIZE); 
-    const pg = qs('vid-pagination'); 
+    const pg = getEl('vid-pagination'); 
     if (pg) {
       pg.innerHTML = ''; 
       if (total > 1) { 
@@ -548,14 +590,14 @@ function setupVideoSearch() {
   }
   
   async function searchVideos() {
-    const queryInput = qs('vid-query');
+    const queryInput = getEl('vid-query');
     if (!queryInput) return;
     
     const q = queryInput.value.trim(); 
     if (!q) return;
     
-    const resultsEl = qs('vid-results');
-    const paginationEl = qs('vid-pagination');
+    const resultsEl = getEl('vid-results');
+    const paginationEl = getEl('vid-pagination');
     
     if (resultsEl) resultsEl.innerHTML = '<div class="muted">검색 중...</div>';
     if (paginationEl) paginationEl.innerHTML = '';
@@ -608,8 +650,8 @@ function setupVideoSearch() {
     }
   }
   
-  const btnVidSearch = qs('btn-vid-search');
-  const vidQueryInput = qs('vid-query');
+  const btnVidSearch = getEl('btn-vid-search');
+  const vidQueryInput = getEl('vid-query');
   const vidSortSelect = document.getElementById('vid-sort');
   
   if (btnVidSearch) btnVidSearch.onclick = searchVideos; 
@@ -639,10 +681,10 @@ function setupUrlAdd() {
     return null;
   }
   
-  const btnUrlAdd = qs('btn-url-add');
+  const btnUrlAdd = getEl('btn-url-add');
   if (btnUrlAdd) {
     btnUrlAdd.onclick = async () => {
-      const urlInput = qs('url-input');
+      const urlInput = getEl('url-input');
       if (!urlInput) return;
       
       const input = urlInput.value.trim(); 
@@ -703,7 +745,7 @@ function setupUrlAdd() {
               closeModal('modal-add'); 
             }
             urlInput.value = ''; 
-            const urlResult = qs('url-result');
+            const urlResult = getEl('url-result');
             if (urlResult) urlResult.innerHTML = ''; 
           }
         }
