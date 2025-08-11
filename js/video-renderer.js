@@ -23,9 +23,34 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
     card.className = 'video-card';
     
     const channelName = v.__ch?.title || v.snippet?.channelTitle || '알 수 없음';
+    const subscriberCount = parseInt(v.__ch?.subscriberCount || 0);
+    const viewCount = parseInt(v.viewCount || 0);
     const uploadDate = moment(v.publishedAt).format('MM-DD');
-    const subscriberCount = fmt(v.__ch?.subscriberCount || 0);
     const mutantIndex = parseFloat(v.mutantIndex || '0.00');
+    
+    // 구독자 수 포맷팅
+    const formatSubscribers = (count) => {
+      if (count >= 10000) {
+        return `구독자 ${Math.floor(count / 10000)}만명`;
+      } else if (count >= 1000) {
+        return `구독자 ${Math.floor(count / 1000)}천명`;
+      } else {
+        return `구독자 ${count}명`;
+      }
+    };
+    
+    // 조회수 포맷팅
+    const formatViews = (count) => {
+      if (count >= 100000000) {
+        return `조회수 ${Math.floor(count / 100000000)}억`;
+      } else if (count >= 10000) {
+        return `조회수 ${Math.floor(count / 10000)}만`;
+      } else if (count >= 1000) {
+        return `조회수 ${Math.floor(count / 1000)}천`;
+      } else {
+        return `조회수 ${count}`;
+      }
+    };
     
     // 돌연변이 배지 표시 여부 결정 (모든 섹션에서 임계값 이상일 때 표시)
     const showMutantBadge = mutantIndex >= CONFIG.MUTANT_THRESHOLD;
@@ -39,14 +64,15 @@ function renderVideoList(videos, listId, keywordsId, paginationId, currentPage =
         <div class="v-meta">
           <div class="v-meta-top">
             <span title="${channelName}">${truncateText(channelName, 12)}</span>
-            <span>${uploadDate}</span>
-            <span>${subscriberCount}</span>
+            <span>${formatSubscribers(subscriberCount)}</span>
+            <span>${formatViews(viewCount)}</span>
           </div>
           <div class="v-meta-bottom">
             ${showMutantBadge ? 
               `<div class="mutant-badge">🚀 ${mutantIndex.toFixed(2)}</div>` : 
               `<div class="mutant-indicator">${mutantIndex.toFixed(2)}</div>`
             }
+            <div class="upload-date">${uploadDate}</div>
             <label class="video-done-checkbox">
               <input type="checkbox" data-done="${v.id}"/> 완료
             </label>
