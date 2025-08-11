@@ -333,7 +333,7 @@ async function renderCompleteAnalysisResult(channel, data) {
         <div class="analysis-videos">
           <div class="video-list">
             ${data.mutantVideos.slice(0, 8).map(v => {
-              const mutantIndex = (parseInt(v.statistics.viewCount) / subscriberCount).toFixed(2);
+              const mutantIndex = (parseInt(v.statistics.viewCount) / parseInt(channel.subscriberCount)).toFixed(2);
               return `
                 <div class="analysis-video-card">
                   <span class="mutant-rank">${mutantIndex}x</span>
