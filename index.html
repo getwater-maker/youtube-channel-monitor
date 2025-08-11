@@ -1,47 +1,122 @@
-<!-- index.html의 head 섹션 스크립트 순서를 다음과 같이 확인해주세요 -->
-
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>로이가 만든 유튜브 채널 모니터</title>
-<link rel="icon" href="favicon.ico"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>로이가 만든 유튜브 채널 모니터</title>
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="css/styles.css" />
 
-<!-- 외부 라이브러리 로딩 순서가 중요합니다 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<!-- Chart.js 최신 안정 버전 사용 -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
-<link rel="stylesheet" href="css/styles.css">
+  <!-- 외부 라이브러리 -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
+
+  <!-- 헬퍼 폴리필 -->
+  <script defer>
+    window.qs  = window.qs  || ((sel, scope = document) => scope.querySelector(sel));
+    window.qsa = window.qsa || ((sel, scope = document) => Array.from(scope.querySelectorAll(sel)));
+    window.toast = window.toast || (msg => console.log('[toast]', msg));
+  </script>
+
+  <!-- 앱 스크립트 (의존 순서 유지) -->
+  <script defer src="js/config.js"></script>
+  <script defer src="js/utils.js"></script>
+  <script defer src="js/api.js"></script>
+  <script defer src="js/database.js"></script>
+  <script defer src="js/video-renderer.js"></script>
+  <script defer src="js/channels.js"></script>
+  <script defer src="js/videos.js"></script>
+  <script defer src="js/analysis.js"></script>
+  <script defer src="js/ui.js"></script>
+  <script defer src="js/main.js"></script>
+
+  <!-- 로딩 확인 -->
+  <script defer>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof Chart === 'undefined') {
+        console.error('Chart.js가 로드되지 않았습니다.');
+        if (typeof toast === 'function') toast('차트 라이브러리 로딩 오류가 발생했습니다.');
+      } else {
+        console.log('Chart.js 버전:', Chart.version);
+      }
+
+      if (typeof moment === 'undefined') {
+        console.error('Moment.js가 로드되지 않았습니다.');
+      } else {
+        console.log('Moment.js 버전:', moment.version);
+      }
+    });
+  </script>
 </head>
 
-<!-- body 끝부분의 JavaScript 로딩 순서도 확인해주세요 -->
-<script>
-// Chart.js 로딩 확인
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof Chart === 'undefined') {
-    console.error('Chart.js가 로드되지 않았습니다.');
-    toast('차트 라이브러리 로딩 오류가 발생했습니다.');
-  } else {
-    console.log('Chart.js 버전:', Chart.version);
-  }
-  
-  if (typeof moment === 'undefined') {
-    console.error('Moment.js가 로드되지 않았습니다.');
-  } else {
-    console.log('Moment.js 버전:', moment.version);
-  }
-});
-</script>
+<body>
+  <header>
+    <h1>유튜브 채널 모니터</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="home-panel">홈</button>
+      <button class="tab" data-tab="analysis-panel">분석</button>
+      <button class="tab" data-tab="settings-panel">설정</button>
+    </nav>
+  </header>
 
-<!-- JavaScript 파일들 로드 - 순서 중요 -->
-<script src="js/config.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/api.js"></script>
-<script src="js/database.js"></script>
-<script src="js/video-renderer.js"></script>
-<script src="js/channels.js"></script>
-<script src="js/videos.js"></script>
-<script src="js/analysis.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
+  <main id="app">
+    <!-- 홈 탭 -->
+    <section id="home-panel" class="tabpanel active">
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="채널 검색" />
+        <button id="search-btn">검색</button>
+      </div>
+      <div id="channels-container" class="channel-list"></div>
+    </section>
+
+    <!-- 분석 탭 -->
+    <section id="analysis-panel" class="tabpanel">
+      <button id="btn-back-home">← 뒤로가기</button>
+      <div id="analysis-content"></div>
+    </section>
+
+    <!-- 설정 탭 -->
+    <section id="settings-panel" class="tabpanel">
+      <h2>API 키 관리</h2>
+      <button id="open-api-modal">API 키 설정</button>
+    </section>
+  </main>
+
+  <!-- API 키 모달 -->
+  <div id="modal-api" class="modal">
+    <div class="modal-content">
+      <span class="close" data-close="modal-api">&times;</span>
+      <h3>API 키 설정</h3>
+      <div id="api-inputs"></div>
+      <div class="modal-actions">
+        <button id="api-save">저장</button>
+        <button id="api-test">테스트</button>
+      </div>
+      <div id="api-test-result"></div>
+    </div>
+  </div>
+
+  <!-- 채널 추가 모달 -->
+  <div id="modal-add-channel" class="modal">
+    <div class="modal-content">
+      <span class="close" data-close="modal-add-channel">&times;</span>
+      <h3>채널 추가</h3>
+      <input type="text" id="add-channel-id" placeholder="채널 ID 입력" />
+      <div class="modal-actions">
+        <button id="add-channel-confirm">추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 차트 모달 -->
+  <div id="modal-chart" class="modal">
+    <div class="modal-content">
+      <span class="close" data-close="modal-chart">&times;</span>
+      <h3>채널 분석 차트</h3>
+      <canvas id="analysis-chart"></canvas>
+    </div>
+  </div>
+</body>
+</html>
