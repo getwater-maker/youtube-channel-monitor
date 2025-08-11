@@ -1,4 +1,72 @@
-// ui.js의 showHome 함수를 다음과 같이 수정해주세요
+// UI 관련 함수들 - 완전한 버전
+
+function openModal(id) { 
+  const modal = qs(id);
+  if (modal) modal.style.display = 'flex'; 
+}
+
+function closeModal(id) { 
+  const modal = qs(id);
+  if (modal) modal.style.display = 'none'; 
+}
+
+function initDrag() { 
+  const el = qs('main-content'); 
+  if (!el) return;
+  
+  const saved = localStorage.getItem('colOrder'); 
+  
+  if (saved) { 
+    saved.split(',').forEach(k => { 
+      const sec = el.querySelector(`[data-col="${k}"]`); 
+      if (sec) el.appendChild(sec); 
+    }); 
+  } 
+  
+  if (typeof Sortable !== 'undefined') {
+    Sortable.create(el, {
+      animation: 150,
+      handle: '.col-head',
+      onSort: () => {
+        const keys = [...el.children].map(n => n.getAttribute('data-col')); 
+        localStorage.setItem('colOrder', keys.join(','));
+      }
+    }); 
+  }
+}
+
+function loadTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'dark'; // 기본값을 dark로 변경
+  const body = document.body;
+  const btn = qs('btn-toggle-theme');
+  
+  // 기존 테마 클래스 제거
+  body.classList.remove('dark', 'light');
+  
+  // 저장된 테마 적용
+  body.classList.add(savedTheme);
+  
+  if (btn) {
+    btn.textContent = savedTheme === 'dark' ? '라이트 모드' : '다크 모드';
+  }
+}
+
+function toggleTheme() {
+  const body = document.body;
+  const btn = qs('btn-toggle-theme');
+  
+  if (body.classList.contains('dark')) {
+    body.classList.remove('dark');
+    body.classList.add('light');
+    if (btn) btn.textContent = '다크 모드';
+    localStorage.setItem('theme', 'light');
+  } else {
+    body.classList.remove('light');
+    body.classList.add('dark');
+    if (btn) btn.textContent = '라이트 모드';
+    localStorage.setItem('theme', 'dark');
+  }
+}
 
 function showHome(forceReload = false) {
   if (forceReload) { 
@@ -102,12 +170,19 @@ function showHome(forceReload = false) {
     
     // 이벤트 리스너 재연결
     rebindMainContentEvents();
+    
+    // 드래그 앤 드롭 초기화
+    initDrag();
   } else {
     mainContent.style.display = '';
   }
   
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  refreshAll();
+  
+  // 데이터 새로고침
+  if (typeof refreshAll === 'function') {
+    refreshAll();
+  }
 }
 
 // 메인 콘텐츠 이벤트 리스너 재연결 함수
@@ -128,15 +203,15 @@ function rebindMainContentEvents() {
     };
   }
   
-  if (btnExportChannels) {
+  if (btnExportChannels && typeof exportChannels === 'function') {
     btnExportChannels.onclick = exportChannels;
   }
   
-  if (btnImportChannels) {
+  if (btnImportChannels && fileImportChannels) {
     btnImportChannels.onclick = () => fileImportChannels.click();
   }
   
-  if (fileImportChannels) {
+  if (fileImportChannels && typeof importChannelsFromFile === 'function') {
     fileImportChannels.onchange = (e) => { 
       const f = e.target.files[0]; 
       if (f) importChannelsFromFile(f); 
@@ -149,24 +224,101 @@ function rebindMainContentEvents() {
   const sortMutant = qs('sort-mutant');
   const sortLatest = qs('sort-latest');
   
-  if (sortChannels) {
+  if (sortChannels && typeof refreshAll === 'function') {
     sortChannels.onchange = () => {
-      state.currentPage.channels = 1;
+      if (state && state.currentPage) {
+        state.currentPage.channels = 1;
+      }
       refreshAll('channels');
     };
   }
   
-  if (sortMutant) {
+  if (sortMutant && typeof refreshAll === 'function') {
     sortMutant.onchange = () => {
-      state.currentPage.mutant = 1;
+      if (state && state.currentPage) {
+        state.currentPage.mutant = 1;
+      }
       refreshAll('mutant');
     };
   }
   
-  if (sortLatest) {
+  if (sortLatest && typeof refreshAll === 'function') {
     sortLatest.onchange = () => {
-      state.currentPage.latest = 1;
+      if (state && state.currentPage) {
+        state.currentPage.latest = 1;
+      }
       refreshAll('latest');
     };
   }
 }
+
+// 전체 갱신 함수
+async function refreshAll(which) {
+  if (!hasKeys()) { 
+    toast('API 키를 설정해주세요.'); 
+    return; 
+  }
+  
+  if (!state || state.currentView === 'home') {
+    try {
+      if (!which || which === 'channels') {
+        if (typeof refreshChannels === 'function') {
+          await refreshChannels();
+        }
+      }
+      if (!which || which === 'mutant') {
+        if (typeof refreshMutant === 'function') {
+          await refreshMutant();
+        }
+      }
+      if (!which || which === 'latest') {
+        if (typeof refreshLatest === 'function') {
+          await refreshLatest();
+        }
+      }
+    } catch (error) {
+      console.error('데이터 새로고침 오류:', error);
+      if (typeof handleAnalysisError === 'function') {
+        handleAnalysisError(error, '데이터 새로고침 중');
+      } else {
+        toast('데이터 새로고침 중 오류가 발생했습니다.');
+      }
+    }
+  }
+}
+
+// 안전한 초기화 함수
+function safeInit() {
+  try {
+    loadTheme();
+    initDrag();
+    
+    // 기본 상태 확인
+    if (!window.state) {
+      window.state = {
+        currentMutantPeriod: '6m',
+        currentView: 'home',
+        currentPage: {
+          channels: 1,
+          mutant: 1,
+          latest: 1
+        }
+      };
+    }
+    
+    console.log('UI 초기화 완료');
+  } catch (error) {
+    console.error('UI 초기화 오류:', error);
+  }
+}
+
+// 전역으로 노출
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.initDrag = initDrag;
+window.loadTheme = loadTheme;
+window.toggleTheme = toggleTheme;
+window.showHome = showHome;
+window.rebindMainContentEvents = rebindMainContentEvents;
+window.refreshAll = refreshAll;
+window.safeInit = safeInit;
