@@ -13,7 +13,7 @@ function safeGetElement(id) {
 // qs 함수가 로드되었는지 확인하고 사용
 function getEl(id) {
   if (typeof window.qs === 'function') {
-    return window.qs(id);
+    return window.qs('#' + id);
   }
   return safeGetElement(id);
 }
@@ -85,40 +85,49 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    // 분석 페이지에서 뒤로가기 처리 (전역 이벤트)
-    document.addEventListener('click', (e) => {
-      // 뒤로가기 버튼 처리
-      if (e.target && e.target.id === 'btn-back-home') {
-        e.preventDefault();
-        if (typeof showHome === 'function') {
-          showHome();
-        }
-        return;
+   // 분석 페이지에서 뒤로가기 처리 (전역 이벤트)
+document.addEventListener('click', (e) => {
+  // 뒤로가기 버튼 처리
+  const backBtn = e.target.closest('#btn-back-home');
+  if (backBtn) {
+    e.preventDefault();
+    if (typeof showHome === 'function') {
+      showHome();
+    }
+    return;
+  }
+
+  // 기존 탭/모달 이벤트
+  const tabEl = e.target.closest('.tab');
+  if (tabEl) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+    tabEl.classList.add('active');
+
+    const tabPanel = getEl(tabEl.dataset.tab);
+    if (tabPanel) {
+      tabPanel.classList.add('active');
+    }
+  }
+
+  // 기간 선택 버튼 처리
+  const periodBtn = e.target.closest('[data-period]');
+  if (periodBtn) {
+    document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+    periodBtn.classList.add('active');
+
+    if (window.state) {
+      window.state.currentMutantPeriod = periodBtn.dataset.period;
+      if (window.state.currentPage) {
+        window.state.currentPage.mutant = 1;
       }
-      
-      // 기존 탭/모달 이벤트
-      if (e.target && e.target.classList.contains('tab')) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
-        e.target.classList.add('active'); 
-        const tabPanel = getEl(e.target.dataset.tab);
-        if (tabPanel) tabPanel.classList.add('active');
-      }
-      
-      if (e.target && e.target.dataset && e.target.dataset.period) {
-        document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active'); 
-        if (window.state) {
-          window.state.currentMutantPeriod = e.target.dataset.period; 
-          if (window.state.currentPage) {
-            window.state.currentPage.mutant = 1;
-          }
-        }
-        if (typeof refreshAll === 'function') {
-          refreshAll('mutant');
-        }
-      }
-    });
+    }
+
+    if (typeof refreshAll === 'function') {
+      refreshAll('mutant');
+    }
+  }
+});
 
     // API 키 모달 이벤트
     const btnApi = getEl('btn-api');
@@ -143,9 +152,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 모달 닫기 이벤트
     document.querySelectorAll('.close').forEach(x => {
       x.onclick = e => {
-        if (e.target.dataset && e.target.dataset.close && typeof closeModal === 'function') {
-          closeModal(e.target.dataset.close);
-        }
+    const btn = e.target.closest('[data-close]');
+     if (btn && typeof closeModal === 'function') {
+       closeModal(btn.dataset.close);
+   }
       };
     });
     
@@ -365,10 +375,6 @@ function setupChannelSearch() {
       return; 
     }
     
-    items.forEach(ch => {
-      const row = document.createElement('div'); 
-      row.className = 'result-row';
-      row.innerHTML = `
     items.forEach(ch => {
       const row = document.createElement('div'); 
       row.className = 'result-row';
