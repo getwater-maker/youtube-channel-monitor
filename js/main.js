@@ -1,4 +1,5 @@
-// 메인 이벤트 리스너 및 초기화
+// main.js의 DOMContentLoaded 이벤트에 다음 코드를 추가해주세요
+
 document.addEventListener('DOMContentLoaded', () => {
   loadTheme();
   initDrag();
@@ -17,6 +18,32 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.value = ''; 
     };
   }
+
+  // 분석 페이지에서 뒤로가기 처리 (전역 이벤트)
+  document.addEventListener('click', (e) => {
+    // 뒤로가기 버튼 처리
+    if (e.target && e.target.id === 'btn-back-home') {
+      e.preventDefault();
+      showHome();
+      return;
+    }
+    
+    // 기존 탭/모달 이벤트
+    if (e.target.classList.contains('tab')) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+      e.target.classList.add('active'); 
+      qs(e.target.dataset.tab).classList.add('active');
+    }
+    
+    if (e.target.dataset.period) {
+      document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active'); 
+      state.currentMutantPeriod = e.target.dataset.period; 
+      state.currentPage.mutant = 1;
+      refreshAll('mutant');
+    }
+  });
 
   // API 키 모달 이벤트
   qs('btn-api').onclick = () => { 
@@ -111,36 +138,28 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // 정렬 변경 이벤트
-  qs('sort-channels').onchange = () => {
-    state.currentPage.channels = 1;
-    refreshAll('channels');
-  };
-  qs('sort-mutant').onchange = () => {
-    state.currentPage.mutant = 1;
-    refreshAll('mutant');
-  };
-  qs('sort-latest').onchange = () => {
-    state.currentPage.latest = 1;
-    refreshAll('latest');
-  };
-
-  // 탭/모달 이벤트
-  document.addEventListener('click', e => {
-    if (e.target.classList.contains('tab')) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
-      e.target.classList.add('active'); 
-      qs(e.target.dataset.tab).classList.add('active');
-    }
-    
-    if (e.target.dataset.period) {
-      document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active'); 
-      state.currentMutantPeriod = e.target.dataset.period; 
+  const sortChannels = qs('sort-channels');
+  const sortMutant = qs('sort-mutant');
+  const sortLatest = qs('sort-latest');
+  
+  if (sortChannels) {
+    sortChannels.onchange = () => {
+      state.currentPage.channels = 1;
+      refreshAll('channels');
+    };
+  }
+  if (sortMutant) {
+    sortMutant.onchange = () => {
       state.currentPage.mutant = 1;
       refreshAll('mutant');
-    }
-  });
+    };
+  }
+  if (sortLatest) {
+    sortLatest.onchange = () => {
+      state.currentPage.latest = 1;
+      refreshAll('latest');
+    };
+  }
 
   // 채널 검색 기능
   const CH_PSIZE = CONFIG.PAGINATION.SEARCH_CHANNELS; 
@@ -157,6 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   async function renderChPage() {
     const list = qs('ch-results'); 
+    if (!list) return;
+    
     list.innerHTML = '';
     const sort = (document.getElementById('ch-sort') || {}).value || 'subs';
     const sorted = [...chCache].sort((a, b) => {
@@ -168,7 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const items = sorted.slice((chPage - 1) * CH_PSIZE, chPage * CH_PSIZE);
     if (!items.length) { 
       list.innerHTML = '<div class="muted">결과가 없습니다.</div>'; 
-      qs('ch-pagination').innerHTML = ''; 
+      const pagination = qs('ch-pagination');
+      if (pagination) pagination.innerHTML = ''; 
       return; 
     }
     
@@ -212,59 +234,78 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const total = Math.ceil(chCache.length / CH_PSIZE); 
     const pg = qs('ch-pagination'); 
-    pg.innerHTML = ''; 
-    if (total > 1) { 
-      for (let i = 1; i <= total; i++) { 
-        const btn = document.createElement('button'); 
-        btn.textContent = i; 
-        if (i === chPage) { 
-          btn.className = 'active'; 
+    if (pg) {
+      pg.innerHTML = ''; 
+      if (total > 1) { 
+        for (let i = 1; i <= total; i++) { 
+          const btn = document.createElement('button'); 
+          btn.textContent = i; 
+          if (i === chPage) { 
+            btn.className = 'active'; 
+          } 
+          btn.onclick = () => { chPage = i; renderChPage(); }; 
+          pg.appendChild(btn);
         } 
-        btn.onclick = () => { chPage = i; renderChPage(); }; 
-        pg.appendChild(btn);
-      } 
+      }
     }
   }
   
   async function searchChannels() {
-    const q = qs('ch-query').value.trim(); 
+    const chQuery = qs('ch-query');
+    if (!chQuery) return;
+    
+    const q = chQuery.value.trim(); 
     if (!q) { 
-      showError('ch-results', '검색어를 입력해주세요.'); 
-      return; 
-    }
-    qs('ch-results').innerHTML = '<div class="muted">검색 중...</div>'; 
-    qs('ch-pagination').innerHTML = '';
-    
-    const res = await yt('search', { part: 'snippet', q, type: 'channel', maxResults: 25 });
-    if (!res.items?.length) { 
-      qs('ch-results').innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
+      const chResults = qs('ch-results');
+      if (chResults) showError('ch-results', '검색어를 입력해주세요.'); 
       return; 
     }
     
-    const ids = res.items.map(i => i.snippet.channelId).filter(Boolean);
-    const details = await yt('channels', { part: 'snippet,statistics,contentDetails', id: ids.join(',') });
+    const chResults = qs('ch-results');
+    const chPagination = qs('ch-pagination');
     
-    const enriched = [];
-    for (const it of (details.items || [])) {
-      let latest = it.snippet.publishedAt;
-      try {
-        const upl = it.contentDetails?.relatedPlaylists?.uploads;
-        if (upl) { 
-          const pl = await yt('playlistItems', { part: 'snippet', playlistId: upl, maxResults: 1 }); 
-          if (pl.items?.[0]) latest = pl.items[0].snippet.publishedAt || latest; 
-        }
-      } catch {}
-      enriched.push({ ...it, latestUploadDate: latest });
+    if (chResults) chResults.innerHTML = '<div class="muted">검색 중...</div>'; 
+    if (chPagination) chPagination.innerHTML = '';
+    
+    try {
+      const res = await yt('search', { part: 'snippet', q, type: 'channel', maxResults: 25 });
+      if (!res.items?.length) { 
+        if (chResults) chResults.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
+        return; 
+      }
+      
+      const ids = res.items.map(i => i.snippet.channelId).filter(Boolean);
+      const details = await yt('channels', { part: 'snippet,statistics,contentDetails', id: ids.join(',') });
+      
+      const enriched = [];
+      for (const it of (details.items || [])) {
+        let latest = it.snippet.publishedAt;
+        try {
+          const upl = it.contentDetails?.relatedPlaylists?.uploads;
+          if (upl) { 
+            const pl = await yt('playlistItems', { part: 'snippet', playlistId: upl, maxResults: 1 }); 
+            if (pl.items?.[0]) latest = pl.items[0].snippet.publishedAt || latest; 
+          }
+        } catch {}
+        enriched.push({ ...it, latestUploadDate: latest });
+      }
+      
+      chCache = enriched; 
+      chPage = 1; 
+      renderChPage();
+    } catch (error) {
+      console.error('채널 검색 오류:', error);
+      if (chResults) showError('ch-results', '검색 중 오류가 발생했습니다.');
     }
-    
-    chCache = enriched; 
-    chPage = 1; 
-    renderChPage();
   }
   
-  qs('btn-ch-search').onclick = searchChannels; 
-  qs('ch-query').onkeydown = e => { if (e.key === 'Enter') searchChannels(); }; 
-  (document.getElementById('ch-sort') || {}).onchange = () => renderChPage();
+  const btnChSearch = qs('btn-ch-search');
+  const chQueryInput = qs('ch-query');
+  const chSort = document.getElementById('ch-sort');
+  
+  if (btnChSearch) btnChSearch.onclick = searchChannels; 
+  if (chQueryInput) chQueryInput.onkeydown = e => { if (e.key === 'Enter') searchChannels(); }; 
+  if (chSort) chSort.onchange = () => renderChPage();
 
   // 영상 검색(롱폼)
   const VID_PSIZE = CONFIG.PAGINATION.SEARCH_VIDEOS; 
@@ -272,6 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   async function renderVidPage() {
     const list = qs('vid-results'); 
+    if (!list) return;
+    
     list.innerHTML = '';
     const sort = (document.getElementById('vid-sort') || {}).value || 'views';
     const sorted = [...vidCache].sort((a, b) => {
@@ -283,7 +326,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const items = sorted.slice((vidPage - 1) * VID_PSIZE, vidPage * VID_PSIZE);
     if (!items.length) { 
       list.innerHTML = '<div class="muted">결과가 없습니다.</div>'; 
-      qs('vid-pagination').innerHTML = ''; 
+      const pagination = qs('vid-pagination');
+      if (pagination) pagination.innerHTML = ''; 
       return; 
     }
     
@@ -326,65 +370,84 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const total = Math.ceil(vidCache.length / VID_PSIZE); 
     const pg = qs('vid-pagination'); 
-    pg.innerHTML = ''; 
-    if (total > 1) { 
-      for (let i = 1; i <= total; i++) { 
-        const btn = document.createElement('button'); 
-        btn.textContent = i; 
-        if (i === vidPage) { 
-          btn.className = 'active'; 
+    if (pg) {
+      pg.innerHTML = ''; 
+      if (total > 1) { 
+        for (let i = 1; i <= total; i++) { 
+          const btn = document.createElement('button'); 
+          btn.textContent = i; 
+          if (i === vidPage) { 
+            btn.className = 'active'; 
+          } 
+          btn.onclick = () => { vidPage = i; renderVidPage(); }; 
+          pg.appendChild(btn);
         } 
-        btn.onclick = () => { vidPage = i; renderVidPage(); }; 
-        pg.appendChild(btn);
-      } 
+      }
     }
   }
   
   async function searchVideos() {
-    const q = qs('vid-query').value.trim(); 
+    const vidQuery = qs('vid-query');
+    if (!vidQuery) return;
+    
+    const q = vidQuery.value.trim(); 
     if (!q) return;
     
-    const res = await yt('search', { part: 'snippet', q, type: 'video', videoDuration: 'long', maxResults: 25 });
-    if (!res.items?.length) { 
-      qs('vid-results').innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
-      qs('vid-pagination').innerHTML = ''; 
-      return; 
+    const vidResults = qs('vid-results');
+    const vidPagination = qs('vid-pagination');
+    
+    if (vidResults) vidResults.innerHTML = '<div class="muted">검색 중...</div>';
+    if (vidPagination) vidPagination.innerHTML = '';
+    
+    try {
+      const res = await yt('search', { part: 'snippet', q, type: 'video', videoDuration: 'long', maxResults: 25 });
+      if (!res.items?.length) { 
+        if (vidResults) vidResults.innerHTML = '<div class="muted">검색 결과가 없습니다.</div>'; 
+        return; 
+      }
+      
+      const ids = res.items.map(i => i.id.videoId || i.id).filter(Boolean);
+      let stats = { items: [] };
+      if (ids.length) {
+        try { 
+          stats = await yt('videos', { part: 'statistics', id: ids.join(',') }); 
+        } catch {}
+      }
+      
+      const chIds = Array.from(new Set(res.items.map(i => i.snippet.channelId).filter(Boolean)));
+      let chs = { items: [] };
+      if (chIds.length) {
+        try { 
+          chs = await yt('channels', { part: 'statistics', id: chIds.join(',') }); 
+        } catch {}
+      }
+      
+      const statsMap = new Map((stats.items || []).map(it => [it.id, it.statistics || {}]));
+      const chMap = new Map((chs.items || []).map(it => [it.id, it.statistics || {}]));
+      
+      vidCache = res.items.map(it => { 
+        return { 
+          ...it, 
+          __vid: statsMap.get(it.id.videoId || it.id) || {}, 
+          __ch: chMap.get(it.snippet.channelId) || {} 
+        }; 
+      });
+      
+      vidPage = 1; 
+      renderVidPage();
+    } catch (error) {
+      console.error('영상 검색 오류:', error);
+      if (vidResults) showError('vid-results', '검색 중 오류가 발생했습니다.');
     }
-    
-    const ids = res.items.map(i => i.id.videoId || i.id).filter(Boolean);
-    let stats = { items: [] };
-    if (ids.length) {
-      try { 
-        stats = await yt('videos', { part: 'statistics', id: ids.join(',') }); 
-      } catch {}
-    }
-    
-    const chIds = Array.from(new Set(res.items.map(i => i.snippet.channelId).filter(Boolean)));
-    let chs = { items: [] };
-    if (chIds.length) {
-      try { 
-        chs = await yt('channels', { part: 'statistics', id: chIds.join(',') }); 
-      } catch {}
-    }
-    
-    const statsMap = new Map((stats.items || []).map(it => [it.id, it.statistics || {}]));
-    const chMap = new Map((chs.items || []).map(it => [it.id, it.statistics || {}]));
-    
-    vidCache = res.items.map(it => { 
-      return { 
-        ...it, 
-        __vid: statsMap.get(it.id.videoId || it.id) || {}, 
-        __ch: chMap.get(it.snippet.channelId) || {} 
-      }; 
-    });
-    
-    vidPage = 1; 
-    renderVidPage();
   }
   
-  qs('btn-vid-search').onclick = searchVideos; 
-  qs('vid-query').onkeydown = e => { if (e.key === 'Enter') searchVideos(); }; 
-  (document.getElementById('vid-sort') || {}).onchange = () => renderVidPage();
+  const btnVidSearch = qs('btn-vid-search');
+  const vidQueryInput = qs('vid-query');
+  const vidSort = document.getElementById('vid-sort');
+  
+  if (btnVidSearch) btnVidSearch.onclick = searchVideos; 
+  if (vidQueryInput) vidQueryInput.onkeydown = e => { if (e.key === 'Enter') searchVideos(); }; 
+  if (vidSort) vidSort.onchange = () => renderVidPage();
 
   // URL 직접 추가
   function extractChannelId(url) {
@@ -407,54 +470,61 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
   
-  qs('btn-url-add').onclick = async () => {
-    const input = qs('url-input').value.trim(); 
-    if (!input) { 
-      showError('url-result', '채널 URL 또는 ID를 입력해주세요.'); 
-      return; 
-    }
-    
-    let channelRef = extractChannelId(input);
-    let channelId = typeof channelRef === 'string' ? channelRef : null;
-    
-    if (channelRef && channelRef.videoId) {
-      try { 
-        const vd = await yt('videos', { part: 'snippet', id: channelRef.videoId }); 
-        channelId = vd.items?.[0]?.snippet?.channelId || null; 
-      } catch {}
-    }
-    
-    if (channelRef && channelRef.playlistId && !channelId) {
-      try { 
-        const pd = await yt('playlists', { part: 'snippet', id: channelRef.playlistId }); 
-        channelId = pd.items?.[0]?.snippet?.channelId || null; 
-      } catch {}
-    }
-    
-    if (!channelId) {
-      try {
-        showSuccess('url-result', '채널을 검색하는 중...');
-        const searchRes = await yt('search', { part: 'snippet', q: input.replace(/^@/, ''), type: 'channel', maxResults: 1 });
-        if (searchRes.items?.[0]) channelId = searchRes.items[0].snippet.channelId;
-        else throw new Error('채널을 찾을 수 없습니다.');
-      } catch { 
-        showError('url-result', '채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요.'); 
+  const btnUrlAdd = qs('btn-url-add');
+  if (btnUrlAdd) {
+    btnUrlAdd.onclick = async () => {
+      const input = qs('url-input');
+      if (!input) return;
+      
+      const inputValue = input.value.trim(); 
+      if (!inputValue) { 
+        showError('url-result', '채널 URL 또는 ID를 입력해주세요.'); 
         return; 
       }
-    }
-    
-    try {
-      showSuccess('url-result', '채널을 추가하는 중...');
-      const ok = await addChannelById(channelId); 
-      if (ok) { 
-        closeModal('modal-add'); 
-        qs('url-input').value = ''; 
-        qs('url-result').innerHTML = ''; 
+      
+      let channelRef = extractChannelId(inputValue);
+      let channelId = typeof channelRef === 'string' ? channelRef : null;
+      
+      if (channelRef && channelRef.videoId) {
+        try { 
+          const vd = await yt('videos', { part: 'snippet', id: channelRef.videoId }); 
+          channelId = vd.items?.[0]?.snippet?.channelId || null; 
+        } catch {}
       }
-    } catch (e) { 
-      showError('url-result', '채널 추가 실패: ' + e.message); 
-    }
-  };
+      
+      if (channelRef && channelRef.playlistId && !channelId) {
+        try { 
+          const pd = await yt('playlists', { part: 'snippet', id: channelRef.playlistId }); 
+          channelId = pd.items?.[0]?.snippet?.channelId || null; 
+        } catch {}
+      }
+      
+      if (!channelId) {
+        try {
+          showSuccess('url-result', '채널을 검색하는 중...');
+          const searchRes = await yt('search', { part: 'snippet', q: inputValue.replace(/^@/, ''), type: 'channel', maxResults: 1 });
+          if (searchRes.items?.[0]) channelId = searchRes.items[0].snippet.channelId;
+          else throw new Error('채널을 찾을 수 없습니다.');
+        } catch { 
+          showError('url-result', '채널을 찾을 수 없습니다. URL이나 채널명을 확인해주세요.'); 
+          return; 
+        }
+      }
+      
+      try {
+        showSuccess('url-result', '채널을 추가하는 중...');
+        const ok = await addChannelById(channelId); 
+        if (ok) { 
+          closeModal('modal-add'); 
+          input.value = ''; 
+          const urlResult = qs('url-result');
+          if (urlResult) urlResult.innerHTML = ''; 
+        }
+      } catch (e) { 
+        showError('url-result', '채널 추가 실패: ' + e.message); 
+      }
+    };
+  }
 
   // 첫 로드
   if (hasKeys()) refreshAll(); 
