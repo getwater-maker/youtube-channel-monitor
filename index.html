@@ -14,7 +14,7 @@
 .container{max-width:1440px;margin:24px auto;background:#fff;padding:22px;border-radius:16px;box-shadow:0 0 24px rgba(0,0,0,.06)}
 h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
 .single-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.api-btn{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+.api-btn{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;text-decoration:none}
 .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 @media (max-width:900px){.three-col{grid-template-columns:1fr}}
 .col{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
@@ -113,8 +113,10 @@ h1{margin:6px 0 14px;text-align:center;color:var(--brand)}
 <div class="container">
   <h1>로이가 만든 유튜브 채널 모니터</h1>
   <div class="single-header">
-    <div></div>
-    <button id="btn-api" class="api-btn">API 키 입력</button>
+    <div style="display:flex; gap: 8px;">
+      <a href="channel_analysis.html" class="api-btn">채널 분석</a>
+      <button id="btn-api" class="api-btn">API 키 입력</button>
+    </div>
   </div>
 
   <div id="columns" class="three-col">
@@ -485,7 +487,7 @@ function renderVideoList(videos,listId,kwId){
     wrap.appendChild(card);
   });
   if(kwId){
-    const stop=new Set(['은','는','이','가','을','를','에','의','와','과','도','로','으로','the','a','an','of','to','in','on','for','and','or','but','with','about','into','에서','같은','위해','합니다','했다','하는','하기','진짜','무너졌다','습니다','네요','있습니다','습니다','입니다','입니다']);
+    const stop=new Set(['은','는','이','가','을','를','에','의','와','과','도','로','으로','the','a','an','of','to','in','on','for','and','or','but','with','about','into','에서','같은','위해','합니다','했다','하는','하기','진짜','무너졌다','습니다','네요','있습니다','입니다','입니다']);
     const f=new Map();
     videos.map(v=>v.title||'').forEach(t=>{
       t.replace(/[#"'.!?()/\-:;[\]{}|<>~^%$@*&+=]/g,' ').split(/\s+/).forEach(w=>{
