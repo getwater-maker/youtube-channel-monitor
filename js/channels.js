@@ -4,6 +4,9 @@ console.log('channels.js 로딩 시작');
 // ============================================================================
 // 채널 관리 핵심 함수들
 // ============================================================================
+const CHANNELS_CONFIG = {
+  PAGINATION_SIZE: 12, // 페이지당 채널 수 (수평 그리드용으로 증가)
+};
 
 // 모든 채널 가져오기
 async function getAllChannels() {
@@ -124,15 +127,31 @@ async function addChannelById(channelId) {
       }
     }
 
-    // 썸네일 안전 선택 (high -> medium -> default)
+    // 썸네일 안전 선택 및 검증
     const th = channelData.snippet.thumbnails || {};
-    const thumbnail =
-      th.high?.url || th.medium?.url || th.default?.url || '';
+    let thumbnail = '';
+
+    // 1차: API 제공 썸네일
+    const apiThumbs = [th.high?.url, th.medium?.url, th.default?.url].filter(Boolean);
+    if (apiThumbs.length > 0) {
+      thumbnail = apiThumbs[0];
+    }
+
+    // 2차: 채널 ID 기반 대체 썸네일 시도
+    if (!thumbnail) {
+      const altThumbs = [
+        `https://yt3.ggpht.com/ytc/${channelData.id}`,
+        `https://yt3.ggpht.com/a/default-user=s240-c-k-c0x00ffffff-no-rj`
+      ];
+      thumbnail = altThumbs[0];
+    }
+
+    console.log(`채널 ${channelData.snippet.title} 썸네일:`, thumbnail);
 
     const data = {
       id: channelData.id,
       title: channelData.snippet.title,
-      thumbnail, // 고품질 우선 저장
+      thumbnail, // 검증된 썸네일
       subscriberCount: channelData.statistics.subscriberCount || '0',
       videoCount: channelData.statistics.videoCount || '0',
       uploadsPlaylistId: uploads,
@@ -212,10 +231,16 @@ async function refreshChannels() {
       return;
     }
 
+    // 페이지네이션 적용
+    const currentPage = window.state?.currentPage?.channels || 1;
+    const startIndex = (currentPage - 1) * CHANNELS_CONFIG.PAGINATION_SIZE;
+    const endIndex = startIndex + CHANNELS_CONFIG.PAGINATION_SIZE;
+    const paginatedChannels = allChannels.slice(startIndex, endIndex);
+
     // ----------- 여기서부터 HTML을 모두 구성한 뒤 한 번에 교체 -----------
     let html = '';
 
-    for (const ch of allChannels) {
+    for (const ch of paginatedChannels) {
       // 토큰 변경되면 즉시 중단
       if (myToken !== window.__channelsRefreshToken) return;
 
@@ -234,40 +259,55 @@ async function refreshChannels() {
         diffStr = `<span class="v neutral">0</span>`;
       }
 
+      // 개선된 썸네일 처리
       const chThumb = (ch.thumbnail || '').trim();
-      const safeThumb = chThumb || `https://i.ytimg.com/vi/${(ch.id || '').replace(/^UC/, '')}/mqdefault.jpg`;
+      const fallbackThumbs = [
+        chThumb,
+        `https://yt3.ggpht.com/ytc/${ch.id}`,
+        `https://yt3.ggpht.com/a/default-user=s240-c-k-c0x00ffffff-no-rj`,
+        'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzIiIGhlaWdodD0iNzIiIHZpZXdCb3g9IjAgMCA3MiA3MiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjcyIiBoZWlnaHQ9IjcyIiByeD0iMzYiIGZpbGw9IiM0YTU1NjgiLz4KPHN2ZyB4PSIyNCIgeT0iMjQiIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjZTRlNmVhIj4KPHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MxLjY2IDAgMyAxLjM0IDMgM3MtMS4zNCAzLTMgMy0zLTEuMzQtMy0zIDEuMzQtMyAzLTN6bTAgMTQuMmMtMi41IDAtNC43MS0xLjI4LTYtMy4yLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHM1Ljk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTItMy41IDMuMi02IDMuMnoiLz4KPC9zdmc+Cjwvc3ZnPg=='
+      ].filter(Boolean);
+      
+      const safeThumb = fallbackThumbs[0];
 
       html += `
         <div class="channel-card">
           <a href="https://www.youtube.com/channel/${ch.id}" target="_blank" style="text-decoration: none;">
             <img src="${safeThumb}" alt="${ch.title}" 
-                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiByeD0iMTIiIGZpbGw9IiNlMGUwZTAiLz48L3N2Zz4=';" 
-                 style="width: 72px; height: 72px; border-radius: 8px; object-fit: cover;">
+                 onerror="
+                   const fallbacks = ['${fallbackThumbs[1] || ''}', '${fallbackThumbs[2] || ''}', '${fallbackThumbs[3] || ''}'].filter(Boolean);
+                   if (!this.dataset.fallbackIndex) this.dataset.fallbackIndex = '0';
+                   const nextIndex = parseInt(this.dataset.fallbackIndex) + 1;
+                   if (nextIndex < fallbacks.length) {
+                     this.dataset.fallbackIndex = nextIndex;
+                     this.src = fallbacks[nextIndex];
+                   }
+                 " 
+                 class="channel-thumb">
           </a>
 
-          <div style="flex: 1;">
+          <div class="channel-meta">
             <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;">
               <a href="https://www.youtube.com/channel/${ch.id}" target="_blank" style="text-decoration:none;color:inherit;">
-                <div class="ch-title" style="font-weight:800;margin-bottom:4px;">${ch.title}</div>
+                <h3>${ch.title}</h3>
               </a>
               <button class="btn btn-danger" data-del="${ch.id}" title="채널 삭제">삭제</button>
             </div>
 
-            <div class="ch-sub" style="color:var(--muted);font-size:14px;">
-              구독자: <b>${fmt(ch.subscriberCount)}</b> &nbsp; 영상수: <b>${fmt(ch.videoCount)}</b>
+            <div class="row">
+              <span>구독자: <strong>${fmt(ch.subscriberCount)}</strong></span>
+              <span>영상수: <strong>${fmt(ch.videoCount)}</strong></span>
+              <span>국가: <strong>${(ch.country || 'KR')}</strong></span>
             </div>
-            <div class="ch-meta" style="margin-top:8px;display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center;">
-              <div class="stat-box" style="background:var(--glass-bg);padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px;">
-                <div style="font-weight:700;">전일대비</div>
+            
+            <div style="margin-top:12px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+              <div style="background:var(--glass-bg);padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:13px;">
+                <div style="font-weight:700;margin-bottom:4px;">전일대비</div>
                 <div>${diffStr}</div>
               </div>
-              <div class="stat-box" style="background:var(--glass-bg);padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px;">
-                <div style="font-weight:700;">국가</div>
-                <div>${(ch.country || 'KR')}</div>
+              <div style="font-size:12px;color:var(--muted);text-align:right;">
+                최신 업로드:<br>${ch.latestUploadDate ? moment(ch.latestUploadDate).format('MM-DD') : '-'}
               </div>
-            </div>
-            <div style="margin-top:8px;font-size:12px;color:var(--muted);">
-              최신 업로드: ${ch.latestUploadDate ? moment(ch.latestUploadDate).format('YYYY-MM-DD') : '-'}
             </div>
           </div>
         </div>
@@ -289,6 +329,9 @@ async function refreshChannels() {
       });
     });
 
+    // 페이지네이션 렌더링
+    renderChannelsPagination(currentPage, allChannels.length);
+
   } catch (e) {
     console.error('채널 목록 새로고침 실패:', e);
     const wrap = qs('#channel-list');
@@ -303,10 +346,167 @@ async function refreshChannels() {
   }
 }
 
+// 채널 페이지네이션
+function renderChannelsPagination(currentPage, totalItems) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / CHANNELS_CONFIG.PAGINATION_SIZE));
+  const el = qs('#channel-pagination');
+  if (!el) return;
+  
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  
+  const btn = (p, label = p, disabled = false, active = false) =>
+    `<button class="btn btn-secondary ${active ? 'active' : ''}" data-page="${p}" ${disabled ? 'disabled' : ''} style="min-width:36px;">${label}</button>`;
+
+  let html = '';
+  html += btn(Math.max(1, currentPage - 1), '‹', currentPage === 1);
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  for (let p = start; p <= end; p++) html += btn(p, String(p), false, p === currentPage);
+  html += btn(Math.min(totalPages, currentPage + 1), '›', currentPage === totalPages);
+
+  el.innerHTML = html;
+  
+  // 페이지 버튼 이벤트
+  qsa('button[data-page]', el).forEach(b => {
+    b.addEventListener('click', () => {
+      const p = parseInt(b.getAttribute('data-page'), 10);
+      if (!window.state) window.state = { currentPage: {} };
+      window.state.currentPage.channels = p;
+      refreshChannels();
+    });
+  });
+}
+
+// ============================================================================
+// 채널 썸네일 업데이트 함수
+// ============================================================================
+async function updateChannelThumbnails() {
+  try {
+    const channels = await getAllChannels();
+    let updated = 0;
+    
+    for (const channel of channels) {
+      if (!channel.thumbnail || channel.thumbnail === '') {
+        console.log(`채널 ${channel.title} 썸네일 업데이트 시도`);
+        
+        try {
+          const channelInfo = await window.yt('channels', {
+            part: 'snippet',
+            id: channel.id
+          });
+          
+          const channelData = channelInfo.items?.[0];
+          if (channelData) {
+            const th = channelData.snippet.thumbnails || {};
+            const newThumbnail = th.high?.url || th.medium?.url || th.default?.url || 
+                               `https://yt3.ggpht.com/ytc/${channel.id}`;
+            
+            if (newThumbnail) {
+              channel.thumbnail = newThumbnail;
+              await idbPut('my_channels', channel);
+              updated++;
+              console.log(`채널 ${channel.title} 썸네일 업데이트 완료`);
+            }
+          }
+        } catch (e) {
+          console.error(`채널 ${channel.title} 썸네일 업데이트 실패:`, e);
+        }
+      }
+    }
+    
+    if (updated > 0) {
+      console.log(`${updated}개 채널 썸네일 업데이트 완료`);
+      refreshChannels();
+    }
+  } catch (e) {
+    console.error('채널 썸네일 일괄 업데이트 실패:', e);
+  }
+}
+
+// ============================================================================
+// 채널 내보내기/가져오기
+// ============================================================================
+
+// 채널 내보내기
+async function exportChannels() {
+  try {
+    const channels = await getAllChannels();
+    if (!channels.length) {
+      toast('내보낼 채널이 없습니다.', 'warning');
+      return;
+    }
+    
+    const dataStr = JSON.stringify(channels, null, 2);
+    const dataBlob = new Blob([dataStr], {type:'application/json'});
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(dataBlob);
+    link.download = `youtube-channels-${moment().format('YYYY-MM-DD')}.json`;
+    link.click();
+    
+    toast(`${channels.length}개 채널을 내보냈습니다.`, 'success');
+  } catch (e) {
+    console.error('채널 내보내기 실패:', e);
+    toast('내보내기 실패: ' + e.message, 'error');
+  }
+}
+
+// 채널 가져오기
+async function importChannelsFromFile(file) {
+  try {
+    const text = await file.text();
+    const channels = JSON.parse(text);
+    
+    if (!Array.isArray(channels)) {
+      throw new Error('올바른 채널 데이터가 아닙니다.');
+    }
+    
+    let imported = 0;
+    let skipped = 0;
+    
+    for (const ch of channels) {
+      if (!ch.id || !ch.title) continue;
+      
+      const existing = await idbGet('my_channels', ch.id);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      
+      await idbPut('my_channels', ch);
+      imported++;
+    }
+    
+    if (imported > 0) {
+      refreshChannels();
+      toast(`${imported}개 채널을 가져왔습니다. (중복 ${skipped}개 제외)`, 'success');
+    } else {
+      toast('가져온 채널이 없습니다. (모두 중복)', 'warning');
+    }
+    
+  } catch (e) {
+    console.error('채널 가져오기 실패:', e);
+    toast('가져오기 실패: ' + e.message, 'error');
+  }
+}
+
 // 전역 노출(다른 파일에서 사용)
 window.getAllChannels = getAllChannels;
 window.deleteChannel = deleteChannel;
 window.refreshChannels = refreshChannels;
 window.addChannelById = addChannelById;
+window.exportChannels = exportChannels;
+window.importChannelsFromFile = importChannelsFromFile;
+window.updateChannelThumbnails = updateChannelThumbnails;
+
+// 앱 시작 시 자동 썸네일 업데이트 (5초 후)
+setTimeout(() => {
+  if (window.updateChannelThumbnails) {
+    window.updateChannelThumbnails();
+  }
+}, 5000);
 
 console.log('channels.js 로딩 완료');

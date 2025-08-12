@@ -67,22 +67,43 @@ async function renderSearchResults(query, items, prevToken, nextToken) {
       infoMap[ch.id] = ch;
     });
 
-    // 2) 최근 업로드 날짜: playlistItems 대신 Search API 로 안전하게 조회
-    //    order=date 로 채널 최근 영상 1개만 가져옴 (일부 채널의 비공개 업로드플리 404 회피)
+    // 2) 최근 업로드 날짜: 채널의 업로드 플레이리스트에서 최근 롱폼 영상 찾기
     const latestDates = {};
     for (const id of ids) {
       try {
-        const v = await window.yt('search', {
-          part: 'snippet',
-          channelId: id,
-          type: 'video',
-          order: 'date',
-          maxResults: 1
-        });
-        latestDates[id] = v.items?.[0]?.snippet?.publishedAt
-          || infoMap[id]?.snippet?.publishedAt
-          || '';
-      } catch {
+        // 채널의 업로드 플레이리스트에서 최근 롱폼 영상 찾기
+        const channelInfo = infoMap[id];
+        const uploadsPlaylistId = channelInfo?.contentDetails?.relatedPlaylists?.uploads;
+        
+        if (uploadsPlaylistId) {
+          const playlistResponse = await window.yt('playlistItems', {
+            part: 'snippet,contentDetails',
+            playlistId: uploadsPlaylistId,
+            maxResults: 10
+          });
+          
+          // 롱폼 영상 중 가장 최근 것 찾기
+          const videoIds = playlistResponse.items?.map(item => item.contentDetails.videoId).slice(0, 5);
+          if (videoIds?.length) {
+            const videosResponse = await window.yt('videos', {
+              part: 'contentDetails,snippet',
+              id: videoIds.join(',')
+            });
+            
+            const longformVideo = videosResponse.items?.find(video => {
+              const duration = moment.duration(video.contentDetails.duration).asSeconds();
+              return duration >= 181;
+            });
+            
+            latestDates[id] = longformVideo?.snippet?.publishedAt || channelInfo?.snippet?.publishedAt || '';
+          } else {
+            latestDates[id] = channelInfo?.snippet?.publishedAt || '';
+          }
+        } else {
+          latestDates[id] = channelInfo?.snippet?.publishedAt || '';
+        }
+      } catch (e) {
+        console.error(`채널 ${id} 최근 업로드 조회 실패:`, e);
         latestDates[id] = infoMap[id]?.snippet?.publishedAt || '';
       }
     }
@@ -99,9 +120,10 @@ async function renderSearchResults(query, items, prevToken, nextToken) {
     const rows = itemsWithSubs.map(({ it, ch, subs }) => {
       const cid = it.id.channelId;
       const thumb =
+        ch?.snippet?.thumbnails?.high?.url ||
+        ch?.snippet?.thumbnails?.medium?.url ||
         ch?.snippet?.thumbnails?.default?.url ||
-        it.snippet?.thumbnails?.default?.url ||
-        '';
+        `https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj`;
       const title = ch?.snippet?.title || it.snippet?.channelTitle || '(제목 없음)';
       const latest = latestDates[cid] ? moment(latestDates[cid]).format('YYYY-MM-DD') : '-';
 
@@ -109,7 +131,7 @@ async function renderSearchResults(query, items, prevToken, nextToken) {
         <div class="result-row" style="
           display:flex; align-items:center; gap:12px; padding:12px 8px;
           border-bottom:1px solid var(--border);">
-          <img src="${thumb}" alt="${title}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;">
+          <img src="${thumb}" alt="${title}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;" onerror="this.src='https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj';">
           <div style="flex:1; min-width:0;">
             <div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${title}</div>
             <div style="font-size:13px; color:var(--muted);">
@@ -271,6 +293,192 @@ function bindChannelAddEvents() {
 }
 
 // ============================================================================
+// API 키 관리 이벤트
+// ============================================================================
+function bindApiKeyEvents() {
+  // API 키 저장
+  const apiSaveBtn = qs('#api-save');
+  if (apiSaveBtn && !apiSaveBtn.dataset.bound) {
+    apiSaveBtn.addEventListener('click', async () => {
+      const inputs = qsa('.api-inp');
+      const keys = inputs.map(inp => (inp.value || '').trim()).filter(Boolean);
+      
+      if (!keys.length) {
+        window.toast && window.toast('최소 1개의 API 키를 입력하세요.', 'warning');
+        return;
+      }
+      
+      window.setApiKeys && window.setApiKeys(keys);
+      window.toast && window.toast(`${keys.length}개 API 키가 저장되었습니다.`, 'success');
+      window.closeModal && window.closeModal('modal-api');
+    });
+    apiSaveBtn.dataset.bound = '1';
+  }
+
+  // API 키 테스트
+  const apiTestBtn = qs('#api-test');
+  if (apiTestBtn && !apiTestBtn.dataset.bound) {
+    apiTestBtn.addEventListener('click', async () => {
+      const inputs = qsa('.api-inp');
+      const keys = inputs.map(inp => (inp.value || '').trim()).filter(Boolean);
+      
+      if (!keys.length) {
+        window.toast && window.toast('테스트할 API 키를 입력하세요.', 'warning');
+        return;
+      }
+      
+      const result = qs('#api-test-result');
+      if (result) result.innerHTML = '<p>테스트 중...</p>';
+      
+      // 임시로 키 설정하여 테스트
+      const originalKeys = [...(window.apiKeys || [])];
+      window.setApiKeys && window.setApiKeys(keys);
+      
+      try {
+        const testResult = await window.yt('channels', {
+          part: 'snippet',
+          id: 'UC_x5XG1OV2P6uZZ5FSM9Ttw'  // Google 공식 채널 ID로 테스트
+        });
+        
+        if (result) {
+          result.innerHTML = '<p style="color: var(--brand);">✅ API 키가 유효합니다!</p>';
+        }
+      } catch (e) {
+        if (result) {
+          result.innerHTML = `<p style="color: #c4302b;">❌ API 키 테스트 실패: ${e.message}</p>`;
+        }
+        // 원래 키로 복원
+        window.setApiKeys && window.setApiKeys(originalKeys);
+      }
+    });
+    apiTestBtn.dataset.bound = '1';
+  }
+
+  // API 키 내보내기
+  const apiExportBtn = qs('#api-export');
+  if (apiExportBtn && !apiExportBtn.dataset.bound) {
+    apiExportBtn.addEventListener('click', () => {
+      if (!window.apiKeys || !window.apiKeys.length) {
+        window.toast && window.toast('내보낼 API 키가 없습니다.', 'warning');
+        return;
+      }
+      
+      const dataStr = JSON.stringify(window.apiKeys, null, 2);
+      const dataBlob = new Blob([dataStr], {type:'application/json'});
+      
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(dataBlob);
+      link.download = `youtube-api-keys-${moment().format('YYYY-MM-DD')}.json`;
+      link.click();
+      
+      window.toast && window.toast('API 키를 내보냈습니다.', 'success');
+    });
+    apiExportBtn.dataset.bound = '1';
+  }
+
+  // API 키 가져오기
+  const apiImportBtn = qs('#api-import-btn');
+  const apiImportFile = qs('#api-import-file');
+  
+  if (apiImportBtn && !apiImportBtn.dataset.bound) {
+    apiImportBtn.addEventListener('click', () => {
+      apiImportFile && apiImportFile.click();
+    });
+    apiImportBtn.dataset.bound = '1';
+  }
+  
+  if (apiImportFile && !apiImportFile.dataset.bound) {
+    apiImportFile.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      
+      try {
+        const text = await file.text();
+        const keys = JSON.parse(text);
+        
+        if (!Array.isArray(keys)) {
+          throw new Error('올바른 API 키 데이터가 아닙니다.');
+        }
+        
+        window.setApiKeys && window.setApiKeys(keys);
+        window.toast && window.toast(`${keys.length}개 API 키를 가져왔습니다.`, 'success');
+        
+        // API 모달 다시 열어서 가져온 키들 표시
+        window.openApiModal && window.openApiModal();
+        
+      } catch (err) {
+        console.error('API 키 가져오기 실패:', err);
+        window.toast && window.toast('가져오기 실패: ' + err.message, 'error');
+      }
+      
+      e.target.value = '';
+    });
+    apiImportFile.dataset.bound = '1';
+  }
+}
+
+// ============================================================================
+// 내채널 이벤트 바인딩 (새로 추가)
+// ============================================================================
+function bindMyChannelsEvents() {
+  console.log('내채널 이벤트 바인딩 시작');
+
+  // 내채널 섹션 헤더의 버튼들
+  const addOAuthChannelBtn = qs('#btn-add-oauth-channel');
+  if (addOAuthChannelBtn && !addOAuthChannelBtn.dataset.bound) {
+    addOAuthChannelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('OAuth 채널 연동 버튼 클릭');
+      
+      // OAuth 인증 시작
+      if (typeof window.startOAuthFlow === 'function') {
+        window.startOAuthFlow();
+      } else if (typeof window.addNewChannel === 'function') {
+        // OAuth 매니저가 없으면 데모 채널 추가
+        window.addNewChannel();
+      } else {
+        window.toast && window.toast('OAuth 인증 기능을 준비 중입니다.', 'info');
+      }
+    });
+    addOAuthChannelBtn.dataset.bound = '1';
+  }
+
+  // 데모 채널 버튼
+  const demoChannelsBtn = qs('#btn-demo-channels');
+  if (demoChannelsBtn && !demoChannelsBtn.dataset.bound) {
+    demoChannelsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('데모 채널 버튼 클릭');
+      
+      if (typeof window.loadDemoChannels === 'function') {
+        window.loadDemoChannels();
+      } else {
+        window.toast && window.toast('데모 채널 로드 기능을 찾을 수 없습니다.', 'error');
+      }
+    });
+    demoChannelsBtn.dataset.bound = '1';
+  }
+
+  // 전체 내보내기 버튼
+  const exportAllChannelsBtn = qs('#btn-export-all-channels');
+  if (exportAllChannelsBtn && !exportAllChannelsBtn.dataset.bound) {
+    exportAllChannelsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('전체 채널 내보내기 버튼 클릭');
+      
+      if (typeof window.exportAllChannelsData === 'function') {
+        window.exportAllChannelsData();
+      } else {
+        window.toast && window.toast('내보내기 기능을 찾을 수 없습니다.', 'error');
+      }
+    });
+    exportAllChannelsBtn.dataset.bound = '1';
+  }
+
+  console.log('내채널 이벤트 바인딩 완료');
+}
+
+// ============================================================================
 // 이벤트 바인딩
 // ============================================================================
 function bindEvents() {
@@ -282,6 +490,7 @@ function bindEvents() {
     btnApi.addEventListener('click', (e) => {
       e.preventDefault();
       safeCall('openApiModal');
+      setTimeout(() => bindApiKeyEvents(), 100);
     });
   }
 
@@ -383,6 +592,9 @@ function bindEvents() {
   bindChannelAddEvents();
   bindSearchListEvents();
 
+  // 내채널 이벤트 바인딩 (새로 추가)
+  bindMyChannelsEvents();
+
   console.log('이벤트 바인딩 완료');
 }
 
@@ -390,10 +602,11 @@ function bindEvents() {
 // 필수 함수 로딩 대기
 // ============================================================================
 const REQUIRED_FUNCTIONS = [
-  'initDrag',        // common.js에서 제공
-  'refreshChannels', // channels.js
-  'refreshMutant',   // mutant-videos.js
-  'refreshLatest'    // latest-videos.js
+  'initializeNavigation', // navigation.js에서 제공
+  'refreshChannels',      // channels.js
+  'refreshMutant',        // mutant-videos.js
+  'refreshLatest',        // latest-videos.js
+  'initializeMyChannels'  // my-channels.js (새로 추가)
 ];
 
 function checkRequiredFunctions() {
@@ -424,10 +637,18 @@ function waitForFunctions(maxWaitMs = 5000) {
 // ============================================================================
 async function initialDataLoad() {
   try {
-    // 각 섹션은 자신의 함수만 호출
-    safeCall('refreshChannels');
-    safeCall('refreshMutant');
-    safeCall('refreshLatest');
+    // 네비게이션 초기화 (내채널 섹션부터 시작)
+    safeCall('initializeNavigation');
+    
+    // OAuth 자동 로그인 시도 (백그라운드)
+    setTimeout(() => {
+      if (typeof window.autoLogin === 'function') {
+        window.autoLogin().catch(e => {
+          console.log('OAuth 자동 로그인 실패 또는 토큰 없음:', e.message);
+        });
+      }
+    }, 2000);
+    
   } catch (e) {
     console.error('초기 데이터 로드 오류:', e);
   }
@@ -438,10 +659,10 @@ async function initialDataLoad() {
 // ============================================================================
 async function initializeApp() {
   try {
-    bindEvents();
+    // 테마 로드
+    safeCall('loadTheme');
 
-    // 드래그 초기화 (없으면 넘어감)
-    safeCall('initDrag');
+    bindEvents();
 
     const ok = await waitForFunctions(7000);
     if (!ok) {
@@ -451,10 +672,30 @@ async function initializeApp() {
 
     await initialDataLoad();
     console.log('앱 초기화 완료');
+    
+    // 전역 디버그 정보 노출
+    window.appDebug = {
+      safeCall,
+      checkRequiredFunctions,
+      state: {
+        hasKeys: typeof window.hasKeys === 'function' ? window.hasKeys() : false,
+        isOAuthReady: typeof window.startOAuthFlow === 'function',
+        isMyChannelsReady: typeof window.initializeMyChannels === 'function'
+      }
+    };
+    
   } catch (e) {
     console.error('앱 초기화 오류:', e);
   }
 }
+
+// ============================================================================
+// 전역 함수 노출
+// ============================================================================
+window.safeCall = safeCall;
+window.bindMyChannelsEvents = bindMyChannelsEvents;
+window.searchChannelsByName = searchChannelsByName;
+window.renderSearchResults = renderSearchResults;
 
 // DOMContentLoaded
 document.addEventListener('DOMContentLoaded', initializeApp);

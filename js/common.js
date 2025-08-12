@@ -26,16 +26,17 @@ window.CONFIG = {
   DEFAULT_THEME: 'dark',
   PAGINATION: {},
   // 기능별 기본값
-  MAX_CHANNEL_MONITOR: 10,
-  MAX_VIDEOS_MUTANT: 10,
-  MAX_VIDEOS_LATEST: 10,
-  MUTANT_THRESHOLD: 2.0
+	MAX_CHANNEL_MONITOR: 10,
+	MAX_VIDEOS_MUTANT: 10,
+	MAX_VIDEOS_LATEST: 10,
+	MUTANT_THRESHOLD: 2.0,
+	MIN_LONGFORM_DURATION: 181  // 롱폼 최소 길이 (초)
 };
 
 // 전역 상태
 window.state = {
   currentMutantPeriod: '6m',
-  currentLatestPeriod: '1w',
+  currentLatestPeriod: '1m',
   currentView: 'home',
   currentPage: { channels: 1, mutant: 1, latest: 1 }
 };
@@ -251,18 +252,10 @@ function toggleTheme() {
 window.loadTheme = loadTheme;
 window.toggleTheme = toggleTheme;
 
-// 컬럼 드래그(헤더 잡고 이동)
+// 컬럼 드래그(헤더 잡고 이동) - 새로운 레이아웃에서는 사용하지 않음
 function initDrag() {
-  const container = qs('#main-content');
-  if (!container || typeof Sortable === 'undefined') return;
-  Sortable.create(container, {
-    animation: 150,
-    handle: '.col-head',
-    onSort: () => {
-      const order = [...container.children].map(n => n.getAttribute('data-col'));
-      localStorage.setItem('colOrder', order.join(','));
-    }
-  });
+  // 새로운 섹션 기반 레이아웃에서는 드래그 기능 비활성화
+  console.log('드래그 기능은 새로운 레이아웃에서 비활성화됨');
 }
 window.initDrag = initDrag;
 
@@ -354,6 +347,134 @@ function seconds(iso) {
 }
 window.seconds = seconds;
 
+// ============================================================================
+// 6) 채널 ID 추출 유틸
+// ============================================================================
+async function extractChannelId(input) {
+  const trimmed = input.trim();
+  
+  // 이미 채널 ID 형태인 경우 (UC로 시작하는 22자리)
+  if (/^UC[A-Za-z0-9_-]{22}$/.test(trimmed)) {
+    return trimmed;
+  }
+  
+  // @핸들 형태인 경우
+  if (trimmed.startsWith('@')) {
+    try {
+      const handle = trimmed.slice(1);
+      const searchRes = await yt('search', {
+        part: 'snippet',
+        type: 'channel',
+        q: handle,
+        maxResults: 1
+      });
+      
+      if (searchRes.items && searchRes.items[0]) {
+        return searchRes.items[0].id.channelId;
+      }
+    } catch (e) {
+      console.error('핸들 검색 실패:', e);
+    }
+    throw new Error('핸들을 통한 채널을 찾을 수 없습니다.');
+  }
+  
+  // URL 형태인 경우
+  if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
+    // 채널 URL 패턴들
+    const patterns = [
+      /youtube\.com\/channel\/([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/c\/([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/user\/([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/@([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/([a-zA-Z0-9_-]+)$/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = trimmed.match(pattern);
+      if (match) {
+        const identifier = match[1];
+        
+        // 이미 채널 ID 형태라면 바로 반환
+        if (/^UC[A-Za-z0-9_-]{22}$/.test(identifier)) {
+          return identifier;
+        }
+        
+        // @ 핸들인 경우
+        if (trimmed.includes('@')) {
+          try {
+            const searchRes = await yt('search', {
+              part: 'snippet',
+              type: 'channel',
+              q: identifier,
+              maxResults: 1
+            });
+            
+            if (searchRes.items && searchRes.items[0]) {
+              return searchRes.items[0].id.channelId;
+            }
+          } catch (e) {
+            console.error('핸들 검색 실패:', e);
+          }
+        }
+        
+        // 사용자명이나 커스텀 URL인 경우, 검색으로 시도
+        try {
+          const searchRes = await yt('search', {
+            part: 'snippet',
+            type: 'channel',
+            q: identifier,
+            maxResults: 1
+          });
+          
+          if (searchRes.items && searchRes.items[0]) {
+            return searchRes.items[0].id.channelId;
+          }
+        } catch (e) {
+          console.error('채널 검색 실패:', e);
+        }
+        break;
+      }
+    }
+    
+    // 비디오 URL에서 채널 추출
+    const videoIdMatch = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    if (videoIdMatch) {
+      try {
+        const videoId = videoIdMatch[1];
+        const videoRes = await yt('videos', {
+          part: 'snippet',
+          id: videoId
+        });
+        
+        if (videoRes.items && videoRes.items[0]) {
+          return videoRes.items[0].snippet.channelId;
+        }
+      } catch (e) {
+        console.error('비디오에서 채널 추출 실패:', e);
+      }
+    }
+  }
+  
+  // 일반 텍스트인 경우 검색으로 시도
+  try {
+    const searchRes = await yt('search', {
+      part: 'snippet',
+      type: 'channel',
+      q: trimmed,
+      maxResults: 1
+    });
+    
+    if (searchRes.items && searchRes.items[0]) {
+      return searchRes.items[0].id.channelId;
+    }
+  } catch (e) {
+    console.error('일반 검색 실패:', e);
+  }
+  
+  throw new Error('채널을 찾을 수 없습니다.');
+}
+window.extractChannelId = extractChannelId;
+
 // 섹션별 간단 페이지네이션 렌더
 function renderPagination({ containerId, total, page, size, onChange }) {
   const el = qs('#' + containerId);
@@ -388,6 +509,11 @@ function showHome() {
   const main = qs('#main-content');
   if (main) main.style.display = '';
   if (window.state) window.state.currentView = 'home';
+  
+  // 네비게이션도 채널관리로 복귀
+  if (window.showSection) {
+    window.showSection('channels');
+  }
 }
 window.showHome = showHome;
 

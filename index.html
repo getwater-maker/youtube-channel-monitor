@@ -26,6 +26,10 @@
           <h1>유튜브 채널 모니터</h1>
         </div>
         <nav class="nav-buttons">
+          <button id="btn-my-channels" class="btn btn-my-channel nav-section">👥 내채널들</button>
+          <button id="btn-channels" class="btn btn-secondary nav-section active">📺 채널관리</button>
+          <button id="btn-mutant" class="btn btn-secondary nav-section">🚀 돌연변이</button>
+          <button id="btn-latest" class="btn btn-secondary nav-section">📱 최신</button>
           <button id="btn-analyze" class="btn btn-primary">📊 채널 분석</button>
           <button id="btn-toggle-theme" class="btn btn-secondary">라이트 모드</button>
           <button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
@@ -34,12 +38,29 @@
     </header>
 
     <!-- 메인 콘텐츠 -->
-    <main id="main-content" class="three-col">
+    <main id="main-content" class="section-view">
+      <!-- 내채널들 섹션 (새로 추가) -->
+      <section class="section" id="section-my-channels" data-section="my-channels" style="display: none;">
+        <div class="section-header">
+          <h2>👥 내 채널들</h2>
+          <div class="section-actions">
+            <button id="btn-add-oauth-channel" class="btn btn-primary">➕ 채널 연동</button>
+            <button id="btn-demo-channels" class="btn btn-secondary">🎯 데모 체험</button>
+            <button id="btn-export-all-channels" class="btn btn-secondary">📥 전체 내보내기</button>
+          </div>
+        </div>
+        
+        <!-- 내채널 콘텐츠 -->
+        <div id="my-channels-content">
+          <!-- my-channels.js에서 동적으로 생성됨 -->
+        </div>
+      </section>
+
       <!-- 채널 관리 섹션 -->
-      <section class="col" data-col="channels">
-        <div class="col-head" draggable="true">
+      <section class="section" id="section-channels" data-section="channels">
+        <div class="section-header">
           <h2>📺 채널 관리</h2>
-          <div class="col-actions">
+          <div class="section-actions">
             <button id="btn-add-channel" class="btn btn-primary">+ 채널 추가</button> 
             <button id="btn-export-channels" class="btn btn-secondary">📥 내보내기</button> 
             <button id="btn-import-channels" class="btn btn-secondary">📤 가져오기</button> 
@@ -58,7 +79,7 @@
           </label>
         </div>
         
-        <div id="channel-list" class="channel-list">
+        <div id="channel-list" class="channel-list horizontal-grid">
           <div class="empty-state">
             <div class="empty-icon">📺</div>
             <p class="muted">채널을 추가하여 시작하세요</p>
@@ -70,10 +91,10 @@
       </section>
 
       <!-- 돌연변이 영상 섹션 -->
-      <section class="col" data-col="mutant">
-        <div class="col-head" draggable="true">
+      <section class="section" id="section-mutant" data-section="mutant" style="display: none;">
+        <div class="section-header">
           <h2>🚀 돌연변이 영상</h2>
-          <div class="col-actions">
+          <div class="section-actions">
             <div class="date-range">
               <button data-period="1m">1개월</button>
               <button data-period="3m">3개월</button>
@@ -95,7 +116,7 @@
         </div>
         
         <div id="mutant-keywords" class="keywords"></div>
-        <div id="mutant-list" class="video-list">
+        <div id="mutant-list" class="video-list horizontal-grid">
           <div class="empty-state">
             <div class="empty-icon">🚀</div>
             <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
@@ -105,11 +126,10 @@
       </section>
 
       <!-- 최신 영상 섹션 -->
-      <section class="col" data-col="latest">
-        <div class="col-head" draggable="true">
+      <section class="section" id="section-latest" data-section="latest" style="display: none;">
+        <div class="section-header">
           <h2>📱 최신 영상</h2>
-          <div class="col-actions">
-            <!-- 복구: 최신영상 기간 버튼 -->
+          <div class="section-actions">
             <div class="date-range">
               <button data-period="1w">1주</button>
               <button data-period="2w">2주</button>
@@ -131,7 +151,7 @@
         </div>
         
         <div id="latest-keywords" class="keywords"></div>
-        <div id="latest-list" class="video-list">
+        <div id="latest-list" class="video-list horizontal-grid">
           <div class="empty-state">
             <div class="empty-icon">📱</div>
             <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
@@ -219,12 +239,16 @@
   </div>
 
   <!-- JavaScript 파일들 -->
-  <script src="js/common.js"></script>
-  <script src="js/channels.js"></script>
-  <script src="js/mutant-videos.js"></script>
-  <script src="js/latest-videos.js"></script>
-  <script src="js/main-monitor.js"></script>
-  <script src="js/main.js"></script>
+  
+<script src="js/common.js"></script>
+<script src="js/channels.js"></script>
+<script src="js/mutant-videos.js"></script>
+<script src="js/latest-videos.js"></script>
+<script src="js/main-monitor.js"></script>
+<script src="js/navigation.js"></script>
+<script src="js/my-channels.js"></script>  <!-- 이 부분 -->
+<script src="js/oauth-manager.js"></script>
+<script src="js/main.js"></script>
 
   <script>
     console.log('스크립트 로딩 상태 확인:', {
@@ -234,6 +258,7 @@
       refreshLatest: typeof window.refreshLatest,
       extractChannelId: typeof window.extractChannelId,
       openAnalyzeModal: typeof window.openAnalyzeModal,
+      initializeMyChannels: typeof window.initializeMyChannels,
       moment: typeof moment,
       Chart: typeof Chart,
       Sortable: typeof Sortable

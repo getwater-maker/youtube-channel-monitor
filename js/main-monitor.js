@@ -712,8 +712,8 @@ async function getLongformVideos(uploadsPlaylistId, videoCount = 200) {
     
     const videoItems = videosRes.items || [];
     for (const item of videoItems) {
-      // 롱폼만 필터링 (3분 이상)
-      if (moment.duration(item.contentDetails.duration).asSeconds() > 180) {
+      // 롱폼만 필터링 (181초 이상)
+      if (moment.duration(item.contentDetails.duration).asSeconds() >= 181) {
         videos.push(item);
       }
     }

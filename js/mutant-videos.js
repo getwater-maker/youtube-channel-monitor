@@ -6,10 +6,11 @@ console.log('mutant-videos.js 로딩 시작');
 // ============================================================================
 const MUTANT_CONFIG = {
   THRESHOLD: 2.0,                // 돌연변이 지수 임계값
+  MIN_VIEWS: 10000,              // 최소 조회수 (1만회)
   MAX_VIDEOS_PER_CHANNEL: 50,    // 채널당 최대 영상 수
-  MIN_DURATION: 180,             // 최소 영상 길이 (초)
-  PAGINATION_SIZE: 5,            // 페이지당 영상 수
-  MAX_SEARCH_PAGES: 2            // 채널당 최대 검색 페이지
+  MIN_DURATION: 181,             // 최소 영상 길이 (초) - 롱폼만 대상
+  PAGINATION_SIZE: 12,           // 페이지당 영상 수 (수평 그리드용으로 증가)
+  MAX_SEARCH_PAGES: 3            // 채널당 최대 검색 페이지
 };
 
 // 기간 버튼은 index.html(1m/3m/6m/all) 사용
@@ -25,7 +26,7 @@ function getMutantDateFilter() {
 // 섹션 전용: 기간 버튼 바인딩 (이 섹션만 갱신)
 // ============================================================================
 function bindMutantPeriodButtons() {
-  const container = document.querySelector('[data-col="mutant"] .date-range');
+  const container = document.querySelector('#section-mutant .date-range');
   if (!container || container.dataset.bound === '1') return;
 
   container.dataset.bound = '1';
@@ -249,17 +250,18 @@ async function analyzeVideosForMutants(videoIds, channel) {
   return mutantVideos;
 }
 
-// 개별 영상 돌연변이 처리
+// 개별 영상 돌연변이 처리 - 조회수 조건 추가
 function processMutantVideo(video, channel, subscriberCount) {
   const duration = toSeconds(video.contentDetails.duration);
-  if (duration <= MUTANT_CONFIG.MIN_DURATION) {
-    return null; // 숏폼 제외
+  if (duration < 181) {
+    return null; // 숏폼 제외 (180초 이하)
   }
 
   const views = parseInt(video.statistics.viewCount || '0', 10);
   const mutantIndex = subscriberCount > 0 ? (views / subscriberCount) : 0;
 
-  if (mutantIndex >= MUTANT_CONFIG.THRESHOLD) {
+  // 돌연변이 조건: 지수 2.0 이상 + 조회수 1만 이상
+  if (mutantIndex >= MUTANT_CONFIG.THRESHOLD && views >= MUTANT_CONFIG.MIN_VIEWS) {
     return {
       id: video.id,
       title: video.snippet.title,
@@ -315,7 +317,7 @@ function renderMutantVideos(videos) {
   renderMutantPagination(currentPage, totalItems);
 }
 
-// 돌연변이 비디오 카드 생성 (썸네일 전체 표시)
+// 돌연변이 비디오 카드 생성 (수평 그리드용) - 프로필 이미지 수정
 function createMutantVideoCard(video) {
   const videoCard = document.createElement('div');
   videoCard.className = 'video-card';
@@ -326,6 +328,9 @@ function createMutantVideoCard(video) {
   const uploadDate = moment(video.publishedAt).format('MM-DD');
   const mutantIndex = parseFloat(video.mutantIndex || '0.00');
   const durationMin = Math.round((video.duration || 0) / 60);
+
+  // 프로필 이미지 처리 개선
+  const profileImage = video.__ch?.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjM2IiByeD0iMTgiIGZpbGw9IiM0YTU1NjgiLz4KPHN2ZyB4PSI2IiB5PSI2IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2U0ZTZlYSI+CjxwYXRoIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMy0zIDMtMy0xLjM0LTMtMyAxLjM0LTMgMy0zem0wIDE0LjJjLTIuNSAwLTQuNzEtMS4yOC02LTMuMi4wMy0xLjk5IDQtMy4wOCA2LTMuMDhzNS45NyAxLjA5IDYgMy4wOGMtMS4yOSAxLjkyLTMuNSAzLjItNiAzLjJ6Ii8+Cjwvc3ZnPgo8L3N2Zz4=';
 
   const formatSubscribers = (count) => {
     if (count >= 10000) return `구독자 ${Math.floor(count / 10000)}만명`;
@@ -342,29 +347,29 @@ function createMutantVideoCard(video) {
 
   videoCard.innerHTML = `
     <a class="video-link" target="_blank" href="https://www.youtube.com/watch?v=${video.id}">
-      <div class="thumb-wrap" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden;">
+      <div class="thumb-wrap" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px 8px 0 0; overflow: hidden;">
         <img class="thumb" src="${video.thumbnail}" alt="${safeTruncate(video.title, 80)}"
              style="width: 100%; height: 100%; object-fit: contain; display: block;">
-        <div class="duration-badge" style="position: absolute; bottom: 6px; right: 6px; padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,.6); color:#fff; font-size:12px;">
-          ${durationMin}분
-        </div>
+        <div class="duration-badge">${durationMin}분</div>
         <div class="badge" style="position:absolute; top:6px; left:6px; padding:4px 8px; border-radius:8px; background:linear-gradient(135deg,#c4302b,#a02622); color:#fff; font-weight:700; font-size:12px;">🚀 돌연변이</div>
       </div>
     </a>
-    <div class="video-body" style="padding: 10px 8px 8px 8px;">
-      <div class="title" style="font-weight:700; margin: 4px 0 8px 0;">${safeTruncate(video.title, 70)}</div>
-      <div class="meta" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px;">
-        <img src="${video.__ch?.thumbnail || ''}" alt="${channelName}" onerror="this.style.display='none';"
-             style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-        <span>${channelName}</span>
-        <span>·</span>
-        <span>${formatSubscribers(subscriberCount)}</span>
-        <span>·</span>
-        <span>${formatViews(viewCount)}</span>
-        <span>·</span>
-        <span>${uploadDate}</span>
+    <div class="video-body">
+      <div class="title">${safeTruncate(video.title, 70)}</div>
+      <div class="meta">
+        <img src="${profileImage}" alt="${channelName}" 
+             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjM2IiByeD0iMTgiIGZpbGw9IiM0YTU1NjgiLz48L3N2Zz4=';"
+             style="width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0;">
+        <div style="min-width:0; overflow:hidden;">
+          <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${channelName}</div>
+          <div style="font-size:12px; color:var(--muted); white-space:nowrap;">
+            ${formatSubscribers(subscriberCount)} · ${formatViews(viewCount)} · ${uploadDate}
+          </div>
+        </div>
       </div>
-      <div style="margin-top:6px; color:var(--muted); font-size:13px;">지수 ${mutantIndex.toFixed(2)}</div>
+      <div style="margin-top:6px; color:var(--muted); font-size:12px;">
+        지수 ${mutantIndex.toFixed(2)}
+      </div>
     </div>
   `;
 
@@ -388,15 +393,33 @@ function renderMutantPagination(currentPage, totalItems) {
   const totalPages = Math.max(1, Math.ceil(totalItems / MUTANT_CONFIG.PAGINATION_SIZE));
   const el = qs('#mutant-pagination');
   if (!el) return;
-  if (typeof window.renderPagination === 'function') {
-    window.renderPagination(el, currentPage, totalPages, (page) => {
+  
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  
+  const btn = (p, label = p, disabled = false, active = false) =>
+    `<button class="btn btn-secondary ${active ? 'active' : ''}" data-page="${p}" ${disabled ? 'disabled' : ''} style="min-width:36px;">${label}</button>`;
+
+  let html = '';
+  html += btn(Math.max(1, currentPage - 1), '‹', currentPage === 1);
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  for (let p = start; p <= end; p++) html += btn(p, String(p), false, p === currentPage);
+  html += btn(Math.min(totalPages, currentPage + 1), '›', currentPage === totalPages);
+
+  el.innerHTML = html;
+  
+  // 페이지 버튼 이벤트
+  qsa('button[data-page]', el).forEach(b => {
+    b.addEventListener('click', () => {
+      const p = parseInt(b.getAttribute('data-page'), 10);
       if (!window.state) window.state = { currentPage: {} };
-      window.state.currentPage.mutant = page;
+      window.state.currentPage.mutant = p;
       refreshMutant();
     });
-  } else {
-    el.innerHTML = '';
-  }
+  });
 }
 
 // 정렬 모드
@@ -425,7 +448,7 @@ function showMutantLoading() {
 }
 function showMutantEmpty() {
   const el = qs('#mutant-list');
-  if (el) el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚀</div><p class="muted">채널을 추가하여 영상을 분석해주세요</p></div>`;
+  if (el) el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚀</div><p class="muted">조건에 맞는 돌연변이 영상이 없습니다.<br>돌연변이지수 2.0 이상, 조회수 1만 이상의 영상을 찾고 있습니다.</p></div>`;
 }
 function showMutantError(error) {
   const el = qs('#mutant-list');

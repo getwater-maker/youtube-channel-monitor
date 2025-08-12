@@ -5,10 +5,11 @@ console.log('latest-videos.js 로딩 시작');
 // 최신 영상 설정 및 상수
 // ============================================================================
 const LATEST_CONFIG = {
-  MIN_DURATION: 180,        // 최소 영상 길이 (초) - 롱폼만
+  MIN_DURATION: 181,        // 최소 영상 길이 (초) - 롱폼만
+  MIN_VIEWS: 50000,         // 최소 조회수 (5만회)
   MAX_SEARCH_VIDEOS: 10,    // 채널당 최대 검색 영상 수
-  PAGINATION_SIZE: 5,       // 페이지당 영상 수
-  MAX_SEARCH_PAGES: 2       // 채널당 최대 검색 페이지
+  PAGINATION_SIZE: 12,      // 페이지당 영상 수 (수평 그리드용으로 증가)
+  MAX_SEARCH_PAGES: 3       // 채널당 최대 검색 페이지 (더 많은 영상 검색)
 };
 
 // 기간 필터 (index.html의 최신영상 버튼과 매칭: 1w, 2w, 1m, all)
@@ -24,7 +25,7 @@ function getLatestDateFilter() {
 // 섹션 전용: 기간 버튼 바인딩 (이 섹션만 갱신)
 // ============================================================================
 function bindLatestPeriodButtons() {
-  const container = document.querySelector('[data-col="latest"] .date-range');
+  const container = document.querySelector('#section-latest .date-range');
   if (!container || container.dataset.bound === '1') return;
 
   container.dataset.bound = '1';
@@ -133,79 +134,38 @@ async function collectLatestVideos(channels) {
   const dateFilter = getLatestDateFilter();
 
   for (const channel of channels) {
-    console.log('최신 영상 조회:', channel.title);
+    console.log('채널 분석 시작:', channel.title);
 
     try {
-      const latestVideo = await findLatestVideoForChannel(channel, dateFilter);
-      if (latestVideo) {
-        videos.push(latestVideo);
-      }
+      const channelVideos = await analyzeLatestVideosForChannel(channel, dateFilter);
+      videos.push(...channelVideos);
     } catch (e) {
-      console.error(`채널 ${channel.title} 최신 영상 조회 실패:`, e);
+      console.error(`채널 ${channel.title} 분석 실패:`, e);
     }
   }
 
   return videos;
 }
 
-// 개별 채널의 최신 롱폼 영상 찾기 (+ 날짜필터)
-async function findLatestVideoForChannel(channel, dateFilter) {
-  const uploadsPlaylistId = await ensureLatestUploadsPlaylistId(channel);
+// 개별 채널의 최신 영상 분석
+async function analyzeLatestVideosForChannel(channel, dateFilter) {
+  let uploadsPlaylistId = await ensureUploadsPlaylistId(channel);
   if (!uploadsPlaylistId) {
     console.log(`${channel.title}: uploadsPlaylistId를 찾을 수 없음`);
-    return null;
+    return [];
   }
 
-  let nextPageToken = null;
-  let searchCount = 0;
+  const videoIds = await collectVideoIds(uploadsPlaylistId, dateFilter);
+  console.log(`${channel.title}: ${videoIds.length}개 영상 ID 수집`);
 
-  while (searchCount < LATEST_CONFIG.MAX_SEARCH_PAGES) {
-    const playlistResponse = await window.yt('playlistItems', {
-      part: 'snippet,contentDetails',
-      playlistId: uploadsPlaylistId,
-      maxResults: LATEST_CONFIG.MAX_SEARCH_VIDEOS,
-      pageToken: nextPageToken || ''
-    });
+  const latestVideos = await analyzeVideosForLatest(videoIds, channel);
+  console.log(`${channel.title}: ${latestVideos.length}개 최신 영상 발견`);
 
-    searchCount++;
-    const items = (playlistResponse.items || []);
-    if (!items.length) break;
-
-    // 날짜 필터 적용(있다면)
-    const filteredItems = dateFilter
-      ? items.filter(it => moment(it.snippet.publishedAt).isAfter(dateFilter))
-      : items;
-
-    const videoIds = filteredItems.map(item => item.contentDetails.videoId);
-    if (!videoIds.length) {
-      nextPageToken = playlistResponse.nextPageToken;
-      if (!nextPageToken) break;
-      continue;
-    }
-
-    const videosResponse = await window.yt('videos', {
-      part: 'snippet,statistics,contentDetails',
-      id: videoIds.join(',')
-    });
-
-    // 롱폼 영상 찾기
-    for (const video of (videosResponse.items || [])) {
-      const duration = toSeconds(video.contentDetails.duration);
-      if (duration > LATEST_CONFIG.MIN_DURATION) {
-        return createLatestVideoObject(video, channel);
-      }
-    }
-
-    nextPageToken = playlistResponse.nextPageToken;
-    if (!nextPageToken) break;
-  }
-
-  console.log(`${channel.title}: 롱폼 영상을 찾을 수 없음`);
-  return null;
+  return latestVideos;
 }
 
 // uploadsPlaylistId 확인 및 업데이트
-async function ensureLatestUploadsPlaylistId(channel) {
+async function ensureUploadsPlaylistId(channel) {
   if (channel.uploadsPlaylistId) {
     return channel.uploadsPlaylistId;
   }
@@ -230,30 +190,99 @@ async function ensureLatestUploadsPlaylistId(channel) {
   return null;
 }
 
-// 최신 영상 객체 생성 (프로필 썸네일 포함)
-function createLatestVideoObject(video, channel) {
-  const views = parseInt(video.statistics.viewCount || '0', 10);
-  const subscribers = parseInt(channel.subscriberCount || '1', 10);
-  const mutantIndex = subscribers > 0 ? (views / subscribers) : 0;
-  const duration = toSeconds(video.contentDetails.duration);
+// 비디오 ID 수집
+async function collectVideoIds(uploadsPlaylistId, dateFilter) {
+  const videoIds = [];
+  let nextPageToken = null;
+  let fetchCount = 0;
+  const maxFetches = LATEST_CONFIG.MAX_SEARCH_PAGES;
 
-  return {
-    id: video.id,
-    title: video.snippet.title,
-    thumbnail: video.snippet.thumbnails?.medium?.url || `https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`,
-    viewCount: views,
-    publishedAt: video.snippet.publishedAt,
-    mutantIndex: mutantIndex.toFixed(2),
-    duration: duration,
-    likeCount: parseInt(video.statistics.likeCount || '0', 10),
-    commentCount: parseInt(video.statistics.commentCount || '0', 10),
-    __ch: {
-      subscriberCount: subscribers,
-      title: channel.title,
-      channelId: channel.id,
-      thumbnail: channel.thumbnail || ''   // 프로필 출력 보장
+  while (videoIds.length < LATEST_CONFIG.MAX_SEARCH_VIDEOS && fetchCount < maxFetches) {
+    const playlistResponse = await window.yt('playlistItems', {
+      part: 'snippet,contentDetails',
+      playlistId: uploadsPlaylistId,
+      maxResults: 25,
+      pageToken: nextPageToken || ''
+    });
+
+    fetchCount++;
+    const items = playlistResponse.items || [];
+    if (!items.length) break;
+
+    const filteredItems = dateFilter
+      ? items.filter(item => moment(item.snippet.publishedAt).isAfter(dateFilter))
+      : items;
+
+    videoIds.push(...filteredItems.map(item => item.contentDetails.videoId));
+    nextPageToken = playlistResponse.nextPageToken;
+
+    if (dateFilter && filteredItems.length < items.length) {
+      break; // 필터로 유효한 항목이 거의 없으면 중단
     }
-  };
+
+    if (!nextPageToken) break;
+  }
+
+  return videoIds;
+}
+
+// 영상들을 최신 영상 여부 분석
+async function analyzeVideosForLatest(videoIds, channel) {
+  const latestVideos = [];
+  const subscriberCount = parseInt(channel.subscriberCount || '1', 10);
+
+  for (let i = 0; i < videoIds.length; i += 25) {
+    const batchIds = videoIds.slice(i, i + 25);
+
+    const videosResponse = await window.yt('videos', {
+      part: 'snippet,statistics,contentDetails',
+      id: batchIds.join(',')
+    });
+
+    (videosResponse.items || []).forEach(video => {
+      const latestVideo = processLatestVideo(video, channel, subscriberCount);
+      if (latestVideo) {
+        latestVideos.push(latestVideo);
+      }
+    });
+  }
+
+  return latestVideos;
+}
+
+// 개별 영상 최신 영상 처리
+function processLatestVideo(video, channel, subscriberCount) {
+  const duration = toSeconds(video.contentDetails.duration);
+  if (duration < LATEST_CONFIG.MIN_DURATION) {
+    return null; // 숏폼 제외 (181초 미만)
+  }
+
+  const views = parseInt(video.statistics.viewCount || '0', 10);
+  
+  // 최신 영상 조건: 최소 조회수 이상
+  if (views >= LATEST_CONFIG.MIN_VIEWS) {
+    const mutantIndex = subscriberCount > 0 ? (views / subscriberCount) : 0;
+    
+    return {
+      id: video.id,
+      title: video.snippet.title,
+      thumbnail: video.snippet.thumbnails?.medium?.url || `https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`,
+      viewCount: views,
+      publishedAt: video.snippet.publishedAt,
+      mutantIndex: mutantIndex.toFixed(2),
+      duration: duration,
+      likeCount: parseInt(video.statistics.likeCount || '0', 10),
+      commentCount: parseInt(video.statistics.commentCount || '0', 10),
+      __ch: {
+        subscriberCount: subscriberCount,
+        title: channel.title,
+        channelId: channel.id,
+        thumbnail: channel.thumbnail || ''
+      }
+    };
+  }
+
+  return null;
 }
 
 // ============================================================================
@@ -289,7 +318,7 @@ function renderLatestVideos(videos) {
   renderLatestPagination(currentPage, totalItems);
 }
 
-// 최신 비디오 카드 생성 (썸네일 전체 표시: object-fit: contain)
+// 최신 비디오 카드 생성 (수평 그리드용)
 function createLatestVideoCard(video) {
   const videoCard = document.createElement('div');
   videoCard.className = 'video-card';
@@ -300,9 +329,8 @@ function createLatestVideoCard(video) {
   const uploadDate = moment(video.publishedAt).format('MM-DD');
   const mutantIndex = parseFloat(video.mutantIndex || '0.00');
   const durationMin = Math.round((video.duration || 0) / 60);
-  const daysSinceUpload = moment().diff(moment(video.publishedAt), 'days');
-  const isRecent = daysSinceUpload <= 3;
-  const showMutantBadge = mutantIndex >= (window.CONFIG?.MUTANT_THRESHOLD || 2.0);
+
+  const profileImage = video.__ch?.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjM2IiByeD0iMTgiIGZpbGw9IiM0YTU1NjgiLz4KPHN2ZyB4PSI2IiB5PSI2IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2U0ZTZlYSI+CjxwYXRoIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMy0zIDMtMy0xLjM0LTMtMyAxLjM0LTMgMy0zem0wIDE0LjJjLTIuNSAwLTQuNzEtMS4yOC02LTMuMi4wMy0xLjk5IDQtMy4wOCA2LTMuMDhzNS45NyAxLjA5IDYgMy4wOGMtMS4yOSAxLjkyLTMuNSAzLjItNiAzLjJ6Ii8+Cjwvc3ZnPgo8L3N2Zz4=';
 
   const formatSubscribers = (count) => {
     if (count >= 10000) return `구독자 ${Math.floor(count / 10000)}만명`;
@@ -319,37 +347,36 @@ function createLatestVideoCard(video) {
 
   videoCard.innerHTML = `
     <a class="video-link" target="_blank" href="https://www.youtube.com/watch?v=${video.id}">
-      <div class="thumb-wrap" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden;">
+      <div class="thumb-wrap" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px 8px 0 0; overflow: hidden;">
         <img class="thumb" src="${video.thumbnail}" alt="${safeTruncate(video.title, 80)}"
              style="width: 100%; height: 100%; object-fit: contain; display: block;">
-        <div class="duration-badge" style="position: absolute; bottom: 6px; right: 6px; padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,.6); color:#fff; font-size:12px;">
-          ${durationMin}분
-        </div>
-        ${isRecent ? `<div class="badge" style="position:absolute; top:6px; right:6px; padding:4px 8px; border-radius:8px; background:#5865f2; color:#fff; font-weight:700; font-size:12px;">NEW</div>` : ''}
-        ${showMutantBadge ? `<div class="badge" style="position:absolute; top:6px; left:6px; padding:4px 8px; border-radius:8px; background:linear-gradient(135deg,#c4302b,#a02622); color:#fff; font-weight:700; font-size:12px;">🚀 돌연변이</div>` : ''}
+        <div class="duration-badge">${durationMin}분</div>
+        <div class="badge" style="position:absolute; top:6px; left:6px; padding:4px 8px; border-radius:8px; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; font-weight:700; font-size:12px;">📱 최신</div>
       </div>
     </a>
-    <div class="video-body" style="padding: 10px 8px 8px 8px;">
-      <div class="title" style="font-weight:700; margin: 4px 0 8px 0;">${safeTruncate(video.title, 70)}</div>
-      <div class="meta" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px;">
-        <img src="${video.__ch?.thumbnail || ''}" alt="${channelName}" onerror="this.style.display='none';"
-             style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-        <span>${channelName}</span>
-        <span>·</span>
-        <span>${formatSubscribers(subscriberCount)}</span>
-        <span>·</span>
-        <span>${formatViews(viewCount)}</span>
-        <span>·</span>
-        <span>${uploadDate}</span>
+    <div class="video-body">
+      <div class="title">${safeTruncate(video.title, 70)}</div>
+      <div class="meta">
+        <img src="${profileImage}" alt="${channelName}" 
+             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjM2IiBoZWlnaHQ9IjM2IiByeD0iMTgiIGZpbGw9IiM0YTU1NjgiLz48L3N2Zz4=';"
+             style="width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0;">
+        <div style="min-width:0; overflow:hidden;">
+          <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${channelName}</div>
+          <div style="font-size:12px; color:var(--muted); white-space:nowrap;">
+            ${formatSubscribers(subscriberCount)} · ${formatViews(viewCount)} · ${uploadDate}
+          </div>
+        </div>
       </div>
-      <div style="margin-top:6px; color:var(--muted); font-size:13px;">지수 ${mutantIndex.toFixed(2)}</div>
+      <div style="margin-top:6px; color:var(--muted); font-size:12px;">
+        ${mutantIndex >= 2.0 ? `돌연변이 ${mutantIndex}` : `일반 영상`}
+      </div>
     </div>
   `;
 
   return videoCard;
 }
 
-// 키워드 렌더링 (끝나면 키워드 박스 높이 동기화)
+// 키워드 렌더링
 function renderLatestKeywords(videos) {
   const kwEl = qs('#latest-keywords');
   if (!kwEl) return;
@@ -366,33 +393,52 @@ function renderLatestPagination(currentPage, totalItems) {
   const totalPages = Math.max(1, Math.ceil(totalItems / LATEST_CONFIG.PAGINATION_SIZE));
   const el = qs('#latest-pagination');
   if (!el) return;
-  if (typeof window.renderPagination === 'function') {
-    window.renderPagination(el, currentPage, totalPages, (page) => {
+  
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+  
+  const btn = (p, label = p, disabled = false, active = false) =>
+    `<button class="btn btn-secondary ${active ? 'active' : ''}" data-page="${p}" ${disabled ? 'disabled' : ''} style="min-width:36px;">${label}</button>`;
+
+  let html = '';
+  html += btn(Math.max(1, currentPage - 1), '‹', currentPage === 1);
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  for (let p = start; p <= end; p++) html += btn(p, String(p), false, p === currentPage);
+  html += btn(Math.min(totalPages, currentPage + 1), '›', currentPage === totalPages);
+
+  el.innerHTML = html;
+  
+  // 페이지 버튼 이벤트
+  qsa('button[data-page]', el).forEach(b => {
+    b.addEventListener('click', () => {
+      const p = parseInt(b.getAttribute('data-page'), 10);
       if (!window.state) window.state = { currentPage: {} };
-      window.state.currentPage.latest = page;
+      window.state.currentPage.latest = p;
       refreshLatest();
     });
-  } else {
-    el.innerHTML = '';
-  }
+  });
 }
 
 // 정렬 모드
 function getLatestSortMode() {
   const select = qs('#sort-latest');
-  return select?.value || 'views';
+  return select?.value || 'latest';
 }
 
 // 정렬
 function sortLatestVideos(videos, mode) {
-  if (mode === 'subscribers') {
+  if (mode === 'views') {
+    videos.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+  } else if (mode === 'subscribers') {
     videos.sort((a, b) => (a.__ch?.subscriberCount || 0) - (b.__ch?.subscriberCount || 0)).reverse();
-  } else if (mode === 'latest') {
-    videos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   } else if (mode === 'mutantIndex') {
     videos.sort((a, b) => parseFloat(b.mutantIndex) - parseFloat(a.mutantIndex));
   } else {
-    videos.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+    // latest - 기본 정렬 (최신순)
+    videos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   }
 }
 
@@ -403,25 +449,11 @@ function showLatestLoading() {
 }
 function showLatestEmpty() {
   const el = qs('#latest-list');
-  if (el) el.innerHTML = `<div class="empty-state"><div class="empty-icon">📱</div><p class="muted">채널을 추가하여 영상을 분석해주세요</p></div>`;
+  if (el) el.innerHTML = `<div class="empty-state"><div class="empty-icon">📱</div><p class="muted">조건에 맞는 최신 영상이 없습니다.<br>조회수 5만 이상의 롱폼 영상을 찾고 있습니다.</p></div>`;
 }
 function showLatestError(error) {
   const el = qs('#latest-list');
   if (el) el.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p class="muted">오류: ${error?.message || error}</p></div>`;
-}
-
-// 키워드 박스 높이 동기화(공용)
-if (typeof window.updateKeywordsBoxHeights !== 'function') {
-  window.updateKeywordsBoxHeights = function() {
-    const a = qs('#mutant-keywords');
-    const b = qs('#latest-keywords');
-    if (!a || !b) return;
-    a.style.height = 'auto';
-    b.style.height = 'auto';
-    const maxH = Math.max(a.scrollHeight, b.scrollHeight);
-    a.style.minHeight = maxH + 'px';
-    b.style.minHeight = maxH + 'px';
-  };
 }
 
 // 전역 노출
