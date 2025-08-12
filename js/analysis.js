@@ -1,13 +1,44 @@
-// 완전한 채널 분석 시스템
+// 완전한 채널 분석 시스템 - 안전한 DOM 접근 버전
 async function openAnalyzeModal() {
+  console.log('openAnalyzeModal 시작');
+  
   if (!hasKeys()) { 
     toast('먼저 API 키를 설정해주세요.'); 
     return; 
   }
   
-  openModal('modal-analyze');
+  // 안전한 DOM 접근
+  if (typeof openModal === 'function') {
+    openModal('modal-analyze');
+  } else {
+    console.error('openModal 함수를 찾을 수 없습니다.');
+    return;
+  }
+  
   const list = await getAllChannels();
-  const wrap = qs('analyze-channel-list');
+  
+  // 다중 선택자로 안전하게 요소 찾기
+  const wrapSelectors = ['#analyze-channel-list', 'analyze-channel-list', '[id="analyze-channel-list"]'];
+  let wrap = null;
+  
+  for (const selector of wrapSelectors) {
+    try {
+      if (selector.startsWith('#')) {
+        wrap = document.getElementById(selector.slice(1));
+      } else {
+        wrap = document.querySelector(selector) || document.getElementById(selector);
+      }
+      if (wrap) break;
+    } catch (e) {
+      console.warn(`분석 채널 리스트 요소 접근 실패: ${selector}`, e);
+    }
+  }
+  
+  if (!wrap) {
+    console.error('analyze-channel-list 요소를 찾을 수 없습니다.');
+    toast('분석 모달을 열 수 없습니다. 페이지를 새로고침해주세요.');
+    return;
+  }
   
   if (list.length === 0) { 
     wrap.innerHTML = '<p class="muted">등록된 채널이 없습니다.</p>'; 
@@ -19,52 +50,101 @@ async function openAnalyzeModal() {
     const el = document.createElement('div');
     el.className = 'result-row';
     el.innerHTML = `
-      <img class="r-avatar" src="${ch.thumbnail}" alt="${ch.title}">
-      <div>
-        <div class="r-title">${ch.title}</div>
-        <div class="r-sub">구독자: ${fmt(ch.subscriberCount)}</div>
+      <img class="r-avatar" src="${ch.thumbnail}" alt="${ch.title}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">
+      <div style="flex: 1; margin: 0 16px;">
+        <div class="r-title" style="font-weight: 700; margin-bottom: 4px;">${ch.title}</div>
+        <div class="r-sub" style="font-size: 14px; color: #6c757d;">구독자: ${fmt(ch.subscriberCount)}</div>
       </div>
-      <button class="btn" data-analyze-ch="${ch.id}">분석</button>`;
+      <button class="btn btn-primary" data-analyze-ch="${ch.id}">분석</button>`;
+    
+    // 스타일 적용
+    el.style.cssText = `
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid #dee2e6;
+      cursor: pointer;
+      transition: background 0.3s;
+    `;
+    
+    el.onmouseenter = () => el.style.background = '#f8f9fa';
+    el.onmouseleave = () => el.style.background = '';
     
     el.onclick = () => {
       startCompleteAnalysis(ch.id);
-      closeModal('modal-analyze');
+      if (typeof closeModal === 'function') {
+        closeModal('modal-analyze');
+      }
     };
     
-    el.querySelector('button').onclick = (e) => {
-      e.stopPropagation();
-      startCompleteAnalysis(ch.id);
-      closeModal('modal-analyze');
-    };
+    const button = el.querySelector('button');
+    if (button) {
+      button.onclick = (e) => {
+        e.stopPropagation();
+        startCompleteAnalysis(ch.id);
+        if (typeof closeModal === 'function') {
+          closeModal('modal-analyze');
+        }
+      };
+    }
     
     wrap.appendChild(el);
   });
+  
+  console.log('openAnalyzeModal 완료, 채널 수:', list.length);
 }
 
 async function startCompleteAnalysis(channelId) {
-  const container = document.body.querySelector('.container');
-  const mainContent = qs('main-content');
-  if (mainContent) mainContent.style.display = 'none';
+  console.log('startCompleteAnalysis 시작:', channelId);
+  
+  // 안전한 DOM 접근
+  const container = document.body.querySelector('.container') || document.body;
+  const mainContent = document.getElementById('main-content') || document.querySelector('#main-content');
+  
+  if (mainContent) {
+    mainContent.style.display = 'none';
+  }
   
   // 기존 분석 섹션 제거
-  const existingAnalysis = qs('analysis-section');
-  if (existingAnalysis) existingAnalysis.remove();
+  const existingAnalysis = document.getElementById('analysis-section') || document.querySelector('#analysis-section');
+  if (existingAnalysis) {
+    existingAnalysis.remove();
+  }
   
   const loadingDiv = document.createElement('div');
   loadingDiv.id = 'analysis-section';
   loadingDiv.className = 'analysis-page';
   loadingDiv.innerHTML = `
-    <div class="loading-text">
-      <div class="loading"></div>
-      <span>채널 데이터를 심층 분석 중입니다. 잠시만 기다려주세요...</span>
+    <div class="loading-text" style="text-align: center; padding: 60px 20px;">
+      <div class="loading" style="
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #c4302b;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      "></div>
+      <span style="font-size: 18px; color: #6c757d;">채널 데이터를 심층 분석 중입니다. 잠시만 기다려주세요...</span>
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
     </div>`;
+  
   container.appendChild(loadingDiv);
   
-  state.currentView = 'analysis';
+  if (window.state) {
+    window.state.currentView = 'analysis';
+  }
   
   try {
     const ch = await idbGet('my_channels', channelId);
     if (!ch) throw new Error('채널을 찾을 수 없습니다.');
+    
+    console.log('채널 분석 시작:', ch.title);
     
     // 완전한 채널 분석 수행
     const analysisData = await performCompleteAnalysis(ch);
@@ -73,16 +153,32 @@ async function startCompleteAnalysis(channelId) {
     renderCompleteAnalysisResult(ch, analysisData);
     
   } catch (e) {
-    qs('analysis-section').innerHTML = `
-      <button id="btn-back-home" class="nav-btn" onclick="showHome()">← 메인으로 돌아가기</button>
-      <div class="error-message" style="text-align: center; margin-top: 40px;">
-        채널 분석 중 오류가 발생했습니다: ${e.message}
-      </div>`;
-    console.error(e);
+    console.error('채널 분석 오류:', e);
+    
+    const analysisSection = document.getElementById('analysis-section');
+    if (analysisSection) {
+      analysisSection.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px;">
+          <button id="btn-back-home" class="btn btn-secondary" onclick="showHome()" style="margin-bottom: 20px;">← 메인으로 돌아가기</button>
+          <div class="error-message" style="
+            color: #c4302b;
+            font-size: 18px;
+            font-weight: 600;
+            background: rgba(196, 48, 43, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(196, 48, 43, 0.3);
+          ">
+            채널 분석 중 오류가 발생했습니다: ${e.message}
+          </div>
+        </div>`;
+    }
   }
 }
 
 async function performCompleteAnalysis(channel) {
+  console.log('performCompleteAnalysis 시작:', channel.title);
+  
   const subscriberCount = parseInt(channel.subscriberCount || '1');
   
   // 1. 최근 영상 데이터 수집 (최대 200개)
@@ -166,6 +262,12 @@ async function performCompleteAnalysis(channel) {
   const uploadConsistency = nonZeroUploads.length > 0 ? 
     (Math.max(...weeklyUploads) / Math.min(...nonZeroUploads)).toFixed(1) : '1.0';
   
+  console.log('분석 완료:', {
+    totalVideos: videos.length,
+    avgViews: Math.round(avgViews),
+    mutantVideos: mutantVideos.length
+  });
+  
   return {
     // 기본 통계
     totalViews,
@@ -204,6 +306,8 @@ async function performCompleteAnalysis(channel) {
 }
 
 async function renderCompleteAnalysisResult(channel, data) {
+  console.log('renderCompleteAnalysisResult 시작');
+  
   // 전일 구독자 수 비교 (실제 데이터베이스에서)
   const yesterdaySubCount = await getYesterdaySubCount(channel);
   const todaySubCount = parseInt(channel.subscriberCount || '0');
@@ -217,109 +321,183 @@ async function renderCompleteAnalysisResult(channel, data) {
     subDiff > 0 ? 'positive' :
     subDiff < 0 ? 'negative' : 'neutral';
   
-  const analysisSection = qs('analysis-section');
+  const analysisSection = document.getElementById('analysis-section');
+  if (!analysisSection) {
+    console.error('analysis-section을 찾을 수 없습니다.');
+    return;
+  }
   
   analysisSection.innerHTML = `
-    <div class="analysis-header">
-      <button id="btn-back-home" class="nav-btn">← 메인으로 돌아가기</button>
-      <img class="thumb" src="${channel.thumbnail}" alt="${channel.title}">
-      <div class="info">
-        <h2>${channel.title}</h2>
-        <p>구독자: ${fmt(channel.subscriberCount)}명</p>
-        <div class="analysis-stats">
+    <div class="analysis-header" style="
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+      padding: 24px;
+      background: var(--card, #fff);
+      border-radius: 16px;
+      border: 2px solid var(--border, #dee2e6);
+    ">
+      <button id="btn-back-home" class="btn btn-secondary">← 메인으로 돌아가기</button>
+      <img class="thumb" src="${channel.thumbnail}" alt="${channel.title}" style="
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+      <div class="info" style="flex: 1;">
+        <h2 style="margin: 0 0 8px 0; font-size: 1.5rem;">${channel.title}</h2>
+        <p style="margin: 0 0 16px 0; color: var(--muted, #6c757d);">구독자: ${fmt(channel.subscriberCount)}명</p>
+        <div class="analysis-stats" style="
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 16px;
+        ">
           <div class="stat-item">
-            <div class="stat-value ${subDiffClass}">${subDiffDisplay}</div>
-            <div class="stat-label">전일대비</div>
+            <div class="stat-value ${subDiffClass}" style="font-weight: 700; font-size: 1.1rem;">${subDiffDisplay}</div>
+            <div class="stat-label" style="font-size: 0.8rem; color: var(--muted, #6c757d);">전일대비</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value neutral">${fmt(Math.round(data.avgViews))}</div>
-            <div class="stat-label">평균조회수</div>
+            <div class="stat-value neutral" style="font-weight: 700; font-size: 1.1rem;">${fmt(Math.round(data.avgViews))}</div>
+            <div class="stat-label" style="font-size: 0.8rem; color: var(--muted, #6c757d);">평균조회수</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value ${data.viewsGrowthRate >= 0 ? 'positive' : 'negative'}">${data.viewsGrowthRate >= 0 ? '+' : ''}${data.viewsGrowthRate.toFixed(1)}%</div>
-            <div class="stat-label">조회수 성장률</div>
+            <div class="stat-value ${data.viewsGrowthRate >= 0 ? 'positive' : 'negative'}" style="font-weight: 700; font-size: 1.1rem;">${data.viewsGrowthRate >= 0 ? '+' : ''}${data.viewsGrowthRate.toFixed(1)}%</div>
+            <div class="stat-label" style="font-size: 0.8rem; color: var(--muted, #6c757d);">조회수 성장률</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value neutral">${data.engagementRate.toFixed(2)}%</div>
-            <div class="stat-label">참여도</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value neutral">${data.uploadFrequency}</div>
-            <div class="stat-label">주당 업로드</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value neutral">${Math.round(data.avgDuration / 60)}분</div>
-            <div class="stat-label">평균 길이</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value neutral">${data.shortVideos.length}:${data.longVideos.length}</div>
-            <div class="stat-label">짧은:긴 영상</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value neutral">${data.topPerformingDay}</div>
-            <div class="stat-label">최다 업로드 요일</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value neutral">${Object.keys(data.categories)[0] || '미분류'}</div>
-            <div class="stat-label">주요 카테고리</div>
+            <div class="stat-value neutral" style="font-weight: 700; font-size: 1.1rem;">${data.engagementRate.toFixed(2)}%</div>
+            <div class="stat-label" style="font-size: 0.8rem; color: var(--muted, #6c757d);">참여도</div>
           </div>
         </div>
       </div>
     </div>
     
-    <div class="analysis-content">
-      <!-- 주요 키워드 섹션을 크게 -->
-      <div class="analysis-card analysis-keywords-large">
-        <h3>🏷️ 주요 키워드 (상위 30개)</h3>
-        <div class="tag-cloud-large">
+    <div class="analysis-content" style="
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 24px;
+    ">
+      <!-- 주요 키워드 섹션 -->
+      <div class="analysis-card" style="
+        grid-column: 1 / -1;
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">🏷️ 주요 키워드 (상위 30개)</h3>
+        <div class="tag-cloud-large" style="
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          justify-content: center;
+        ">
           ${data.keywords.map(([word, count]) => `
-            <span class="tag-large" style="font-size: ${Math.min(2, 0.9 + count * 0.1)}rem; opacity: ${Math.min(1, 0.5 + count * 0.1)}">${word} <small>(${count})</small></span>
+            <span class="tag-large" style="
+              padding: 8px 16px;
+              background: linear-gradient(135deg, #c4302b, #a02622);
+              color: white;
+              border-radius: 25px;
+              font-weight: 700;
+              font-size: ${Math.min(1.2, 0.9 + count * 0.05)}rem;
+              opacity: ${Math.min(1, 0.7 + count * 0.05)};
+              cursor: pointer;
+              transition: all 0.3s;
+              box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'" onmouseout="this.style.transform=''">${word} <small>(${count})</small></span>
           `).join('')}
         </div>
       </div>
       
       <!-- 핵심 성과 지표 -->
-      <div class="analysis-card">
-        <h3>📊 핵심 성과 지표</h3>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-value positive">${data.mutantVideos.length}</div>
-            <div class="metric-label">돌연변이 영상</div>
-            <div class="metric-change">전체의 ${((data.mutantVideos.length / data.totalVideos) * 100).toFixed(1)}%</div>
+      <div class="analysis-card" style="
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">📊 핵심 성과 지표</h3>
+        <div class="metrics-grid" style="
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 16px;
+        ">
+          <div class="metric-card" style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+            <div class="metric-value positive" style="font-size: 2rem; font-weight: 800; color: #1db954; margin-bottom: 8px;">${data.mutantVideos.length}</div>
+            <div class="metric-label" style="font-size: 0.9rem; color: #6c757d; font-weight: 600;">돌연변이 영상</div>
+            <div class="metric-change" style="font-size: 0.8rem; color: #6c757d;">전체의 ${((data.mutantVideos.length / data.totalVideos) * 100).toFixed(1)}%</div>
           </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${fmt(data.totalViews)}</div>
-            <div class="metric-label">총 조회수</div>
-            <div class="metric-change">분석 영상 기준</div>
+          <div class="metric-card" style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+            <div class="metric-value neutral" style="font-size: 2rem; font-weight: 800; color: #333; margin-bottom: 8px;">${fmt(data.totalViews)}</div>
+            <div class="metric-label" style="font-size: 0.9rem; color: #6c757d; font-weight: 600;">총 조회수</div>
+            <div class="metric-change" style="font-size: 0.8rem; color: #6c757d;">분석 영상 기준</div>
           </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${data.totalVideos}</div>
-            <div class="metric-label">분석 영상수</div>
-            <div class="metric-change">롱폼만 대상</div>
+          <div class="metric-card" style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+            <div class="metric-value neutral" style="font-size: 2rem; font-weight: 800; color: #333; margin-bottom: 8px;">${data.totalVideos}</div>
+            <div class="metric-label" style="font-size: 0.9rem; color: #6c757d; font-weight: 600;">분석 영상수</div>
+            <div class="metric-change" style="font-size: 0.8rem; color: #6c757d;">롱폼만 대상</div>
           </div>
-          <div class="metric-card">
-            <div class="metric-value neutral">${data.uploadConsistency}x</div>
-            <div class="metric-label">업로드 일관성</div>
-            <div class="metric-change">요일별 편차</div>
+          <div class="metric-card" style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 12px;">
+            <div class="metric-value neutral" style="font-size: 2rem; font-weight: 800; color: #333; margin-bottom: 8px;">${data.uploadConsistency}x</div>
+            <div class="metric-label" style="font-size: 0.9rem; color: #6c757d; font-weight: 600;">업로드 일관성</div>
+            <div class="metric-change" style="font-size: 0.8rem; color: #6c757d;">요일별 편차</div>
           </div>
         </div>
       </div>
       
       <!-- 상위 성과 영상 -->
-      <div class="analysis-card">
-        <h3>🔥 상위 성과 영상 (TOP 10)</h3>
+      <div class="analysis-card" style="
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">🔥 상위 성과 영상 (TOP 10)</h3>
         <div class="analysis-videos">
           <div class="video-list">
             ${data.topVideos.map((v, index) => `
-              <div class="analysis-video-card">
-                <span class="rank-badge">${index + 1}</span>
-                <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">
-                  <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}">
+              <div class="analysis-video-card" style="
+                display: flex;
+                gap: 16px;
+                align-items: center;
+                padding: 12px;
+                margin-bottom: 12px;
+                background: #f8f9fa;
+                border-radius: 12px;
+                transition: all 0.3s;
+                position: relative;
+              " onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
+                <span class="rank-badge" style="
+                  position: absolute;
+                  top: 8px;
+                  left: 8px;
+                  background: linear-gradient(135deg, #c4302b, #a02622);
+                  color: white;
+                  border-radius: 50%;
+                  width: 28px;
+                  height: 28px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: 800;
+                  font-size: 12px;
+                  z-index: 10;
+                ">${index + 1}</span>
+                <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" style="text-decoration: none;">
+                  <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}" style="
+                    width: 120px;
+                    height: 68px;
+                    object-fit: cover;
+                    border-radius: 8px;
+                    border: 2px solid #dee2e6;
+                  ">
                 </a>
-                <div class="analysis-video-meta">
-                  <h4>${truncateText(v.snippet.title, 60)}</h4>
-                  <p>조회수: ${fmt(v.statistics.viewCount)} · 좋아요: ${fmt(v.statistics.likeCount || 0)} · 댓글: ${fmt(v.statistics.commentCount || 0)}</p>
-                  <p>${moment(v.snippet.publishedAt).fromNow()} · 길이: ${Math.round(moment.duration(v.contentDetails.duration).asMinutes())}분</p>
+                <div class="analysis-video-meta" style="flex: 1;">
+                  <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; font-weight: 700; line-height: 1.4;">${truncateText(v.snippet.title, 60)}</h4>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6c757d;">조회수: ${fmt(v.statistics.viewCount)} · 좋아요: ${fmt(v.statistics.likeCount || 0)} · 댓글: ${fmt(v.statistics.commentCount || 0)}</p>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6c757d;">${moment(v.snippet.publishedAt).fromNow()} · 길이: ${Math.round(moment.duration(v.contentDetails.duration).asMinutes())}분</p>
                 </div>
               </div>
             `).join('')}
@@ -328,22 +506,54 @@ async function renderCompleteAnalysisResult(channel, data) {
       </div>
       
       <!-- 돌연변이 영상 -->
-      <div class="analysis-card">
-        <h3>🚀 돌연변이 영상 (${data.mutantVideos.length}개)</h3>
+      <div class="analysis-card" style="
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">🚀 돌연변이 영상 (${data.mutantVideos.length}개)</h3>
         <div class="analysis-videos">
           <div class="video-list">
             ${data.mutantVideos.slice(0, 8).map(v => {
               const mutantIndex = (parseInt(v.statistics.viewCount) / parseInt(channel.subscriberCount)).toFixed(2);
               return `
-                <div class="analysis-video-card">
-                  <span class="mutant-rank">${mutantIndex}x</span>
-                  <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank">
-                    <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}">
+                <div class="analysis-video-card" style="
+                  display: flex;
+                  gap: 16px;
+                  align-items: center;
+                  padding: 12px;
+                  margin-bottom: 12px;
+                  background: #f8f9fa;
+                  border-radius: 12px;
+                  transition: all 0.3s;
+                  position: relative;
+                " onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
+                  <span class="mutant-rank" style="
+                    background: linear-gradient(135deg, #ffa502, #ff6348);
+                    color: white;
+                    border-radius: 16px;
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    font-weight: 800;
+                    position: absolute;
+                    top: 8px;
+                    left: 8px;
+                    z-index: 10;
+                  ">${mutantIndex}x</span>
+                  <a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" style="text-decoration: none;">
+                    <img src="${v.snippet.thumbnails.medium.url}" alt="${v.snippet.title}" style="
+                      width: 120px;
+                      height: 68px;
+                      object-fit: cover;
+                      border-radius: 8px;
+                      border: 2px solid #dee2e6;
+                    ">
                   </a>
-                  <div class="analysis-video-meta">
-                    <h4>${truncateText(v.snippet.title, 60)}</h4>
-                    <p>조회수: ${fmt(v.statistics.viewCount)} · 돌연변이지수: ${mutantIndex}</p>
-                    <p>${moment(v.snippet.publishedAt).fromNow()}</p>
+                  <div class="analysis-video-meta" style="flex: 1;">
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; font-weight: 700; line-height: 1.4;">${truncateText(v.snippet.title, 60)}</h4>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6c757d;">조회수: ${fmt(v.statistics.viewCount)} · 돌연변이지수: ${mutantIndex}</p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6c757d;">${moment(v.snippet.publishedAt).fromNow()}</p>
                   </div>
                 </div>
               `;
@@ -353,85 +563,74 @@ async function renderCompleteAnalysisResult(channel, data) {
       </div>
       
       <!-- 업로드 패턴 분석 -->
-      <div class="analysis-card">
-        <h3>📅 업로드 패턴 분석</h3>
-        <div class="chart-container">
+      <div class="analysis-card" style="
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">📅 업로드 패턴 분석</h3>
+        <div class="chart-container" style="position: relative; height: 300px;">
           <canvas id="weekly-upload-chart"></canvas>
         </div>
-        <div class="chart-label">요일별 업로드 패턴</div>
-        <div class="pattern-insights">
-          <p><strong>최적 업로드 시간:</strong> ${data.bestUploadTime}</p>
-          <p><strong>업로드 빈도:</strong> 주당 ${data.uploadFrequency}개</p>
-          <p><strong>업로드 일관성:</strong> ${data.uploadConsistency}배 (낮을수록 일관적)</p>
+        <div class="chart-label" style="text-align: center; margin-top: 16px; color: #6c757d; font-size: 14px;">요일별 업로드 패턴</div>
+        <div class="pattern-insights" style="
+          margin-top: 20px;
+          padding: 16px;
+          background: #f8f9fa;
+          border-radius: 8px;
+        ">
+          <p style="margin: 8px 0; font-size: 14px;"><strong style="color: #c4302b;">최적 업로드 시간:</strong> ${data.bestUploadTime}</p>
+          <p style="margin: 8px 0; font-size: 14px;"><strong style="color: #c4302b;">업로드 빈도:</strong> 주당 ${data.uploadFrequency}개</p>
+          <p style="margin: 8px 0; font-size: 14px;"><strong style="color: #c4302b;">업로드 일관성:</strong> ${data.uploadConsistency}배 (낮을수록 일관적)</p>
         </div>
       </div>
       
       <!-- 시간대별 업로드 -->
-      <div class="analysis-card">
-        <h3>⏰ 시간대별 업로드 분포</h3>
-        <div class="chart-container">
+      <div class="analysis-card" style="
+        background: var(--card, #fff);
+        border-radius: 16px;
+        padding: 24px;
+        border: 2px solid var(--border, #dee2e6);
+      ">
+        <h3 style="margin: 0 0 20px 0;">⏰ 시간대별 업로드 분포</h3>
+        <div class="chart-container" style="position: relative; height: 300px;">
           <canvas id="hourly-upload-chart"></canvas>
         </div>
-        <div class="chart-label">24시간 업로드 분포</div>
-      </div>
-      
-      <!-- 참여도 및 성과 분석 -->
-      <div class="analysis-card">
-        <h3>💬 참여도 분석</h3>
-        <div class="engagement-metrics">
-          <div class="engagement-item">
-            <div class="engagement-value">${data.engagementRate.toFixed(3)}%</div>
-            <div class="engagement-label">전체 참여도</div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${Math.min(100, data.engagementRate * 50)}%"></div>
-            </div>
-          </div>
-          <div class="engagement-item">
-            <div class="engagement-value">${fmt(Math.round(data.avgLikeRate))}</div>
-            <div class="engagement-label">평균 좋아요</div>
-          </div>
-          <div class="engagement-item">
-            <div class="engagement-value">${fmt(Math.round(data.avgCommentRate))}</div>
-            <div class="engagement-label">평균 댓글</div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- 콘텐츠 길이 분석 -->
-      <div class="analysis-card">
-        <h3>📏 콘텐츠 길이 분석</h3>
-        <div class="length-analysis">
-          <div class="length-comparison">
-            <div class="length-item">
-              <div class="length-type">짧은 영상 (10분 미만)</div>
-              <div class="length-count">${data.shortVideos.length}개</div>
-              <div class="length-avg">평균 조회수: ${fmt(Math.round(data.avgShortViews))}</div>
-            </div>
-            <div class="length-item">
-              <div class="length-type">긴 영상 (10분 이상)</div>
-              <div class="length-count">${data.longVideos.length}개</div>
-              <div class="length-avg">평균 조회수: ${fmt(Math.round(data.avgLongViews))}</div>
-            </div>
-          </div>
-          <div class="length-recommendation">
-            <strong>추천:</strong> ${data.avgLongViews > data.avgShortViews ? 
-              '긴 영상이 더 높은 조회수를 기록하고 있습니다' : 
-              '짧은 영상이 더 높은 조회수를 기록하고 있습니다'}
-          </div>
-        </div>
+        <div class="chart-label" style="text-align: center; margin-top: 16px; color: #6c757d; font-size: 14px;">24시간 업로드 분포</div>
       </div>
     </div>`;
   
   // 뒤로가기 버튼 이벤트 연결
-  qs('btn-back-home').onclick = () => showHome();
+  const backBtn = document.getElementById('btn-back-home');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      if (typeof showHome === 'function') {
+        showHome();
+      } else {
+        // 대체 방법
+        const analysisSection = document.getElementById('analysis-section');
+        if (analysisSection) analysisSection.remove();
+        
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) mainContent.style.display = '';
+        
+        if (window.state) window.state.currentView = 'home';
+      }
+    };
+  }
   
   // 차트 렌더링
   setTimeout(() => {
     renderAnalysisCharts(data);
   }, 100);
+  
+  console.log('renderCompleteAnalysisResult 완료');
 }
 
 function renderAnalysisCharts(data) {
+  console.log('renderAnalysisCharts 시작');
+  
   const isDark = document.body.classList.contains('dark');
   const colors = {
     grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -441,8 +640,8 @@ function renderAnalysisCharts(data) {
   };
 
   // 요일별 업로드 차트
-  const weeklyCtx = qs('weekly-upload-chart');
-  if (weeklyCtx) {
+  const weeklyCtx = document.getElementById('weekly-upload-chart');
+  if (weeklyCtx && typeof Chart !== 'undefined') {
     new Chart(weeklyCtx, {
       type: 'bar',
       data: {
@@ -480,8 +679,8 @@ function renderAnalysisCharts(data) {
   }
 
   // 시간대별 업로드 차트
-  const hourlyCtx = qs('hourly-upload-chart');
-  if (hourlyCtx) {
+  const hourlyCtx = document.getElementById('hourly-upload-chart');
+  if (hourlyCtx && typeof Chart !== 'undefined') {
     new Chart(hourlyCtx, {
       type: 'line',
       data: {
@@ -521,9 +720,13 @@ function renderAnalysisCharts(data) {
       }
     });
   }
+  
+  console.log('renderAnalysisCharts 완료');
 }
 
 async function getLongformVideos(uploadsPlaylistId, videoCount = 200) {
+  console.log('getLongformVideos 시작:', uploadsPlaylistId, videoCount);
+  
   let videoIds = [];
   let videos = [];
   let nextPageToken = '';
@@ -546,6 +749,8 @@ async function getLongformVideos(uploadsPlaylistId, videoCount = 200) {
     if (!nextPageToken) break;
   }
   
+  console.log('수집된 비디오 ID 수:', videoIds.length);
+  
   // 비디오 세부 정보 가져오기 (50개씩 배치 처리)
   for (let i = 0; i < videoIds.length; i += 50) {
     const idsChunk = videoIds.slice(i, i + 50);
@@ -563,6 +768,7 @@ async function getLongformVideos(uploadsPlaylistId, videoCount = 200) {
     }
   }
   
+  console.log('롱폼 비디오 수:', videos.length);
   return videos;
 }
 

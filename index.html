@@ -1,142 +1,234 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <title>버튼 테스트</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      background: #1a1a1a;
-      color: white;
-    }
-    .btn {
-      padding: 10px 20px;
-      margin: 10px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    .btn-primary {
-      background: #c4302b;
-      color: white;
-    }
-    .btn-secondary {
-      background: #6c757d;
-      color: white;
-    }
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-content {
-      background: #2d3748;
-      padding: 20px;
-      border-radius: 10px;
-      min-width: 300px;
-    }
-    .close {
-      float: right;
-      font-size: 20px;
-      cursor: pointer;
-    }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>로이가 만든 유튜브 채널 모니터</title>
+  <link rel="icon" href="favicon.svg" />
+  
+  <!-- CSS 파일 -->
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- 외부 라이브러리 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
 </head>
-<body>
-  <h1>버튼 테스트</h1>
-  
-  <button id="test-btn1" class="btn btn-primary">테스트 버튼 1</button>
-  <button id="test-btn2" class="btn btn-secondary">테스트 버튼 2</button>
-  <button id="modal-btn" class="btn btn-primary">모달 열기</button>
-  
-  <div id="log" style="margin-top: 20px; padding: 10px; background: #333; border-radius: 5px;">
-    <h3>로그:</h3>
-    <div id="log-content"></div>
+
+<body class="dark">
+  <div class="container">
+    <!-- 헤더 -->
+    <header>
+      <div class="header-content">
+        <div class="logo-section">
+          <div class="logo-icon">Y</div>
+          <h1>유튜브 채널 모니터</h1>
+        </div>
+        <nav class="nav-buttons">
+          <button id="btn-analyze" class="btn btn-primary">📊 채널 분석</button>
+          <button id="btn-toggle-theme" class="btn btn-secondary">라이트 모드</button>
+          <button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- 메인 콘텐츠 -->
+    <main id="main-content" class="three-col">
+      <!-- 채널 관리 섹션 -->
+      <section class="col" data-col="channels">
+        <div class="col-head" draggable="true">
+          <h2>📺 채널 관리</h2>
+          <div class="col-actions">
+            <button id="btn-add-channel" class="btn btn-primary">+ 채널 추가</button> 
+            <button id="btn-export-channels" class="btn btn-secondary">📥 내보내기</button> 
+            <button id="btn-import-channels" class="btn btn-secondary">📤 가져오기</button> 
+            <input type="file" id="file-import-channels" accept="application/json" style="display:none" />
+            <span class="channel-count-wrapper">등록: <span id="channel-count">0</span>개</span>
+          </div>
+        </div>
+        
+        <div class="sort-row">
+          <label for="sort-channels">정렬:
+            <select id="sort-channels">
+              <option value="subscribers" selected>구독자수</option>
+              <option value="videos">영상갯수</option>
+              <option value="latest">최근업로드</option>
+            </select>
+          </label>
+        </div>
+        
+        <div id="channel-list" class="channel-list">
+          <div class="empty-state">
+            <div class="empty-icon">📺</div>
+            <p class="muted">채널을 추가하여 시작하세요</p>
+            <button class="btn btn-primary" onclick="document.getElementById('btn-add-channel').click()">첫 채널 추가하기</button>
+          </div>
+        </div>
+        
+        <div id="channel-pagination" class="pagination"></div>
+      </section>
+
+      <!-- 돌연변이 영상 섹션 -->
+      <section class="col" data-col="mutant">
+        <div class="col-head" draggable="true">
+          <h2>🚀 돌연변이 영상</h2>
+          <div class="col-actions">
+            <div class="date-range">
+              <button data-period="1m">1개월</button>
+              <button data-period="3m">3개월</button>
+              <button class="active" data-period="6m">6개월</button>
+              <button data-period="all">전체</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sort-row">
+          <label for="sort-mutant">정렬:
+            <select id="sort-mutant">
+              <option value="mutantIndex" selected>돌연변이지수</option>
+              <option value="views">조회수</option>
+              <option value="subscribers">구독자수</option>
+              <option value="latest">최근업로드</option>
+            </select>
+          </label>
+        </div>
+        
+        <div id="mutant-keywords" class="keywords"></div>
+        <div id="mutant-list" class="video-list">
+          <div class="empty-state">
+            <div class="empty-icon">🚀</div>
+            <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
+          </div>
+        </div>
+        <div id="mutant-pagination" class="pagination"></div>
+      </section>
+
+      <!-- 최신 영상 섹션 -->
+      <section class="col" data-col="latest">
+        <div class="col-head" draggable="true">
+          <h2>📱 최신 영상</h2>
+        </div>
+        
+        <div class="sort-row">
+          <label for="sort-latest">정렬:
+            <select id="sort-latest">
+              <option value="views" selected>조회수</option>
+              <option value="subscribers">구독자수</option>
+              <option value="latest">최근업로드</option>
+              <option value="mutantIndex">돌연변이지수</option>
+            </select>
+          </label>
+        </div>
+        
+        <div id="latest-keywords" class="keywords"></div>
+        <div id="latest-list" class="video-list">
+          <div class="empty-state">
+            <div class="empty-icon">📱</div>
+            <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
+          </div>
+        </div>
+        <div id="latest-pagination" class="pagination"></div>
+      </section>
+    </main>
   </div>
 
-  <!-- 테스트 모달 -->
-  <div id="test-modal" class="modal">
+  <!-- API 키 모달 -->
+  <div id="modal-api" class="modal">
     <div class="modal-content">
-      <span class="close" onclick="closeModal()">&times;</span>
-      <h3>테스트 모달</h3>
-      <p>모달이 정상적으로 작동합니다!</p>
-      <button onclick="closeModal()" class="btn btn-secondary">닫기</button>
+      <span class="close" data-close="modal-api">&times;</span>
+      <h3>🔑 YouTube API 키 설정</h3>
+      <p class="modal-description">
+        YouTube Data API v3 키를 입력하세요. 
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: var(--brand);">Google Cloud Console</a>에서 발급받을 수 있습니다.
+      </p>
+      
+      <div class="api-input-section">
+        <div id="api-inputs"></div>
+        <div class="api-file-actions" style="display: flex; gap: 8px; margin: 16px 0; justify-content: center;">
+          <button id="api-export" class="btn btn-secondary">📥 키 내보내기</button>
+          <button id="api-import-btn" class="btn btn-secondary">📤 키 가져오기</button>
+          <input type="file" id="api-import-file" accept=".json,.txt" style="display:none">
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button id="api-save" class="btn btn-primary">💾 저장</button>
+        <button id="api-test" class="btn btn-secondary">🧪 테스트</button>
+      </div>
+      <div id="api-test-result"></div>
     </div>
   </div>
 
-  <script>
-    console.log('스크립트 로드됨');
-    
-    function log(message) {
-      const logContent = document.getElementById('log-content');
-      const time = new Date().toLocaleTimeString();
-      logContent.innerHTML += `<div>[${time}] ${message}</div>`;
-      console.log(message);
-    }
-
-    function openModal() {
-      const modal = document.getElementById('test-modal');
-      modal.style.display = 'flex';
-      log('모달 열림');
-    }
-
-    function closeModal() {
-      const modal = document.getElementById('test-modal');
-      modal.style.display = 'none';
-      log('모달 닫힘');
-    }
-
-    // DOM 로드 완료 후 이벤트 바인딩
-    document.addEventListener('DOMContentLoaded', function() {
-      log('DOM 로드 완료');
+  <!-- 채널 추가 모달 -->
+  <div id="modal-add" class="modal">
+    <div class="modal-content modal-large">
+      <span class="close" data-close="modal-add">&times;</span>
+      <h3>📺 채널 추가</h3>
       
-      // 테스트 버튼 1
-      const btn1 = document.getElementById('test-btn1');
-      if (btn1) {
-        btn1.addEventListener('click', function() {
-          log('테스트 버튼 1 클릭됨');
-          alert('버튼 1이 작동합니다!');
-        });
-        log('버튼 1 이벤트 바인딩 완료');
-      } else {
-        log('버튼 1을 찾을 수 없음');
-      }
+      <div class="add-tabs">
+        <button class="add-tab active" data-add-tab="url">채널명/URL 검색</button>
+      </div>
+      
+      <div id="add-tab-url" class="add-tab-content active">
+        <div class="input-group">
+          <input type="text" id="url-input" placeholder="채널명을 입력하세요 (예: 봉준호, 백종원)" />
+          <button id="btn-url-add" class="btn btn-primary">🔍 검색</button>
+        </div>
+        <div id="url-result"></div>
+        <div class="examples">
+          <h4>🎯 채널명으로 쉽게 추가하세요!</h4>
+          <div style="background: var(--glass-bg); padding: 16px; border-radius: 8px; margin: 12px 0;">
+            <p style="margin: 0 0 12px 0; font-weight: 600; color: var(--brand);">💡 가장 많이 사용하는 방법:</p>
+            <ul style="margin: 8px 0; color: var(--text);">
+              <li><strong>한국어 채널명:</strong> "봉준호", "백종원", "쯔양" 등</li>
+              <li><strong>영어 채널명:</strong> "Google Developers", "TED" 등</li>
+              <li><strong>핸들명:</strong> "@GoogleDevelopers", "@ted" 등</li>
+            </ul>
+          </div>
+          <details style="margin-top: 16px;">
+            <summary style="cursor: pointer; color: var(--muted); font-size: 14px;">🔧 고급 옵션 보기</summary>
+            <ul style="margin-top: 12px; font-size: 13px; color: var(--muted);">
+              <li>채널 ID: <code>UC_x5XG1OV2P6uZZ5FSM9Ttw</code></li>
+              <li>채널 URL: <code>https://youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</code></li>
+              <li>영상 URL: <code>https://youtube.com/watch?v=dQw4w9WgXcQ</code></li>
+            </ul>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      // 테스트 버튼 2
-      const btn2 = document.getElementById('test-btn2');
-      if (btn2) {
-        btn2.addEventListener('click', function() {
-          log('테스트 버튼 2 클릭됨');
-          document.body.style.background = document.body.style.background === 'white' ? '#1a1a1a' : 'white';
-          document.body.style.color = document.body.style.color === 'black' ? 'white' : 'black';
-          log('테마 변경됨');
-        });
-        log('버튼 2 이벤트 바인딩 완료');
-      } else {
-        log('버튼 2를 찾을 수 없음');
-      }
+  <!-- 분석 모달 -->
+  <div id="modal-analyze" class="modal">
+    <div class="modal-content">
+      <span class="close" data-close="modal-analyze">&times;</span>
+      <h3>📊 채널 분석</h3>
+      <p class="modal-description">분석할 채널을 선택하세요. 심층 분석에는 시간이 소요될 수 있습니다.</p>
+      <div id="analyze-channel-list" class="analyze-list"></div>
+    </div>
+  </div>
 
-      // 모달 버튼
-      const modalBtn = document.getElementById('modal-btn');
-      if (modalBtn) {
-        modalBtn.addEventListener('click', openModal);
-        log('모달 버튼 이벤트 바인딩 완료');
-      } else {
-        log('모달 버튼을 찾을 수 없음');
-      }
+  <!-- JavaScript 파일들 (순서가 매우 중요!) -->
+  <script src="js/config.js"></script>
+  <script src="js/database.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/channels.js"></script>
+  <script src="js/videos.js"></script>
+  <script src="js/main.js"></script>
 
-      log('모든 이벤트 바인딩 완료');
+  <script>
+    // 디버깅용 - 모든 함수가 로드되었는지 확인
+    console.log('스크립트 로딩 상태 확인:', {
+      yt: typeof window.yt,
+      getAllChannels: typeof window.getAllChannels,
+      refreshMutant: typeof window.refreshMutant,
+      refreshLatest: typeof window.refreshLatest,
+      extractChannelId: typeof window.extractChannelId,
+      moment: typeof moment
     });
-
-    log('스크립트 실행 완료');
   </script>
 </body>
 </html>

@@ -1,10 +1,15 @@
-// 설정 및 상수
+// YouTube 채널 모니터 - 설정 및 상수
+console.log('config.js 로딩 시작');
+
+// moment.js 설정
 if (typeof moment !== 'undefined') {
   moment.tz.setDefault('Asia/Seoul');
+  moment.locale('ko');
+  console.log('Moment.js 설정 완료');
 }
 
-// 전역 객체 중복 선언 방지
-window.CONFIG = window.CONFIG || {
+// 전역 설정
+window.CONFIG = {
   API_BASE: 'https://www.googleapis.com/youtube/v3/',
   PAGINATION: {
     CHANNELS: 8,
@@ -17,7 +22,7 @@ window.CONFIG = window.CONFIG || {
 };
 
 // 전역 상태
-window.state = window.state || {
+window.state = {
   currentMutantPeriod: '6m',
   currentView: 'home',
   currentPage: {
@@ -27,25 +32,23 @@ window.state = window.state || {
   }
 };
 
-// API 키 관리 - 중복 선언 방지
-if (!window.apiKeys) {
-  window.apiKeys = JSON.parse(localStorage.getItem('youtubeApiKeys') || localStorage.getItem('apiKeys') || '[]');
-  if (!localStorage.getItem('youtubeApiKeys') && localStorage.getItem('apiKeys')) {
-    localStorage.setItem('youtubeApiKeys', localStorage.getItem('apiKeys'));
-  }
-}
+// API 키 관리
+window.apiKeys = JSON.parse(localStorage.getItem('youtubeApiKeys') || '[]');
+window.keyIdx = 0;
 
-window.keyIdx = window.keyIdx || 0;
-
+// API 키 관리 함수
 function setApiKeys(keys) {
   window.apiKeys = keys.filter(Boolean);
   window.keyIdx = 0;
   localStorage.setItem('youtubeApiKeys', JSON.stringify(window.apiKeys));
-  localStorage.setItem('apiKeys', JSON.stringify(window.apiKeys));
+  console.log('API 키 저장됨:', window.apiKeys.length + '개');
 }
 
 function nextKey() { 
-  if (window.apiKeys.length > 1) window.keyIdx = (window.keyIdx + 1) % window.apiKeys.length; 
+  if (window.apiKeys.length > 1) {
+    window.keyIdx = (window.keyIdx + 1) % window.apiKeys.length;
+    console.log('다음 API 키로 전환:', window.keyIdx);
+  }
 }
 
 function hasKeys() { 
@@ -56,3 +59,6 @@ function hasKeys() {
 window.setApiKeys = setApiKeys;
 window.nextKey = nextKey;
 window.hasKeys = hasKeys;
+
+console.log('config.js 로딩 완료');
+console.log('설정된 API 키 수:', window.apiKeys.length);
