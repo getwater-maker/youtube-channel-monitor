@@ -108,6 +108,15 @@
       <section class="col" data-col="latest">
         <div class="col-head" draggable="true">
           <h2>📱 최신 영상</h2>
+          <div class="col-actions">
+            <!-- 복구: 최신영상 기간 버튼 -->
+            <div class="date-range">
+              <button data-period="1w">1주</button>
+              <button data-period="2w">2주</button>
+              <button class="active" data-period="1m">한달</button>
+              <button data-period="all">전체</button>
+            </div>
+          </div>
         </div>
         
         <div class="sort-row">
@@ -209,29 +218,31 @@
     </div>
   </div>
 
-  <!-- JavaScript 파일들 (순서가 매우 중요!) -->
-  <script src="js/config.js"></script>
-  <script src="js/database.js"></script>
-  <script src="js/utils.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/ui.js"></script>
+  <!-- JavaScript 파일들 -->
+  <script src="js/common.js"></script>
   <script src="js/channels.js"></script>
   <script src="js/mutant-videos.js"></script>
   <script src="js/latest-videos.js"></script>
-  <script src="js/videos.js"></script>
+  <script src="js/main-monitor.js"></script>
   <script src="js/main.js"></script>
 
   <script>
-    // 디버깅용 - 모든 함수가 로드되었는지 확인
     console.log('스크립트 로딩 상태 확인:', {
       yt: typeof window.yt,
       getAllChannels: typeof window.getAllChannels,
       refreshMutant: typeof window.refreshMutant,
       refreshLatest: typeof window.refreshLatest,
       extractChannelId: typeof window.extractChannelId,
-      VideoSectionManager: typeof window.VideoSectionManager,
-      moment: typeof moment
+      openAnalyzeModal: typeof window.openAnalyzeModal,
+      moment: typeof moment,
+      Chart: typeof Chart,
+      Sortable: typeof Sortable
     });
+    setTimeout(() => {
+      if (typeof window.diagnoseApp === 'function') {
+        window.diagnoseApp();
+      }
+    }, 3000);
   </script>
 </body>
 </html>
