@@ -2,6 +2,14 @@
 console.log('main-monitor.js 로딩 시작');
 
 // ============================================================================
+// 분석 상태 관리 추가
+// ============================================================================
+window.analysisState = {
+  isActive: false,
+  previousSection: 'channels'
+};
+
+// ============================================================================
 // 완전한 채널 분석 시스템
 // ============================================================================
 
@@ -103,6 +111,10 @@ async function startCompleteAnalysis(channelId) {
   const container = document.body.querySelector('.container') || document.body;
   const mainContent = document.getElementById('main-content') || document.querySelector('#main-content');
   
+  // 현재 섹션 저장
+  window.analysisState.previousSection = window.navigationState?.currentSection || 'channels';
+  window.analysisState.isActive = true;
+  
   if (mainContent) {
     mainContent.style.display = 'none';
   }
@@ -141,6 +153,11 @@ async function startCompleteAnalysis(channelId) {
     window.state.currentView = 'analysis';
   }
   
+  // 네비게이션 시스템에 분석 모드임을 알림
+  if (window.navigationState) {
+    window.navigationState.currentSection = 'analysis';
+  }
+  
   try {
     const ch = await idbGet('my_channels', channelId);
     if (!ch) throw new Error('채널을 찾을 수 없습니다.');
@@ -157,7 +174,7 @@ async function startCompleteAnalysis(channelId) {
     if (analysisSection) {
       analysisSection.innerHTML = `
         <div style="text-align: center; padding: 40px 20px;">
-          <button id="btn-back-home" class="btn btn-secondary" onclick="showHome()" style="margin-bottom: 20px;">← 메인으로 돌아가기</button>
+          <button id="btn-back-home" class="btn btn-secondary" style="margin-bottom: 20px;">← 메인으로 돌아가기</button>
           <div class="error-message" style="
             color: #c4302b;
             font-size: 18px;
@@ -170,8 +187,68 @@ async function startCompleteAnalysis(channelId) {
             채널 분석 중 오류가 발생했습니다: ${e.message}
           </div>
         </div>`;
+      
+      // 뒤로가기 버튼 이벤트 바인딩
+      const backBtn = document.getElementById('btn-back-home');
+      if (backBtn) {
+        backBtn.onclick = returnToMainView;
+      }
     }
   }
+}
+
+// 메인 화면으로 돌아가기 함수 (개선됨)
+function returnToMainView() {
+  console.log('메인 화면으로 돌아가기');
+  
+  // 분석 상태 해제
+  window.analysisState.isActive = false;
+  
+  // 분석 섹션 제거
+  const analysisSection = document.getElementById('analysis-section');
+  if (analysisSection) {
+    analysisSection.remove();
+  }
+  
+  // 메인 콘텐츠 표시
+  const mainContent = document.getElementById('main-content');
+  if (mainContent) {
+    mainContent.style.display = '';
+  }
+  
+  // 상태 업데이트
+  if (window.state) {
+    window.state.currentView = 'home';
+  }
+  
+  // 이전 섹션으로 복귀
+  const targetSection = window.analysisState.previousSection || 'channels';
+  
+  if (typeof window.showSection === 'function') {
+    window.showSection(targetSection);
+  } else {
+    // 대체 방법: 직접 섹션 표시/숨김 처리
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(section => {
+      section.style.display = 'none';
+    });
+    
+    const targetSectionEl = document.getElementById(`section-${targetSection}`);
+    if (targetSectionEl) {
+      targetSectionEl.style.display = 'block';
+    }
+    
+    // 네비게이션 버튼 상태 업데이트
+    const navButtons = document.querySelectorAll('.nav-section');
+    navButtons.forEach(btn => btn.classList.remove('active'));
+    
+    const targetBtn = document.getElementById(`btn-${targetSection}`);
+    if (targetBtn) {
+      targetBtn.classList.add('active');
+    }
+  }
+  
+  console.log('메인 화면 복귀 완료');
 }
 
 async function performCompleteAnalysis(channel) {
@@ -556,19 +633,7 @@ async function renderCompleteAnalysisResult(channel, data) {
   // 뒤로가기 버튼 이벤트 연결
   const backBtn = document.getElementById('btn-back-home');
   if (backBtn) {
-    backBtn.onclick = () => {
-      if (typeof showHome === 'function') {
-        showHome();
-      } else {
-        const analysisSection = document.getElementById('analysis-section');
-        if (analysisSection) analysisSection.remove();
-        
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) mainContent.style.display = '';
-        
-        if (window.state) window.state.currentView = 'home';
-      }
-    };
+    backBtn.onclick = returnToMainView;
   }
   
   // 차트 렌더링
@@ -753,5 +818,6 @@ window.renderCompleteAnalysisResult = renderCompleteAnalysisResult;
 window.renderAnalysisCharts = renderAnalysisCharts;
 window.getLongformVideos = getLongformVideos;
 window.getCategoryName = getCategoryName;
+window.returnToMainView = returnToMainView;
 
 console.log('main-monitor.js 로딩 완료');

@@ -28,8 +28,8 @@
         <nav class="nav-buttons">
           <button id="btn-my-channels" class="btn btn-my-channel nav-section">👥 내채널들</button>
           <button id="btn-channels" class="btn btn-secondary nav-section active">📺 채널관리</button>
-          <button id="btn-mutant" class="btn btn-secondary nav-section">🚀 돌연변이</button>
-          <button id="btn-latest" class="btn btn-secondary nav-section">📱 최신</button>
+          <button id="btn-videos" class="btn btn-secondary nav-section">🎥 영상분석</button>
+          <button id="btn-text-splitter" class="btn btn-secondary">✂️ 텍스트 분할</button>
           <button id="btn-analyze" class="btn btn-primary">📊 채널 분석</button>
           <button id="btn-toggle-theme" class="btn btn-secondary">라이트 모드</button>
           <button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
@@ -90,74 +90,109 @@
         <div id="channel-pagination" class="pagination"></div>
       </section>
 
-      <!-- 돌연변이 영상 섹션 -->
-      <section class="section" id="section-mutant" data-section="mutant" style="display: none;">
+      <!-- 통합 영상 분석 섹션 -->
+      <section class="section" id="section-videos" data-section="videos" style="display: none;">
         <div class="section-header">
-          <h2>🚀 돌연변이 영상</h2>
+          <h2>🎥 영상 분석</h2>
           <div class="section-actions">
-            <div class="date-range">
-              <button data-period="1m">1개월</button>
-              <button data-period="3m">3개월</button>
-              <button class="active" data-period="6m">6개월</button>
-              <button data-period="all">전체</button>
+            <div class="video-filter-tabs">
+              <button class="video-tab" data-video-tab="mutant">🚀 돌연변이</button>
+              <button class="video-tab active" data-video-tab="latest">📱 최신영상</button>
+              
+              <!-- 정렬 선택 -->
+              <select id="sort-videos" style="margin-left: 16px; padding: 6px 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-weight: 600;">
+                <option value="views">조회수</option>
+                <option value="subscribers">구독자수</option>
+                <option value="latest">최근업로드</option>
+                <option value="mutantIndex">돌연변이지수</option>
+              </select>
+              
+              <!-- 기간 필터 -->
+              <div class="date-range" style="margin-left: 8px;">
+                <button class="period-btn" data-period="1w">1주</button>
+                <button class="period-btn" data-period="2w">2주</button>
+                <button class="period-btn active" data-period="1m">한달</button>
+                <button class="period-btn" data-period="all">전체</button>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div class="sort-row">
-          <label for="sort-mutant">정렬:
-            <select id="sort-mutant">
-              <option value="mutantIndex" selected>돌연변이지수</option>
-              <option value="views">조회수</option>
-              <option value="subscribers">구독자수</option>
-              <option value="latest">최근업로드</option>
-            </select>
-          </label>
-        </div>
-        
-        <div id="mutant-keywords" class="keywords"></div>
-        <div id="mutant-list" class="video-list horizontal-grid">
-          <div class="empty-state">
-            <div class="empty-icon">🚀</div>
-            <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
+
+        <!-- 돌연변이 탭 -->
+        <div id="video-tab-mutant" class="video-tab-content">
+          <div id="mutant-keywords" class="keywords"></div>
+          <div id="mutant-list" class="video-list horizontal-grid">
+            <div class="empty-state">
+              <div class="empty-icon">🚀</div>
+              <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
+            </div>
           </div>
+          <div id="mutant-pagination" class="pagination"></div>
         </div>
-        <div id="mutant-pagination" class="pagination"></div>
+
+        <!-- 최신영상 탭 -->
+        <div id="video-tab-latest" class="video-tab-content active">
+          <div id="latest-keywords" class="keywords"></div>
+          <div id="latest-list" class="video-list horizontal-grid">
+            <div class="empty-state">
+              <div class="empty-icon">📱</div>
+              <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
+            </div>
+          </div>
+          <div id="latest-pagination" class="pagination"></div>
+        </div>
       </section>
 
-      <!-- 최신 영상 섹션 -->
-      <section class="section" id="section-latest" data-section="latest" style="display: none;">
+      <!-- 텍스트 분할 섹션 (새로 추가) -->
+      <section class="section" id="section-text-splitter" data-section="text-splitter" style="display: none;">
         <div class="section-header">
-          <h2>📱 최신 영상</h2>
+          <h2>✂️ 텍스트 분할기</h2>
           <div class="section-actions">
-            <div class="date-range">
-              <button data-period="1w">1주</button>
-              <button data-period="2w">2주</button>
-              <button class="active" data-period="1m">한달</button>
-              <button data-period="all">전체</button>
+            <span style="color: var(--muted); font-size: 14px;">덩어리 기준 · 최대 10,000자</span>
+          </div>
+        </div>
+
+        <div class="text-splitter-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: calc(100vh - 200px);">
+          <!-- 입력 영역 -->
+          <div class="text-input-area" style="display: flex; flex-direction: column;">
+            <label for="source-text" style="font-weight: 600; margin-bottom: 8px;">입력 텍스트</label>
+            <textarea 
+              id="source-text" 
+              placeholder="여기에 텍스트를 붙여넣으세요. (# 또는 ##로 덩어리를 구분합니다)"
+              style="flex: 1; resize: none; padding: 16px; border-radius: 12px; border: 2px solid var(--border); background: var(--card); color: var(--text); line-height: 1.6; font-size: 14px; font-family: ui-sans-serif, system-ui, sans-serif;"
+            ></textarea>
+            
+            <div class="input-controls" style="margin-top: 16px;">
+              <div class="counts" style="display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+                <span>글자수(공백 포함): <strong id="count-with-spaces">0</strong></span>
+                <span>글자수(공백 미포함): <strong id="count-without-spaces">0</strong></span>
+              </div>
+              
+              <div style="display: flex; gap: 12px;">
+                <button id="btn-process-text" class="btn btn-primary">나누기</button>
+                <button id="btn-clear-text" class="btn btn-secondary">지우기</button>
+              </div>
+              
+              <div class="help-text" style="margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.4;">
+                <strong>사용법:</strong> 입력 → 가공(<code>*</code>, <code>---</code> 제거 / <code>#</code> 또는 <code>##</code>로 시작하는 줄은 <b>"씸씸"</b>으로 대체) → <code>#</code>~다음 <code>#</code> 사이를 <b>덩어리</b>로 묶고, 덩어리 합계 기준으로 최대 10,000자씩 분할
+              </div>
+            </div>
+          </div>
+
+          <!-- 결과 영역 -->
+          <div class="text-output-area" style="display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <label style="font-weight: 600;">분할 결과</label>
+              <span style="font-size: 12px; color: var(--muted);">덩어리 기준 · 최대 10,000자</span>
+            </div>
+            
+            <div id="text-chunks" style="flex: 1; overflow-y: auto; padding: 16px; background: var(--card); border: 2px solid var(--border); border-radius: 12px;">
+              <div id="empty-chunks-state" style="text-align: center; color: var(--muted); padding: 40px 20px;">
+                아직 결과가 없습니다. 왼쪽에서 텍스트를 입력하고 <strong>나누기</strong>를 눌러주세요.
+              </div>
             </div>
           </div>
         </div>
-        
-        <div class="sort-row">
-          <label for="sort-latest">정렬:
-            <select id="sort-latest">
-              <option value="views" selected>조회수</option>
-              <option value="subscribers">구독자수</option>
-              <option value="latest">최근업로드</option>
-              <option value="mutantIndex">돌연변이지수</option>
-            </select>
-          </label>
-        </div>
-        
-        <div id="latest-keywords" class="keywords"></div>
-        <div id="latest-list" class="video-list horizontal-grid">
-          <div class="empty-state">
-            <div class="empty-icon">📱</div>
-            <p class="muted">채널을 추가하여 영상을 분석해주세요</p>
-          </div>
-        </div>
-        <div id="latest-pagination" class="pagination"></div>
       </section>
     </main>
   </div>
@@ -239,26 +274,25 @@
   </div>
 
   <!-- JavaScript 파일들 -->
-  
-<script src="js/common.js"></script>
-<script src="js/channels.js"></script>
-<script src="js/mutant-videos.js"></script>
-<script src="js/latest-videos.js"></script>
-<script src="js/main-monitor.js"></script>
-<script src="js/navigation.js"></script>
-<script src="js/my-channels.js"></script>  <!-- 이 부분 -->
-<script src="js/oauth-manager.js"></script>
-<script src="js/main.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/channels.js"></script>
+  <script src="js/videos.js"></script>
+  <script src="js/main-monitor.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/my-channels.js"></script>
+  <script src="js/oauth-manager.js"></script>
+  <script src="js/text-splitter.js"></script>
+  <script src="js/main.js"></script>
 
   <script>
     console.log('스크립트 로딩 상태 확인:', {
       yt: typeof window.yt,
       getAllChannels: typeof window.getAllChannels,
-      refreshMutant: typeof window.refreshMutant,
-      refreshLatest: typeof window.refreshLatest,
+      refreshVideos: typeof window.refreshVideos,
       extractChannelId: typeof window.extractChannelId,
       openAnalyzeModal: typeof window.openAnalyzeModal,
       initializeMyChannels: typeof window.initializeMyChannels,
+      initializeTextSplitter: typeof window.initializeTextSplitter,
       moment: typeof moment,
       Chart: typeof Chart,
       Sortable: typeof Sortable

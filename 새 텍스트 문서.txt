@@ -1,0 +1,19 @@
+프로젝트/
+├── index.html 
+├── oauth-callback.html 
+├── css/
+│   └── styles.css 
+└── js/
+    ├── common.js 
+    ├── channels.js 
+    ├── videos.js 
+    ├── main-monitor.js 
+    ├── navigation.js 
+    ├── my-channels.js 
+    ├── oauth-manager.js 
+    ├── text-splitter.js
+    └── main.js 
+
+난 코딩을 못해요. 그러니 아무리 설명해도 난 몰라요. 코드 수정해야할 곳이 있으면 해당 파일의 코딩을 첫줄부터 마지막 줄까지 모두 해주세요.
+복사 붙여넣기로 활용할께요.
+파일 구조는 이대로 유지합니다. 파일을 하나로 합치는 상황은 만들지 말아주세요

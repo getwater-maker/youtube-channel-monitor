@@ -56,7 +56,7 @@ async function renderSearchResults(query, items, prevToken, nextToken) {
   }
 
   try {
-    // 1) 채널 상세(썸네일/구독자/업로드플리 등)
+    // 1) 채널 상세(썸네일/구독자/업로드플레이리스트 등)
     const ids = items.map(i => i.id.channelId).filter(Boolean);
     const chRes = await window.yt('channels', {
       part: 'snippet,statistics,contentDetails',
@@ -258,7 +258,7 @@ function bindChannelAddEvents() {
 
     try {
       if (isUrlLike(raw)) {
-        // URL/ID/핸들이면 기존 흐름 사용
+        // URL/ID/핸들이면 기존 플로우 사용
         const channelId = await safeCall('extractChannelId', raw);
         if (!channelId) {
           window.toast && window.toast('채널을 찾을 수 없습니다. 입력을 확인해주세요.', 'error');
@@ -297,11 +297,11 @@ function bindChannelAddEvents() {
 // ============================================================================
 function bindApiKeyEvents() {
   // API 키 저장
-  const apiSaveBtn = qs('#api-save');
+  const apiSaveBtn = document.querySelector('#api-save');
   if (apiSaveBtn && !apiSaveBtn.dataset.bound) {
     apiSaveBtn.addEventListener('click', async () => {
-      const inputs = qsa('.api-inp');
-      const keys = inputs.map(inp => (inp.value || '').trim()).filter(Boolean);
+      const inputs = document.querySelectorAll('.api-inp');
+      const keys = Array.from(inputs).map(inp => (inp.value || '').trim()).filter(Boolean);
       
       if (!keys.length) {
         window.toast && window.toast('최소 1개의 API 키를 입력하세요.', 'warning');
@@ -316,18 +316,18 @@ function bindApiKeyEvents() {
   }
 
   // API 키 테스트
-  const apiTestBtn = qs('#api-test');
+  const apiTestBtn = document.querySelector('#api-test');
   if (apiTestBtn && !apiTestBtn.dataset.bound) {
     apiTestBtn.addEventListener('click', async () => {
-      const inputs = qsa('.api-inp');
-      const keys = inputs.map(inp => (inp.value || '').trim()).filter(Boolean);
+      const inputs = document.querySelectorAll('.api-inp');
+      const keys = Array.from(inputs).map(inp => (inp.value || '').trim()).filter(Boolean);
       
       if (!keys.length) {
         window.toast && window.toast('테스트할 API 키를 입력하세요.', 'warning');
         return;
       }
       
-      const result = qs('#api-test-result');
+      const result = document.querySelector('#api-test-result');
       if (result) result.innerHTML = '<p>테스트 중...</p>';
       
       // 임시로 키 설정하여 테스트
@@ -355,7 +355,7 @@ function bindApiKeyEvents() {
   }
 
   // API 키 내보내기
-  const apiExportBtn = qs('#api-export');
+  const apiExportBtn = document.querySelector('#api-export');
   if (apiExportBtn && !apiExportBtn.dataset.bound) {
     apiExportBtn.addEventListener('click', () => {
       if (!window.apiKeys || !window.apiKeys.length) {
@@ -377,8 +377,8 @@ function bindApiKeyEvents() {
   }
 
   // API 키 가져오기
-  const apiImportBtn = qs('#api-import-btn');
-  const apiImportFile = qs('#api-import-file');
+  const apiImportBtn = document.querySelector('#api-import-btn');
+  const apiImportFile = document.querySelector('#api-import-file');
   
   if (apiImportBtn && !apiImportBtn.dataset.bound) {
     apiImportBtn.addEventListener('click', () => {
@@ -424,7 +424,7 @@ function bindMyChannelsEvents() {
   console.log('내채널 이벤트 바인딩 시작');
 
   // 내채널 섹션 헤더의 버튼들
-  const addOAuthChannelBtn = qs('#btn-add-oauth-channel');
+  const addOAuthChannelBtn = document.querySelector('#btn-add-oauth-channel');
   if (addOAuthChannelBtn && !addOAuthChannelBtn.dataset.bound) {
     addOAuthChannelBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -444,7 +444,7 @@ function bindMyChannelsEvents() {
   }
 
   // 데모 채널 버튼
-  const demoChannelsBtn = qs('#btn-demo-channels');
+  const demoChannelsBtn = document.querySelector('#btn-demo-channels');
   if (demoChannelsBtn && !demoChannelsBtn.dataset.bound) {
     demoChannelsBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -460,7 +460,7 @@ function bindMyChannelsEvents() {
   }
 
   // 전체 내보내기 버튼
-  const exportAllChannelsBtn = qs('#btn-export-all-channels');
+  const exportAllChannelsBtn = document.querySelector('#btn-export-all-channels');
   if (exportAllChannelsBtn && !exportAllChannelsBtn.dataset.bound) {
     exportAllChannelsBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -485,7 +485,7 @@ function bindEvents() {
   console.log('이벤트 바인딩 시작');
 
   // API 키 버튼
-  const btnApi = qs('#btn-api');
+  const btnApi = document.querySelector('#btn-api');
   if (btnApi) {
     btnApi.addEventListener('click', (e) => {
       e.preventDefault();
@@ -495,7 +495,7 @@ function bindEvents() {
   }
 
   // 테마 토글 버튼
-  const btnToggleTheme = qs('#btn-toggle-theme');
+  const btnToggleTheme = document.querySelector('#btn-toggle-theme');
   if (btnToggleTheme) {
     btnToggleTheme.addEventListener('click', (e) => {
       e.preventDefault();
@@ -504,7 +504,7 @@ function bindEvents() {
   }
 
   // 채널 추가 버튼 (모달 열기)
-  const btnAddChannel = qs('#btn-add-channel');
+  const btnAddChannel = document.querySelector('#btn-add-channel');
   if (btnAddChannel) {
     btnAddChannel.addEventListener('click', (e) => {
       e.preventDefault();
@@ -517,21 +517,32 @@ function bindEvents() {
     });
   }
 
-  // 분석 버튼
-  const btnAnalyze = qs('#btn-analyze');
-  if (btnAnalyze) {
+  // 분석 버튼 - 수정된 부분
+  const btnAnalyze = document.querySelector('#btn-analyze');
+  if (btnAnalyze && !btnAnalyze.dataset.bound) {
     btnAnalyze.addEventListener('click', (e) => {
       e.preventDefault();
+      e.stopPropagation(); // 이벤트 전파 중단
+      
+      console.log('분석 버튼 클릭됨');
+      
       if (!window.hasKeys || !window.hasKeys()) {
         window.toast && window.toast('먼저 API 키를 설정해주세요.\n우상단의 🔑 API 키 버튼을 클릭하세요.', 'warning');
         return;
       }
+      
+      // 분석 모달을 열기 전에 현재 섹션 저장
+      if (window.analysisState) {
+        window.analysisState.previousSection = window.navigationState?.currentSection || 'channels';
+      }
+      
       safeCall('openAnalyzeModal');
     });
+    btnAnalyze.dataset.bound = '1';
   }
 
   // 채널 내보내기
-  const btnExportChannels = qs('#btn-export-channels');
+  const btnExportChannels = document.querySelector('#btn-export-channels');
   if (btnExportChannels) {
     btnExportChannels.addEventListener('click', (e) => {
       e.preventDefault();
@@ -540,8 +551,8 @@ function bindEvents() {
   }
 
   // 채널 가져오기
-  const btnImportChannels = qs('#btn-import-channels');
-  const fileImportChannels = qs('#file-import-channels');
+  const btnImportChannels = document.querySelector('#btn-import-channels');
+  const fileImportChannels = document.querySelector('#file-import-channels');
   if (btnImportChannels && fileImportChannels) {
     btnImportChannels.addEventListener('click', (e) => {
       e.preventDefault();
@@ -573,17 +584,17 @@ function bindEvents() {
   });
 
   // 정렬 변경 이벤트 (섹션별로 자기 것만 새로고침)
-  const sortChannels = qs('#sort-channels');
+  const sortChannels = document.querySelector('#sort-channels');
   if (sortChannels) {
     sortChannels.addEventListener('change', () => safeCall('refreshChannels'));
   }
 
-  const sortMutant = qs('#sort-mutant');
+  const sortMutant = document.querySelector('#sort-mutant');
   if (sortMutant) {
     sortMutant.addEventListener('change', () => safeCall('refreshMutant'));
   }
 
-  const sortLatest = qs('#sort-latest');
+  const sortLatest = document.querySelector('#sort-latest');
   if (sortLatest) {
     sortLatest.addEventListener('change', () => safeCall('refreshLatest'));
   }
@@ -606,7 +617,8 @@ const REQUIRED_FUNCTIONS = [
   'refreshChannels',      // channels.js
   'refreshMutant',        // mutant-videos.js
   'refreshLatest',        // latest-videos.js
-  'initializeMyChannels'  // my-channels.js (새로 추가)
+  'initializeMyChannels', // my-channels.js (새로 추가)
+  'initializeVideosSection' // videos.js (새로 추가)
 ];
 
 function checkRequiredFunctions() {
@@ -680,7 +692,8 @@ async function initializeApp() {
       state: {
         hasKeys: typeof window.hasKeys === 'function' ? window.hasKeys() : false,
         isOAuthReady: typeof window.startOAuthFlow === 'function',
-        isMyChannelsReady: typeof window.initializeMyChannels === 'function'
+        isMyChannelsReady: typeof window.initializeMyChannels === 'function',
+        isVideosReady: typeof window.initializeVideosSection === 'function'
       }
     };
     
