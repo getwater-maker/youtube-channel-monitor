@@ -1,21 +1,99 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>OAuth Callback</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Google OAuth Callback</title>
+  <style>
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#121212;color:#e4e6ea}
+    .wrap{height:100%;display:flex;align-items:center;justify-content:center}
+    .card{background:#1f2530;border:1px solid #394150;border-radius:12px;padding:24px;max-width:520px;width:92%}
+    .muted{color:#a0aec0}
+    code{background:#111827;border:1px solid #374151;border-radius:6px;padding:2px 6px}
+  </style>
 </head>
 <body>
-    <h2>인증 완료</h2>
-    <p>잠시만 기다려주세요...</p>
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const state = params.get('state');
-        if (code && state && window.opener) {
-            window.opener.postMessage({code, state}, '*');
-            window.close();
-        } else {
-            window.location.href = '/?code=' + code + '&state=' + state;
-        }
-    </script>
+<div class="wrap">
+  <div class="card">
+    <h2>Google 인증 진행 중…</h2>
+    <p class="muted" id="msg">토큰을 교환하고 있습니다. 잠시만 기다려 주세요.</p>
+    <pre id="err" style="display:none;white-space:pre-wrap"></pre>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const CLIENT_ID    = 'REPLACE_WITH_YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com'; // ← 교체
+  const STORAGE_KEY  = 'yt_oauth_v2';
+  const RETURN_TO_KEY= 'yt_oauth_return_to';
+  const PKCE_KEY     = 'yt_pkce_verifier';
+
+  function setMsg(t){ document.getElementById('msg').textContent = t; }
+  function showErr(e){ const el = document.getElementById('err'); el.style.display='block'; el.textContent = e; }
+
+  function getParam(name){
+    const u = new URL(location.href);
+    return u.searchParams.get(name);
+  }
+
+  try {
+    const code = getParam('code');
+    const error = getParam('error');
+    if (error) throw new Error('OAuth Error: ' + error);
+    if (!code) throw new Error('인가 코드(code)가 없습니다.');
+
+    const verifier = sessionStorage.getItem(PKCE_KEY);
+    if (!verifier) throw new Error('code_verifier가 없습니다. 동일 브라우저에서 다시 시도해 주세요.');
+
+    setMsg('토큰 교환 중…');
+
+    const body = new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code: code,
+      // redirect_uri는 GCP에 등록된 oauth-callback.html 과 동일해야 합니다.
+      redirect_uri: location.origin + location.pathname,
+      code_verifier: verifier
+    });
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('토큰 교환 실패: ' + text);
+    }
+
+    const j = await res.json();
+    const expiresAt = Math.floor(Date.now() / 1000) + (j.expires_in || 3600);
+
+    // 저장(기존 refresh_token 유지/갱신)
+    const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const data = {
+      access_token: j.access_token,
+      expires_at: expiresAt,
+      refresh_token: j.refresh_token || prev.refresh_token || null
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    setMsg('완료! 돌아갑니다…');
+
+    // 돌아갈 위치
+    const ret = sessionStorage.getItem(RETURN_TO_KEY) || '/';
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    sessionStorage.removeItem(PKCE_KEY);
+
+    // index로 복귀
+    setTimeout(() => { location.href = ret; }, 600);
+  } catch (e) {
+    console.error(e);
+    showErr(String(e.message || e));
+    setMsg('오류가 발생했습니다. 창을 닫고 다시 시도해 주세요.');
+  }
+})();
+</script>
 </body>
 </html>

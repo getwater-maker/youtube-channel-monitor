@@ -1,181 +1,251 @@
-// oauth-manager.js — Google Identity Services(OAuth2) 기반 로그인/토큰 관리 + 인증 API 헬퍼
+// oauth-manager.js — OAuth2 (GIS Code + PKCE) 기본, TokenClient는 보조
 console.log('oauth-manager.js 로딩 시작');
 
 /**
- * ✨ 무엇을 하나요?
- * - Google 로그인 팝업을 열어 YouTube Data API v3 호출에 쓸 access_token을 받습니다.
- * - 토큰/만료 정보를 localStorage에 저장하고, 만료 임박 시 자동으로 새 토큰을 요청합니다(prompt: 'none').
- * - 인증이 필요한 API 호출을 위해 oauthFetch(), ytAuth() 헬퍼를 제공합니다.
+ * 무엇을 하나요?
+ * - 권장 플로우: GIS Code Client(Authorization Code + PKCE, ux: redirect) → oauth-callback.html에서 교환
+ * - 토큰/만료/리프레시토큰 localStorage 저장 및 자동 갱신
+ * - 버튼 로그인은 항상 Code+PKCE로 안정 발급
+ * - (보조) Token Client 무소음 시도는 있되 실패해도 사용자에게 방해 안 함
+ * - ytAuth()/oauthFetch() 헬퍼 제공
  *
- * ✅ 외부에서 쓰는 주요 함수(전역):
- *   - initOAuthManager()        : 초기화(페이지 시작 시 1회)
- *   - oauthSignIn()             : 로그인(버튼에서 호출)
- *   - oauthSignOut()            : 로그아웃
- *   - getAccessToken()          : 현재 유효한 액세스 토큰(없으면 null)
- *   - ensureAccessToken()       : 유효 토큰 보장(필요시 무소음 재발급)
- *   - ytAuth(endpoint, params)  : 인증이 필요한 YouTube API 호출(ex: ytAuth('subscriptions',{mine:true,part:'snippet'}))
- *   - oauthFetch(url, init)     : Bearer 토큰 붙여 fetch
+ * 교체/설정:
+ *   1) CLIENT_ID, REDIRECT_URI 값을 실제로 교체
+ *   2) Google Cloud Console
+ *      - Authorized JavaScript origins : https://YOUR.DOMAIN  (또는 http://localhost:PORT)
+ *      - Authorized redirect URIs     : https://YOUR.DOMAIN/oauth-callback.html
  */
 
 (function () {
   // ==============================
-  // 기본 설정
+  // 설정
   // ==============================
-  const CLIENT_ID = '1024944960226-7af4jsut8gquqs6omtibdqla7qurefls.apps.googleusercontent.com'; // ← 필수: 본인 값으로 교체
-  const SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
-  const STORAGE_KEY = 'yt_oauth_v2';
+  const CLIENT_ID   = '1024944960226-7af4jsut8gquqs6omtibdqla7qurefls.apps.googleusercontent.com'; // ← 반드시 교체
+  const REDIRECT_URI = 'https://YOUR.DOMAIN/oauth-callback.html'; // ← 반드시 교체 (정확한 경로)
 
-  // Google Identity Services 스크립트 로드(중복 방지)
-  function loadGis() {
-    return new Promise((resolve, reject) => {
-      if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-        return resolve();
-      }
+  const SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
+  const STORAGE_KEY = 'yt_oauth_v2';           // { access_token, expires_at, refresh_token? }
+  const RETURN_TO_KEY = 'yt_oauth_return_to';  // 로그인 전 위치 복귀용
+  const PKCE_KEY = 'yt_pkce_verifier';         // code_verifier 저장
+
+  // ==============================
+  // 유틸(저장/시간)
+  // ==============================
+  function saveState(data) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data || {})); }
+    catch (e) { console.warn('OAuth state save failed', e); }
+  }
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch { return {}; }
+  }
+  function clearState() { saveState({}); }
+
+  function secLeft(exp) {
+    const now = Math.floor(Date.now() / 1000);
+    return Math.max(0, (exp || 0) - now);
+  }
+
+  // 안전 경고: file:// 로 열면 OAuth가 동작하지 않습니다.
+  function warnIfFileOrigin() {
+    if (location.origin === 'null' || location.protocol === 'file:') {
+      console.warn('[OAuth] file:// 에서는 동작하지 않습니다. 로컬 서버(예: http://localhost:5173)로 실행하세요.');
+      window.toast && window.toast('file:// 에서는 Google 로그인 불가. 로컬 서버에서 실행하세요.', 'error');
+    }
+  }
+
+  // ==============================
+  // GIS 로딩
+  // ==============================
+  async function loadGis() {
+    if (window.google && window.google.accounts && window.google.accounts.oauth2) return;
+    await new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'https://accounts.google.com/gsi/client';
-      s.async = true;
-      s.defer = true;
-      s.onload = () => resolve();
-      s.onerror = (e) => reject(e);
+      s.async = true; s.defer = true;
+      s.onload = resolve; s.onerror = reject;
       document.head.appendChild(s);
     });
   }
 
-  // 로컬 저장
-  function saveOAuthState(data) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data || {}));
-    } catch (e) { console.warn('OAuth state save failed', e); }
-  }
-  function loadOAuthState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch (e) { return {}; }
-  }
-  function clearOAuthState() { saveOAuthState({}); }
-
-  // 남은 초 계산
-  function secondsLeft(expiresAt) {
-    const now = Math.floor(Date.now() / 1000);
-    return Math.max(0, (expiresAt || 0) - now);
-  }
-
-  // 전역 상태
-  window.oAuthState = window.oAuthState || {
-    tokenClient: null,
-    initialized: false
-  };
-
   // ==============================
-  // 토큰 보유/요청
+  // Token Client (보조: 무소음 시도 용)
   // ==============================
-  async function initOAuthManager() {
-    if (window.oAuthState.initialized) {
-      console.log('OAuth 매니저: 이미 초기화됨');
-      return;
-    }
-    await loadGis();
-
-    // Token Client 생성
-    window.oAuthState.tokenClient = window.google.accounts.oauth2.initTokenClient({
+  function initTokenClient() {
+    if (window._tokenClient) return;
+    window._tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPE,
-      prompt: '',                  // 기본: silent 가능
-      callback: (resp) => {
-        // 이 콜백은 requestAccessToken() 호출 때마다 재지정하므로 여긴 비워둡니다.
-      }
+      prompt: '',   // 호출 시 지정
+      callback: () => {}
     });
+  }
 
-    window.oAuthState.initialized = true;
-    console.log('OAuth 매니저 초기화 완료');
-
-    // 자동 로그인(무소음) 시도
+  async function trySilentToken() {
     try {
-      await ensureAccessToken(true); // silentOnly = true
-      if (getAccessToken()) {
-        console.log('OAuth: 무소음 토큰 확보');
-      } else {
-        console.log('OAuth: 저장된 토큰이 없음');
-      }
+      initTokenClient();
+      const tok = await new Promise((resolve, reject) => {
+        window._tokenClient.callback = (resp) => {
+          if (resp && resp.access_token) {
+            const expiresAt = Math.floor(Date.now() / 1000) + (resp.expires_in || 3600);
+            saveState({ access_token: resp.access_token, expires_at: expiresAt });
+            return resolve(resp.access_token);
+          }
+          return reject(new Error(resp?.error || 'silent_failed'));
+        };
+        window._tokenClient.requestAccessToken({ prompt: 'none' });
+      });
+      return tok || null;
     } catch {
-      console.log('OAuth: 자동 로그인 실패 또는 저장된 토큰 없음');
+      return null;
     }
   }
 
-  function getAccessToken() {
-    const state = loadOAuthState();
-    const left = secondsLeft(state.expires_at);
-    if (state.access_token && left > 10) return state.access_token;
-    return null;
+  // ==============================
+  // Code Client (주플로우: PKCE)
+  // ==============================
+  function base64url(uint8) {
+    return btoa(String.fromCharCode(...new Uint8Array(uint8)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  async function createPkce() {
+    const arr = new Uint8Array(64);
+    crypto.getRandomValues(arr);
+    const verifier = base64url(arr);
+    const enc = new TextEncoder().encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', enc);
+    const challenge = base64url(new Uint8Array(digest));
+    sessionStorage.setItem(PKCE_KEY, verifier);
+    return { verifier, challenge };
   }
 
-  // silentOnly=true 면 사용자 프롬프트 없이 재발급만 시도
-  function ensureAccessToken(silentOnly = false) {
-    return new Promise((resolve, reject) => {
-      const state = loadOAuthState();
-      const left = secondsLeft(state.expires_at);
-      if (state.access_token && left > 60) {
-        return resolve(state.access_token);
-      }
-
-      if (!window.oAuthState.tokenClient) {
-        return reject(new Error('Token client not initialized'));
-      }
-
-      window.oAuthState.tokenClient.callback = (resp) => {
-        if (resp.error) {
-          console.warn('토큰 발급 오류', resp);
-          if (silentOnly) return resolve(null);
-          return reject(new Error(resp.error));
-        }
-        // 토큰 저장
-        const expiresAt = Math.floor(Date.now() / 1000) + (resp.expires_in || 3600);
-        saveOAuthState({
-          access_token: resp.access_token,
-          expires_at: expiresAt
-        });
-        resolve(resp.access_token);
-      };
-
-      try {
-        window.oAuthState.tokenClient.requestAccessToken({
-          prompt: silentOnly ? 'none' : undefined
-        });
-      } catch (e) {
-        console.error('토큰 요청 실패', e);
-        if (silentOnly) return resolve(null);
-        reject(e);
-      }
+  function initCodeClient(challenge) {
+    return window.google.accounts.oauth2.initCodeClient({
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+      ux_mode: 'redirect',        // 리디렉트가 가장 호환성 좋음
+      redirect_uri: REDIRECT_URI, // GCP에 등록된 URI와 정확히 일치해야 함
+      state: 'ytapp-' + Math.random().toString(36).slice(2),
+      prompt: 'consent',
+      access_type: 'offline',     // refresh_token 요청
+      include_granted_scopes: true,
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
     });
+  }
+
+  async function startPkceLogin() {
+    warnIfFileOrigin();
+    await loadGis();
+    const { challenge } = await createPkce();
+    // 로그인 전 현재 위치 저장(완료 후 돌아오기)
+    try { sessionStorage.setItem(RETURN_TO_KEY, location.href); } catch {}
+    const codeClient = initCodeClient(challenge);
+    codeClient.requestCode(); // → google → REDIRECT_URI(oauth-callback.html) → 토큰교환 → 원래 페이지로 복귀
+  }
+
+  // ==============================
+  // 토큰 갱신(Refresh Token)
+  // ==============================
+  async function refreshAccessToken() {
+    const st = loadState();
+    const rt = st.refresh_token;
+    if (!rt) return null;
+
+    const body = new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'refresh_token',
+      refresh_token: rt
+    });
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+
+    if (!res.ok) {
+      console.warn('리프레시 토큰 갱신 실패', await res.text());
+      return null;
+    }
+
+    const j = await res.json();
+    const expiresAt = Math.floor(Date.now() / 1000) + (j.expires_in || 3600);
+    saveState({
+      access_token: j.access_token,
+      expires_at: expiresAt,
+      refresh_token: rt // 기존 값 유지
+    });
+    return j.access_token || null;
+  }
+
+  // ==============================
+  // 퍼블릭 API
+  // ==============================
+  async function initOAuthManager() {
+    warnIfFileOrigin();
+    await loadGis();
+
+    // 페이지 진입 시: 1) 캐시 2) 만료 임박이면 refresh_token 3) 그래도 없으면 무소음 토큰 시도(성공 시만 저장)
+    const st = loadState();
+    if (st.access_token && secLeft(st.expires_at) > 60) {
+      console.log('OAuth: 기존 토큰 사용');
+      return;
+    }
+    if (st.refresh_token) {
+      const t = await refreshAccessToken();
+      if (t) { console.log('OAuth: 리프레시 토큰으로 갱신'); return; }
+    }
+    // 조용히만 시도 — 실패해도 사용자 방해 X
+    await trySilentToken();
   }
 
   async function oauthSignIn() {
-    await initOAuthManager();
-    await ensureAccessToken(false); // 사용자 프롬프트 허용
-    if (getAccessToken()) {
-      window.toast && window.toast('Google 로그인 완료', 'success');
-    }
-    return getAccessToken();
+    // 버튼 클릭: 안정적인 PKCE 로그인으로 바로 진행
+    await startPkceLogin();
+    // 이후 동작은 oauth-callback.html에서 완료됩니다.
   }
 
   function oauthSignOut() {
-    clearOAuthState();
+    clearState();
     window.toast && window.toast('Google 로그아웃 완료', 'info');
   }
 
-  // ==============================
-  // 인증 Fetch/YouTube API 헬퍼
-  // ==============================
+  function getAccessToken() {
+    const st = loadState();
+    return (st.access_token && secLeft(st.expires_at) > 10) ? st.access_token : null;
+  }
+
+  // 유효 토큰 보장
+  async function ensureAccessToken(silentOnly = false) {
+    const cache = getAccessToken();
+    if (cache) return cache;
+
+    // 만료/없음 → refresh 시도
+    const st = loadState();
+    if (st.refresh_token) {
+      const t = await refreshAccessToken();
+      if (t) return t;
+    }
+
+    if (silentOnly) return null;
+
+    // 사용자 인터랙션 필요 → PKCE 로그인 시작
+    await startPkceLogin();
+    // 여기 도달하지 않습니다(redirect). 임시 null 반환.
+    return null;
+  }
+
+  // 인증 fetch
   async function oauthFetch(url, init = {}) {
-    const token = await ensureAccessToken(true);
+    const token = await ensureAccessToken(false);
     if (!token) throw new Error('로그인이 필요합니다.');
     const headers = new Headers(init.headers || {});
     headers.set('Authorization', `Bearer ${token}`);
     return fetch(url, { ...init, headers });
   }
 
-  // ytAuth('subscriptions', { part:'snippet', mine:true, maxResults:50 })
+  // YouTube API (인증 필요)
   async function ytAuth(endpoint, params = {}) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
@@ -194,13 +264,13 @@ console.log('oauth-manager.js 로딩 시작');
   }
 
   // 전역 공개
-  window.initOAuthManager = initOAuthManager;
-  window.oauthSignIn = oauthSignIn;
-  window.oauthSignOut = oauthSignOut;
-  window.getAccessToken = getAccessToken;
+  window.initOAuthManager  = initOAuthManager;
+  window.oauthSignIn       = oauthSignIn;
+  window.oauthSignOut      = oauthSignOut;
+  window.getAccessToken    = getAccessToken;
   window.ensureAccessToken = ensureAccessToken;
-  window.oauthFetch = oauthFetch;
-  window.ytAuth = ytAuth;
+  window.oauthFetch        = oauthFetch;
+  window.ytAuth            = ytAuth;
 })();
 
 console.log('oauth-manager.js 로딩 완료');
