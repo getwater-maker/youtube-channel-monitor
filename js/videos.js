@@ -1,14 +1,65 @@
-// YouTube 채널 모니터 - 영상분석 통합 관리 (진행바 포함 안정화 버전)
+// YouTube 채널 모니터 - 영상분석 통합 관리 (탭별 취소토큰 + 진행바 중앙정렬 + 전역 아바타 폴백)
 console.log('videos.js 로딩 시작');
 
 // ============================================================================
-// 상태
+// 전역: 채널/사용자 아바타 이미지 폴백(앱 전체 적용)
+// ============================================================================
+(function installGlobalAvatarFallback() {
+  const DEFAULT_AVATAR = 'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj';
+
+  // 이미지 에러를 캡처 단계에서 가로채어 폴백 처리
+  window.addEventListener('error', (ev) => {
+    const img = ev.target;
+    if (!(img && img.tagName === 'IMG')) return;
+
+    // 이미 폴백을 적용했으면 무시
+    if (img.dataset.fallbackApplied === '1') return;
+
+    const src = img.currentSrc || img.src || '';
+
+    // YouTube/Google 아바타 계열만 폴백 적용 (비디오 썸네일 등은 건드리지 않음)
+    const isLikelyAvatar =
+      /yt3\.ggpht\.com/i.test(src) ||
+      /googleusercontent\.com/i.test(src);
+
+    if (isLikelyAvatar) {
+      img.dataset.fallbackApplied = '1';
+      img.src = DEFAULT_AVATAR;
+      console.debug('Avatar fallback applied:', src);
+    }
+  }, true);
+
+  // 이미 DOM에 있는 이미지들 중 깨진 것 바로 보정
+  function fixExistingBroken() {
+    document.querySelectorAll('img').forEach((img) => {
+      // complete이면서 naturalWidth==0 이면 깨진 이미지
+      if (img.complete && img.naturalWidth === 0) {
+        const e = new Event('error');
+        img.dispatchEvent(e);
+      }
+    });
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(fixExistingBroken, 0);
+  } else {
+    document.addEventListener('DOMContentLoaded', fixExistingBroken);
+  }
+})();
+
+// ============================================================================
+// 상태 (탭별 로딩/토큰 분리)
 // ============================================================================
 window.videosState = window.videosState || {
   currentTab: 'latest',
   currentPeriod: '1m',     // 1w, 2w, 1m, all
-  currentSort: 'views',    // views | subscribers | latest | mutantIndex
-  isLoading: false
+  currentSort: 'views'     // views | subscribers | latest | mutantIndex
+};
+
+// 탭별 로딩 상태와 실행 토큰(취소용)
+window.__videoLoads = window.__videoLoads || {
+  latest: { loading: false, token: 0 },
+  mutant: { loading: false, token: 0 }
 };
 
 // ============================================================================
@@ -41,7 +92,7 @@ function filterVideosByDate(videos, period) {
   if (period === 'all') return videos;
   const { startDate } = getDateRangeForPeriod(period);
   if (!startDate) return videos;
-  return videos.filter(v => moment(v.snippet.publishedAt).isAfter(startDate));
+  return videos.filter(v => moment(v.snippet?.publishedAt).isAfter(startDate));
 }
 
 function numberWithCommas(n) {
@@ -56,7 +107,7 @@ function ratioSafe(a, b) {
 }
 
 // ============================================================================
-// 진행바 UI
+// 진행바 UI (CSS로 중앙정렬, JS는 구조만 출력)
 // ============================================================================
 function mountProgress(container, titleText, total) {
   // 이미 있으면 재사용
@@ -76,7 +127,6 @@ function mountProgress(container, titleText, total) {
         <span class="progress-text">0%</span>
       </div>
     `;
-    // 상단 키워드 박스(있다면) 아래에, 리스트 영역 위에 표시되게 prepend
     container.innerHTML = '';
     container.appendChild(wrap);
   }
@@ -127,7 +177,7 @@ function initializeVideoTabs() {
       if (target) { target.style.display = 'block'; target.classList.add('active'); }
 
       updateSortOptions(tab);
-      loadVideoTabData(tab);
+      loadVideoTabData(tab);        // 즉시 해당 탭 로딩 시작
     });
   });
 }
@@ -168,17 +218,13 @@ function initializeSortFilter() {
 }
 
 // ============================================================================
-// 데이터 로딩 분기
+// 데이터 로딩 분기 (탭별 취소토큰 사용)
 // ============================================================================
 function loadVideoTabData(tabName) {
-  if (window.videosState.isLoading) return;
   console.log('영상 탭 데이터 로드:', tabName, '기간:', window.videosState.currentPeriod);
-
-  switch (tabName) {
-    case 'mutant': refreshMutant(); break;
-    case 'latest': refreshLatest(); break;
-    default: console.warn('알 수 없는 탭:', tabName);
-  }
+  if (tabName === 'mutant') refreshMutant();
+  else if (tabName === 'latest') refreshLatest();
+  else console.warn('알 수 없는 탭:', tabName);
 }
 
 // ============================================================================
@@ -225,18 +271,15 @@ async function getChannelRecentLongformVideos(channel, perChannelMax = 5) {
 }
 
 // ============================================================================
-// 최신 영상 탭 (진행바 포함)
+// 최신 영상 탭
 // ============================================================================
 async function refreshLatest() {
-  if (window.videosState.isLoading) return;
-  window.videosState.isLoading = true;
+  const slot = window.__videoLoads.latest;
+  const myToken = ++slot.token;
+  slot.loading = true;
 
   const listEl = document.getElementById('latest-list');
-  if (!listEl) {
-    console.error('latest-list 요소를 찾을 수 없음');
-    window.videosState.isLoading = false;
-    return;
-  }
+  if (!listEl) { console.error('latest-list 요소를 찾을 수 없음'); slot.loading = false; return; }
 
   listEl.innerHTML = `
     <div class="empty-state">
@@ -248,6 +291,7 @@ async function refreshLatest() {
 
   try {
     if (!(window.hasKeys && window.hasKeys())) {
+      if (myToken !== slot.token) return;
       listEl.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">🔑</div>
@@ -259,6 +303,7 @@ async function refreshLatest() {
     const channels = await getAllChannels();
     const total = channels.length || 0;
 
+    if (myToken !== slot.token) return;
     if (!total) {
       listEl.innerHTML = `
         <div class="empty-state">
@@ -268,7 +313,6 @@ async function refreshLatest() {
       return;
     }
 
-    // 진행바 표시
     progressWrap = mountProgress(listEl, '최신영상 수집 중', total);
 
     const perChannelMax = 4;
@@ -276,6 +320,7 @@ async function refreshLatest() {
     let done = 0;
 
     for (const ch of channels) {
+      if (myToken !== slot.token) return;
       try {
         const vids = await getChannelRecentLongformVideos(ch, perChannelMax);
         all.push(...vids);
@@ -283,13 +328,14 @@ async function refreshLatest() {
         console.warn('채널 영상 조회 실패:', ch?.title, e);
       } finally {
         done += 1;
+        if (myToken !== slot.token) return;
         updateProgress(progressWrap, done, total);
       }
     }
 
+    if (myToken !== slot.token) return;
     finishProgress(progressWrap, '정렬/필터 적용 중…');
 
-    // 기간 필터 + 정렬
     let videos = filterVideosByDate(all, window.videosState.currentPeriod);
     const sort = window.videosState.currentSort;
     videos.sort((a, b) => {
@@ -311,11 +357,10 @@ async function refreshLatest() {
       }
     });
 
-    // 결과 렌더
-    listEl.innerHTML = ''; // 진행바 제거 후 그리기
+    if (myToken !== slot.token) return;
+    listEl.innerHTML = '';
     renderVideoCards(listEl, videos);
 
-    // 키워드
     const kwBox = document.getElementById('latest-keywords');
     if (kwBox) {
       const keywords = window.extractKeywords
@@ -324,6 +369,7 @@ async function refreshLatest() {
       kwBox.innerHTML = keywords.map(w => `<span class="kw">${w}</span>`).join('') || '';
     }
   } catch (e) {
+    if (myToken !== slot.token) return;
     console.error('최신 영상 탭 오류:', e);
     listEl.innerHTML = `
       <div class="empty-state">
@@ -331,23 +377,20 @@ async function refreshLatest() {
         <p class="muted">영상을 불러오는 중 오류가 발생했습니다: ${e?.message || e}</p>
       </div>`;
   } finally {
-    window.videosState.isLoading = false;
+    if (myToken === slot.token) slot.loading = false;
   }
 }
 
 // ============================================================================
-// 돌연변이 탭 (진행바 포함)
+// 돌연변이 탭
 // ============================================================================
 async function refreshMutant() {
-  if (window.videosState.isLoading) return;
-  window.videosState.isLoading = true;
+  const slot = window.__videoLoads.mutant;
+  const myToken = ++slot.token;
+  slot.loading = true;
 
   const listEl = document.getElementById('mutant-list');
-  if (!listEl) {
-    console.error('mutant-list 요소를 찾을 수 없음');
-    window.videosState.isLoading = false;
-    return;
-  }
+  if (!listEl) { console.error('mutant-list 요소를 찾을 수 없음'); slot.loading = false; return; }
 
   listEl.innerHTML = `
     <div class="empty-state">
@@ -359,6 +402,7 @@ async function refreshMutant() {
 
   try {
     if (!(window.hasKeys && window.hasKeys())) {
+      if (myToken !== slot.token) return;
       listEl.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">🔑</div>
@@ -370,6 +414,7 @@ async function refreshMutant() {
     const channels = await getAllChannels();
     const total = channels.length || 0;
 
+    if (myToken !== slot.token) return;
     if (!total) {
       listEl.innerHTML = `
         <div class="empty-state">
@@ -379,7 +424,6 @@ async function refreshMutant() {
       return;
     }
 
-    // 진행바 표시
     progressWrap = mountProgress(listEl, '돌연변이 분석 중', total);
 
     const perChannelMax = 6;
@@ -387,6 +431,7 @@ async function refreshMutant() {
     let done = 0;
 
     for (const ch of channels) {
+      if (myToken !== slot.token) return;
       try {
         const vids = await getChannelRecentLongformVideos(ch, perChannelMax);
         all.push(...vids);
@@ -394,23 +439,22 @@ async function refreshMutant() {
         console.warn('채널 영상 조회 실패:', ch?.title, e);
       } finally {
         done += 1;
+        if (myToken !== slot.token) return;
         updateProgress(progressWrap, done, total);
       }
     }
 
+    if (myToken !== slot.token) return;
     finishProgress(progressWrap, '지수 계산/정렬 중…');
 
-    // 기간 필터
     let videos = filterVideosByDate(all, window.videosState.currentPeriod);
 
-    // 돌연변이지수 계산
     videos.forEach(v => {
       const views = parseInt(v.statistics?.viewCount || '0', 10);
       const subs = v.__channel?.subscribers || 0;
       v.__mutant = ratioSafe(views, subs);
     });
 
-    // 정렬
     const sort = window.videosState.currentSort;
     videos.sort((a, b) => {
       const av = parseInt(a.statistics?.viewCount || '0', 10);
@@ -431,7 +475,7 @@ async function refreshMutant() {
       }
     });
 
-    // 결과 렌더
+    if (myToken !== slot.token) return;
     listEl.innerHTML = '';
     renderVideoCards(listEl, videos);
 
@@ -443,6 +487,7 @@ async function refreshMutant() {
       kwBox.innerHTML = keywords.map(w => `<span class="kw">${w}</span>`).join('') || '';
     }
   } catch (e) {
+    if (myToken !== slot.token) return;
     console.error('돌연변이 탭 오류:', e);
     listEl.innerHTML = `
       <div class="empty-state">
@@ -450,7 +495,7 @@ async function refreshMutant() {
         <p class="muted">영상을 불러오는 중 오류가 발생했습니다: ${e?.message || e}</p>
       </div>`;
   } finally {
-    window.videosState.isLoading = false;
+    if (myToken === slot.token) slot.loading = false;
   }
 }
 
@@ -480,11 +525,8 @@ function renderVideoCards(container, videos) {
       v.snippet?.thumbnails?.standard?.url ||
       v.snippet?.thumbnails?.high?.url ||
       v.snippet?.thumbnails?.medium?.url ||
-      v.snippet?.thumbnails?.default?.url ||
-      '';
-    const chThumb =
-      ch.thumbnail ||
-      'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj';
+      v.snippet?.thumbnails?.default?.url || '';
+    const chThumb = ch.thumbnail || 'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj';
     const views = numberWithCommas(v.statistics?.viewCount);
     const published = moment(v.snippet?.publishedAt).format('YYYY-MM-DD');
     const mutIdx = v.__mutant != null ? v.__mutant.toFixed(2) : ratioSafe(v.statistics?.viewCount, ch.subscribers).toFixed(2);
@@ -500,7 +542,7 @@ function renderVideoCards(container, videos) {
             <div class="title">${title}</div>
 
             <div class="meta">
-              <img src="${chThumb}" alt="${ch.title}"
+              <img src="${chThumb}" alt="${ch.title || 'channel'}"
                    onerror="this.src='https://yt3.ggpht.com/a/default-user=s48-c-k-c0x00ffffff-no-rj'">
               <span>${ch.title || '-'}</span>
             </div>
@@ -525,14 +567,10 @@ function renderVideoCards(container, videos) {
 // ============================================================================
 function initializeVideosSection() {
   console.log('영상분석 섹션 초기화');
-  if (!window.yt || typeof window.yt !== 'function') {
-    console.warn('yt 함수가 없습니다. common.js에서 API 래퍼가 준비되어야 합니다.');
-  }
-
   initializeVideoTabs();
   initializePeriodButtons();
   initializeSortFilter();
-  loadVideoTabData('latest');
+  loadVideoTabData('latest');  // 첫 진입은 최신영상
   console.log('영상분석 섹션 초기화 완료');
 }
 
