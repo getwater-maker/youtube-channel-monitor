@@ -1,8 +1,13 @@
 /**
- * text-splitter.js — 작업 도우미(오프닝3/움직임3 추가, 기본정보 TXT 포맷 업데이트)
+ * text-splitter.js — 작업 도우미
+ * - 이미지 프롬프트(오프닝3/움직임3 포함)
+ * - 유튜브 업로드 설명 복사/글자수, 설명 자동 높이
+ * - 대본(오프닝+본문) 카드 분할/복사/예상시간
+ * - 기본정보 다운(내보내기) v2
+ * - 기본정보 가져오기(Import from TXT) ★신규
  */
 
-console.log('text-splitter.js (one-list prompts + export v2) start');
+console.log('text-splitter.js (export+import) start');
 
 (function () {
   'use strict';
@@ -12,7 +17,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
   const SPLIT_LIMIT = 10000;
   const CARD_H = 220;
 
-  // 프롬프트 라벨(단일 리스트 순서) — 오프닝3/움직임3 추가
+  // 프롬프트 라벨(단일 리스트 순서) — 오프닝3/움직임3 포함
   const PROMPT_LABELS = [
     '썸네일 1 :','썸네일 2 :','썸네일 3 :','썸네일 4 :','썸네일 5 :',
     '오프닝 1 :','움직임1 :',
@@ -26,6 +31,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
   // ===== Utils =====
   const $ = (sel, root=document) => root.querySelector(sel);
   const escapeRe = (s='') => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const trimLines = (t='') => t.replace(/\r\n/g,'\n').split('\n').map(l=>l.replace(/\s+$/,'')).join('\n');
 
   const showToast = (msg, type) => {
     try { if (typeof window.toast === 'function' && window.toast !== showToast) return window.toast(msg,type); }
@@ -173,13 +179,13 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     return getNonEmptyLines(raw).map(stripLeadingNumberDot).slice(0,5);
   }
 
-  // 정규화(오프닝 n, 움직임n → 콜론 포함 라벨)
+  // 정규화
   function normalizeLabel(raw) {
     if (!raw) return null;
     let s = raw.trim().replace(/\s+/g,' ');
     let m = s.match(/^(썸네일(?:프롬프트)?)\s*(\d+)$/i); if (m) return `썸네일 ${m[2]} :`;
     m = s.match(/^(?:몰입형)?오프닝(?:프롬프트)?\s*(\d+)$/i); if (m) return `오프닝 ${m[1]} :`;
-    m = s.match(/^움직임\s*([123])$/i); if (m) return `움직임${m[1]} :`;              // 1~3 지원
+    m = s.match(/^움직임\s*([123])$/i); if (m) return `움직임${m[1]} :`;
     m = s.match(/^챕터\s*(\d+-[12])$/i); if (m) return `챕터 ${m[1]} :`;
     const std = s.endsWith(':') ? s : `${s} :`;
     if (PROMPT_LABELS.includes(std)) return std;
@@ -232,7 +238,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
 
   // ===== State =====
   const state = {
-    dateInput: null, btnMeta: null,
+    dateInput: null, btnMeta: null, btnImport: null, importInput: null,
     refThumb: null, refTitle: null, refUrl: null,
     scriptArea: null, descInput: null, descCopyBtn: null,
     thumbRows: [], titleRows: [],
@@ -280,8 +286,11 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     const hRight=document.createElement('div'); Object.assign(hRight.style,{display:'flex', alignItems:'center', gap:'8px'});
     const dateLabel=document.createElement('label'); dateLabel.textContent='업로드 날짜';
     const dateInput=document.createElement('input'); dateInput.type='date'; dateInput.value=today(); Object.assign(dateInput.style,{height:'32px', padding:'2px 8px', border:'1px solid rgba(255,255,255,.18)', borderRadius:'8px', background:'var(--panel,#151b24)', color:'inherit'});
+    const btnImport=document.createElement('button'); btnImport.textContent='가져오기'; btnImport.className='btn';
     const btnMeta=document.createElement('button'); btnMeta.textContent='기본정보 다운'; btnMeta.className='btn btn-primary';
-    hRight.appendChild(dateLabel); hRight.appendChild(dateInput); hRight.appendChild(btnMeta);
+    // 숨겨진 파일 입력
+    const importInput=document.createElement('input'); importInput.type='file'; importInput.accept='.txt,text/plain'; importInput.style.display='none';
+    hRight.appendChild(dateLabel); hRight.appendChild(dateInput); hRight.appendChild(btnImport); hRight.appendChild(btnMeta); hRight.appendChild(importInput);
     header.appendChild(hLeft); header.appendChild(hRight);
 
     // 2열 그리드
@@ -291,13 +300,6 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     gridTop.appendChild(leftCol); gridTop.appendChild(rightCol);
 
     // 좌측 — 참고영상 정보
-    const makeSection = (title) => {
-      const sec=document.createElement('section');
-      Object.assign(sec.style,{border:'1px solid rgba(255,255,255,.12)', borderRadius:'14px', padding:'14px', background:'rgba(255,255,255,0.02)', marginBottom:'14px'});
-      if(title){ const h=document.createElement('h3'); h.textContent=title; Object.assign(h.style,{margin:'0 0 10px 0', fontWeight:'800'}); sec.appendChild(h); }
-      return sec;
-    };
-
     const refSec=makeSection('참고영상 정보');
     const table=document.createElement('div'); Object.assign(table.style,{display:'grid', gridTemplateColumns:'120px 1fr max-content', rowGap:'8px', columnGap:'8px', alignItems:'center'});
     const mkRow=(labTxt, placeholder, isUrl=false)=>{
@@ -331,18 +333,19 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     leftCol.appendChild(scriptSec);
 
     // 좌측 — 추천 썸네일 top 5
+    const makeListRow4Local = makeListRow4;
     const thumbSec=makeSection('추천 썸네일 top 5');
     const tWrap=document.createElement('div'); Object.assign(tWrap.style,{border:'1px solid rgba(255,255,255,.18)', borderRadius:'12px', padding:'12px', background:'rgba(255,255,255,0.02)'});
-    const thumbRows=[]; for(let i=1;i<=5;i++){ const r=makeListRow4(i,'썸네일 문구'); thumbRows.push(r); tWrap.appendChild(r.row); }
+    const thumbRows=[]; for(let i=1;i<=5;i++){ const r=makeListRow4Local(i,'썸네일 문구'); thumbRows.push(r); tWrap.appendChild(r.row); }
     thumbSec.appendChild(tWrap); leftCol.appendChild(thumbSec);
 
     // 좌측 — 추천 제목 top 5
     const titleSec=makeSection('추천 제목 top 5');
     const ttWrap=document.createElement('div'); Object.assign(ttWrap.style,{border:'1px solid rgba(255,255,255,.18)', borderRadius:'12px', padding:'12px', background:'rgba(255,255,255,0.02)'});
-    const titleRows=[]; for(let i=1;i<=5;i++){ const r=makeListRow4(i,'제목 문구'); titleRows.push(r); ttWrap.appendChild(r.row); }
+    const titleRows=[]; for(let i=1;i<=5;i++){ const r=makeListRow4Local(i,'제목 문구'); titleRows.push(r); ttWrap.appendChild(r.row); }
     titleSec.appendChild(ttWrap); leftCol.appendChild(titleSec);
 
-    // 좌측 — 유튜브 업로드 설명 (타이틀/글자수/복사버튼)
+    // 좌측 — 유튜브 업로드 설명
     const descSec=makeSection('');
     const descHead=document.createElement('div'); Object.assign(descHead.style,{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px'});
     const descTitle=document.createElement('div'); descTitle.textContent='유튜브 업로드 설명'; Object.assign(descTitle.style,{fontWeight:'800'});
@@ -358,7 +361,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     descSec.appendChild(descHead); descSec.appendChild(descInput);
     leftCol.appendChild(descSec);
 
-    // 우측 — 이미지 프롬프트 (단일 섹션·단일 리스트)
+    // 우측 — 이미지 프롬프트 (단일 리스트)
     const promptSec=makeSection('이미지 프롬프트');
     const list=document.createElement('div'); Object.assign(list.style,{display:'grid', gridTemplateColumns:'1fr', gap:'8px', border:'1px solid rgba(255,255,255,.18)', borderRadius:'12px', padding:'12px', background:'rgba(255,255,255,0.02)'});
     const promptRows=[];
@@ -394,14 +397,14 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     root.appendChild(scriptBottom);
 
     // 상태 저장
-    state.dateInput=dateInput; state.btnMeta=btnMeta;
+    state.dateInput=dateInput; state.btnMeta=btnMeta; state.btnImport=btnImport; state.importInput=importInput;
     state.refThumb=refThumb; state.refTitle=refTitle; state.refUrl=refUrl;
     state.scriptArea=scriptArea; state.descInput=descInput; state.descCopyBtn=descCopy;
     state.thumbRows=thumbRows; state.titleRows=titleRows;
     state.promptRows=promptRows;
     state.chapCountEl=dCount; state.chapTimeEl=dTime; state.gridMount=mount; state.cards=[];
 
-    // 동작
+    // ===== 기능함수 =====
     const fillPrompts = (full) => {
       const map=extractImagePrompts(full);
       state.promptRows.forEach(r => { const key=r.labelEl.textContent.trim(); r.inputEl.value = map.get(key) || ''; });
@@ -439,7 +442,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
     function parseAll(){
       const full = state.scriptArea.value || '';
 
-      // 설명 — 경고 토스트 없음(비어있어도 조용히)
+      // 설명 — 경고 토스트 없음
       const desc = extractDescription(full);
       state.descInput.value = desc;
       state.descInput.dispatchEvent(new Event('input'));
@@ -466,7 +469,7 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
       rebuildCards(combined);
     }
 
-    // 기본정보 다운 — 새 포맷
+    // ===== 내보내기 =====
     btnMeta.addEventListener('click', ()=>{
       const dateStr = state.dateInput.value || today();
       const divider = '-------------------------------------------------';
@@ -485,36 +488,36 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
       L.push(divider);
       L.push('');
 
-      // 추천 썸네일 top5 (번호매김 포함)
+      // 추천 썸네일 top5
       L.push('추천 썸네일 top5');
       for (let i=0;i<5;i++) L.push(`${i+1}. ${(state.thumbRows[i].inputEl.value||'')}`);
       L.push(divider);
       L.push('');
 
-      // 추천 제목 top5 (번호매김 포함)
+      // 추천 제목 top5
       L.push('추천 제목 top5');
       for (let i=0;i<5;i++) L.push(`${i+1}. ${(state.titleRows[i].inputEl.value||'')}`);
       L.push(divider);
       L.push('');
 
-      // 업로드 설명글 (본문 포함)
+      // 업로드 설명글
       L.push('업로드 설명글');
       L.push((state.descInput.value||'').trim());
       L.push(divider);
       L.push('');
 
-      // 이미지 프롬프트 (항목 사이 한 칸)
+      // 이미지 프롬프트 (한 칸 띄움)
       L.push('이미지 프롬프트');
       const ipLines=[];
       state.promptRows.forEach(({labelEl,inputEl})=>{
         const l=labelEl.textContent.trim(); const v=(inputEl.value||'').trim();
         ipLines.push(`${l}${v ? ' ' + v : ''}`.trim());
       });
-      L.push(ipLines.join('\n\n'));   // ← 사이 한 칸(빈 줄)
+      L.push(ipLines.join('\n\n'));
       L.push(divider);
       L.push('');
 
-      // 대본 (오프닝+본문)
+      // 대본 (오프닝+본문). scriptArea에는 없을 수 있으니 카드 기준이 아닌 원문 기준으로 재구성.
       const opening=extractOpening(state.scriptArea.value||'');
       const body=extractScriptBody(state.scriptArea.value||'');
       const combined=[opening, body].filter(Boolean).join('\n\n');
@@ -526,6 +529,131 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
       showToast('기본정보 파일을 저장했습니다.','success');
     });
 
+    // ===== 가져오기 =====
+    btnImport.addEventListener('click', ()=> state.importInput.click());
+    state.importInput.addEventListener('change', (e)=>{
+      const file=e.target.files && e.target.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload = () => {
+        try {
+          importFromTxt(String(reader.result||''));
+          showToast('가져오기가 완료되었습니다.','success');
+        } catch (err) {
+          console.error(err);
+          showToast('가져오기에 실패했습니다. 포맷을 확인해주세요.','error');
+        } finally {
+          state.importInput.value='';
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    function importFromTxt(raw) {
+      const text = trimLines(raw);
+      const lines = text.split('\n');
+
+      const dividerIdx = [];
+      lines.forEach((ln, i)=>{ if (/^-{5,}\s*$/.test(ln)) dividerIdx.push(i); });
+
+      // 0) 업로드 예정일
+      const dateLine = lines[0] || '';
+      const mDate = dateLine.match(/업로드\s*예정일\s*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/);
+      if (mDate) state.dateInput.value = mDate[1];
+
+      // 편리한 슬라이스
+      const sliceBlock = (startAfter, endBefore) => {
+        const s = startAfter+1, e = endBefore-1;
+        const blk = lines.slice(Math.max(0,s), Math.max(0,e)+1);
+        // 앞뒤 빈줄 제거
+        while (blk.length && !blk[0].trim()) blk.shift();
+        while (blk.length && !blk[blk.length-1].trim()) blk.pop();
+        return blk;
+      };
+
+      // 1) 참고영상 정보 — 첫 구분선 이후 블럭
+      // 구조: (빈칸) / "참고영상 정보" / 썸네일 / 제목 / 주소
+      let cursor = dividerIdx[0];
+      const refBlock = sliceBlock(dividerIdx[0], dividerIdx[1]);
+      const refStart = refBlock.indexOf('참고영상 정보');
+      if (refStart !== -1) {
+        state.refThumb.value = refBlock[refStart+1] || '';
+        state.refTitle.value = refBlock[refStart+2] || '';
+        state.refUrl.value   = refBlock[refStart+3] || '';
+      }
+
+      // 2) 추천 썸네일 top5
+      const thumbBlock = sliceBlock(dividerIdx[1], dividerIdx[2]);
+      const tIdx = thumbBlock.indexOf('추천 썸네일 top5');
+      if (tIdx !== -1) {
+        const list = thumbBlock.slice(tIdx+1, tIdx+6);
+        for (let i=0;i<5;i++){
+          const val = (list[i]||'').replace(/^\s*\d+\.\s*/, '').trim();
+          state.thumbRows[i].inputEl.value = val;
+          state.thumbRows[i].inputEl.dispatchEvent(new Event('input'));
+        }
+      }
+
+      // 3) 추천 제목 top5
+      const titleBlock = sliceBlock(dividerIdx[2], dividerIdx[3]);
+      const ttIdx = titleBlock.indexOf('추천 제목 top5');
+      if (ttIdx !== -1) {
+        const list = titleBlock.slice(ttIdx+1, ttIdx+6);
+        for (let i=0;i<5;i++){
+          const val = (list[i]||'').replace(/^\s*\d+\.\s*/, '').trim();
+          state.titleRows[i].inputEl.value = val;
+          state.titleRows[i].inputEl.dispatchEvent(new Event('input'));
+        }
+      }
+
+      // 4) 업로드 설명글
+      const descBlock = sliceBlock(dividerIdx[3], dividerIdx[4]);
+      const dIdx = descBlock.indexOf('업로드 설명글');
+      let descText = '';
+      if (dIdx !== -1) descText = descBlock.slice(dIdx+1).join('\n').trim();
+      state.descInput.value = descText;
+      state.descInput.dispatchEvent(new Event('input'));
+
+      // 5) 이미지 프롬프트
+      const ipBlock = sliceBlock(dividerIdx[4], dividerIdx[5]);
+      const ipIdx = ipBlock.indexOf('이미지 프롬프트');
+      const ipPairs = (ipIdx !== -1) ? ipBlock.slice(ipIdx+1) : [];
+      // 빈 줄이 섞여 있음 → 라벨:값만 추출
+      const map = new Map();
+      ipPairs.forEach(line=>{
+        const ln=line.trim(); if(!ln) return;
+        const m = ln.match(/^(.*?):\s*(.*)$/);
+        if (!m) return;
+        const labelStd = normalizeLabel(m[1]);
+        if (labelStd) map.set(labelStd, (m[2]||'').trim());
+      });
+      // UI 주입
+      state.promptRows.forEach(r=>{
+        const key=r.labelEl.textContent.trim();
+        r.inputEl.value = map.get(key) || '';
+      });
+
+      // 6) 대본
+      const scriptBlock = lines.slice(dividerIdx[5]+1);
+      let scriptText = scriptBlock.join('\n');
+      // 헤더가 없는 형태이므로, 파서를 위해 최소 헤더를 덧붙여 scriptArea에 구성
+      const synthetic = `## 몰입형 오프닝\n\n\n## 1장\n${scriptText}\n`;
+      state.scriptArea.value = synthetic;
+
+      // 전반 재파싱(설명은 위에서 덮어썼으므로 유지)
+      parseAll();
+
+      // parseAll()은 설명을 원문에서 다시 추출하려 드니, 가져온 설명으로 다시 확정
+      state.descInput.value = descText;
+      state.descInput.dispatchEvent(new Event('input'));
+
+      // 프롬프트도 원문에서 못 찾을 수 있으니 가져온 값으로 재확정
+      state.promptRows.forEach(r=>{
+        r.inputEl.dispatchEvent(new Event('input'));
+      });
+    }
+
+    // 입력 변경 시 파싱
     state.scriptArea.addEventListener('input', parseAll);
     parseAll();
   }
@@ -546,4 +674,4 @@ console.log('text-splitter.js (one-list prompts + export v2) start');
   window.initializeTextSplitter = init;
 
 })();
-console.log('text-splitter.js (one-list prompts + export v2) done');
+console.log('text-splitter.js (export+import) done');
