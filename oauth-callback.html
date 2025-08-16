@@ -3,93 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Google OAuth Callback</title>
+  <title>OAuth Callback</title>
   <style>
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#121212;color:#e4e6ea}
+    html,body{height:100%;margin:0;background:#0b0f16;color:#e4e6ea;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
     .wrap{height:100%;display:flex;align-items:center;justify-content:center}
-    .card{background:#1f2530;border:1px solid #394150;border-radius:12px;padding:24px;max-width:520px;width:92%}
-    .muted{color:#a0aec0}
-    pre{white-space:pre-wrap}
+    .card{background:#151b24;border:1px solid #2a3443;border-radius:12px;padding:24px;max-width:560px;width:92%}
+    .muted{color:#9aa4b2}
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
-    <h2>Google 인증 진행 중…</h2>
-    <p class="muted" id="msg">토큰을 교환하고 있습니다. 잠시만 기다려 주세요.</p>
-    <pre id="err" style="display:none"></pre>
+    <h2>이 페이지는 현재 로그인 방식에서 사용되지 않습니다.</h2>
+    <p class="muted">이 앱은 Google Token Client(팝업) 방식을 사용합니다. 메인 화면으로 돌아가 주세요.</p>
   </div>
 </div>
-
-<script>
-(async () => {
-  const STORAGE_KEY  = 'yt_oauth_v2';
-  const RETURN_TO_KEY= 'yt_oauth_return_to';
-  const PKCE_KEY     = 'yt_pkce_verifier';
-  const CID_KEY      = 'yt_client_id';
-
-  function setMsg(t){ document.getElementById('msg').textContent = t; }
-  function showErr(e){ const el=document.getElementById('err'); el.style.display='block'; el.textContent=e; }
-  function qp(n){ return new URL(location.href).searchParams.get(n); }
-
-  try{
-    const code = qp('code');
-    const error= qp('error');
-    if (error) throw new Error('OAuth Error: ' + error);
-    if (!code) throw new Error('인가 코드(code)가 없습니다.');
-
-    const verifier = sessionStorage.getItem(PKCE_KEY);
-    if (!verifier) throw new Error('code_verifier가 없습니다. 동일 브라우저에서 다시 시도해 주세요.');
-
-    // CLIENT_ID는 oauth-manager에서 저장한 값을 사용
-    const CLIENT_ID = localStorage.getItem(CID_KEY) || '';
-    if (!CLIENT_ID) throw new Error('CLIENT_ID가 없습니다. 메인 페이지에서 다시 로그인 버튼을 눌러 주세요.');
-
-    setMsg('토큰 교환 중…');
-
-    const body = new URLSearchParams({
-      client_id: CLIENT_ID,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: location.origin + location.pathname,
-      code_verifier: verifier
-    });
-
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
-
-    if (!res.ok){
-      const text=await res.text();
-      throw new Error('토큰 교환 실패: ' + text);
-    }
-
-    const j = await res.json();
-    const expiresAt = Math.floor(Date.now()/1000) + (j.expires_in || 3600);
-
-    const prev = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    const data = {
-      access_token: j.access_token,
-      expires_at: expiresAt,
-      refresh_token: j.refresh_token || prev.refresh_token || null
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    setMsg('완료! 돌아갑니다…');
-
-    const ret = sessionStorage.getItem(RETURN_TO_KEY) || '/';
-    sessionStorage.removeItem(RETURN_TO_KEY);
-    sessionStorage.removeItem(PKCE_KEY);
-
-    setTimeout(()=>{ location.href = ret; }, 600);
-  }catch(e){
-    console.error(e);
-    showErr(String(e.message||e));
-    setMsg('오류가 발생했습니다. 창을 닫고 다시 시도해 주세요.');
-  }
-})();
-</script>
 </body>
 </html>
