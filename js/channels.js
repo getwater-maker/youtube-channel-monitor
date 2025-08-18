@@ -1,4 +1,4 @@
-// YouTube 채널 모니터 - 채널 관리 섹션
+// YouTube 채널 모니터 - 채널 관리 섹션 (버튼 이벤트 바인딩 수정)
 console.log('channels.js 로딩 시작');
 
 // ============================================================================
@@ -225,7 +225,7 @@ async function refreshChannels() {
         <div class="empty-state">
           <div class="empty-icon">📺</div>
           <p class="muted">채널을 추가하여 시작하세요</p>
-          <button class="btn btn-primary" onclick="document.getElementById('btn-add-channel').click()">첫 채널 추가하기</button>
+          <button class="btn btn-primary" onclick="openChannelAddModal()">첫 채널 추가하기</button>
         </div>
       `;
       return;
@@ -291,7 +291,7 @@ async function refreshChannels() {
               <a href="https://www.youtube.com/channel/${ch.id}" target="_blank" style="text-decoration:none;color:inherit;">
                 <h3>${ch.title}</h3>
               </a>
-              <button class="btn btn-danger" data-del="${ch.id}" title="채널 삭제">삭제</button>
+              <button class="btn btn-danger" onclick="deleteChannelById('${ch.id}')" title="채널 삭제">삭제</button>
             </div>
 
             <div class="row">
@@ -317,17 +317,6 @@ async function refreshChannels() {
     // 렌더 직전 토큰 확인 후 한번에 교체
     if (myToken !== window.__channelsRefreshToken) return;
     wrap.innerHTML = html;
-
-    // 삭제 버튼 이벤트 바인딩
-    qsa('[data-del]', wrap).forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const id = btn.getAttribute('data-del');
-        if (!id) return;
-        if (!confirm('정말 삭제하시겠어요?')) return;
-        await deleteChannel(id);
-      });
-    });
 
     // 페이지네이션 렌더링
     renderChannelsPagination(currentPage, allChannels.length);
@@ -358,7 +347,7 @@ function renderChannelsPagination(currentPage, totalItems) {
   }
   
   const btn = (p, label = p, disabled = false, active = false) =>
-    `<button class="btn btn-secondary ${active ? 'active' : ''}" data-page="${p}" ${disabled ? 'disabled' : ''} style="min-width:36px;">${label}</button>`;
+    `<button class="btn btn-secondary ${active ? 'active' : ''}" onclick="changeChannelPage(${p})" ${disabled ? 'disabled' : ''} style="min-width:36px;">${label}</button>`;
 
   let html = '';
   html += btn(Math.max(1, currentPage - 1), '‹', currentPage === 1);
@@ -368,16 +357,6 @@ function renderChannelsPagination(currentPage, totalItems) {
   html += btn(Math.min(totalPages, currentPage + 1), '›', currentPage === totalPages);
 
   el.innerHTML = html;
-  
-  // 페이지 버튼 이벤트
-  qsa('button[data-page]', el).forEach(b => {
-    b.addEventListener('click', () => {
-      const p = parseInt(b.getAttribute('data-page'), 10);
-      if (!window.state) window.state = { currentPage: {} };
-      window.state.currentPage.channels = p;
-      refreshChannels();
-    });
-  });
 }
 
 // ============================================================================
@@ -493,6 +472,317 @@ async function importChannelsFromFile(file) {
   }
 }
 
+// ============================================================================
+// 전역 함수들 (직접 HTML onclick에서 호출 가능)
+// ============================================================================
+
+// 채널 삭제 (전역 함수)
+async function deleteChannelById(channelId) {
+  if (!confirm('정말 삭제하시겠어요?')) return;
+  try {
+    await deleteChannel(channelId);
+  } catch (e) {
+    console.error('채널 삭제 실패:', e);
+  }
+}
+
+// 채널 페이지 변경 (전역 함수)
+function changeChannelPage(page) {
+  if (!window.state) window.state = { currentPage: {} };
+  window.state.currentPage.channels = page;
+  refreshChannels();
+}
+
+// 채널 추가 모달 열기 (전역 함수)
+function openChannelAddModal() {
+  if (typeof window.openModal === 'function') {
+    window.openModal('modal-add');
+  } else {
+    console.error('openModal 함수를 찾을 수 없습니다.');
+  }
+}
+
+// 채널 검색 및 추가 (전역 함수) - 사용자 확인 절차 추가
+async function searchAndAddChannel() {
+  const input = document.getElementById('url-input');
+  const result = document.getElementById('url-result');
+  
+  if (!input || !result) {
+    console.error('필요한 DOM 요소를 찾을 수 없습니다.');
+    return;
+  }
+
+  const query = input.value.trim();
+  if (!query) {
+    toast('검색어를 입력해주세요.', 'warning');
+    return;
+  }
+
+  try {
+    result.innerHTML = '<p class="muted">검색 중...</p>';
+
+    // API 키 확인
+    if (!window.hasKeys || !window.hasKeys()) {
+      throw new Error('먼저 API 키를 설정해주세요.');
+    }
+
+    // 직접 채널 ID나 URL인지 먼저 확인
+    const isDirectId = /^UC[A-Za-z0-9_-]{22}$/.test(query);
+    const isUrl = query.includes('youtube.com') || query.includes('youtu.be');
+    const isHandle = query.startsWith('@');
+
+    if (isDirectId || isUrl) {
+      // 직접 ID나 URL인 경우 바로 추가
+      let channelId;
+      if (typeof window.extractChannelId === 'function') {
+        channelId = await window.extractChannelId(query);
+      } else {
+        throw new Error('채널 검색 기능이 준비되지 않았습니다.');
+      }
+
+      const success = await addChannelById(channelId);
+      if (success) {
+        if (typeof window.closeModal === 'function') {
+          window.closeModal('modal-add');
+        }
+        input.value = '';
+        result.innerHTML = '';
+      }
+    } else {
+      // 채널명 검색인 경우 검색 결과 표시
+      await showChannelSearchResults(query, result, input);
+    }
+
+  } catch (e) {
+    console.error('채널 검색/추가 실패:', e);
+    result.innerHTML = `<p style="color: var(--brand);">${e.message}</p>`;
+    toast('채널 검색 실패: ' + e.message, 'error');
+  }
+}
+
+// 채널 검색 결과 표시 함수
+async function showChannelSearchResults(query, resultContainer, inputElement) {
+  try {
+    // YouTube Search API로 채널 검색
+    const searchResponse = await window.yt('search', {
+      part: 'snippet',
+      type: 'channel',
+      q: query,
+      maxResults: 10 // 상위 10개 결과
+    });
+
+    const channels = searchResponse.items || [];
+    
+    if (channels.length === 0) {
+      resultContainer.innerHTML = `
+        <div style="padding: 20px; text-align: center;">
+          <p style="color: var(--muted);">검색 결과가 없습니다.</p>
+          <p style="font-size: 12px; color: var(--muted);">다른 검색어를 시도해보세요.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // 채널 상세 정보 가져오기
+    const channelIds = channels.map(ch => ch.id.channelId).join(',');
+    const detailsResponse = await window.yt('channels', {
+      part: 'snippet,statistics',
+      id: channelIds
+    });
+
+    const detailedChannels = detailsResponse.items || [];
+
+    // 검색 결과 HTML 생성
+    let html = `
+      <div style="margin-top: 16px;">
+        <h4 style="margin: 0 0 12px 0; color: var(--text); font-size: 14px;">
+          🔍 "${query}" 검색 결과 (${detailedChannels.length}개)
+        </h4>
+        <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+    `;
+
+    detailedChannels.forEach((channel, index) => {
+      const thumbnail = channel.snippet.thumbnails?.medium?.url || 
+                       channel.snippet.thumbnails?.default?.url ||
+                       'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj';
+      
+      const title = channel.snippet.title || '(제목 없음)';
+      const description = channel.snippet.description || '';
+      const subscriberCount = parseInt(channel.statistics?.subscriberCount || '0', 10);
+      const videoCount = parseInt(channel.statistics?.videoCount || '0', 10);
+      const country = channel.snippet.country || '';
+
+      html += `
+        <div class="search-result-item" style="
+          display: flex;
+          gap: 12px;
+          padding: 12px;
+          border-bottom: 1px solid var(--border);
+          cursor: pointer;
+          transition: background 0.2s;
+        " onmouseover="this.style.background='var(--glass-bg)'" 
+           onmouseout="this.style.background=''" 
+           onclick="confirmAndAddChannel('${channel.id}', '${title.replace(/'/g, "\\'")}')">
+          
+          <img src="${thumbnail}" alt="${title}" 
+               style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover; flex-shrink: 0;"
+               onerror="this.src='https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj'">
+          
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 700; margin-bottom: 4px; color: var(--text);">
+              ${title}
+            </div>
+            
+            <div style="display: flex; gap: 16px; margin-bottom: 6px; font-size: 12px; color: var(--muted);">
+              <span>구독자: ${fmt(subscriberCount)}</span>
+              <span>영상: ${fmt(videoCount)}</span>
+              ${country ? `<span>국가: ${country}</span>` : ''}
+            </div>
+            
+            ${description ? `
+              <div style="font-size: 11px; color: var(--muted); line-height: 1.3; max-height: 32px; overflow: hidden;">
+                ${description.substring(0, 100)}${description.length > 100 ? '...' : ''}
+              </div>
+            ` : ''}
+            
+            <div style="margin-top: 6px;">
+              <span style="
+                background: var(--brand); 
+                color: white; 
+                padding: 2px 6px; 
+                border-radius: 4px; 
+                font-size: 10px; 
+                font-weight: 600;
+              ">클릭하여 추가</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+        <div style="padding: 12px; text-align: center; font-size: 12px; color: var(--muted);">
+          원하는 채널을 클릭하여 추가하세요. 정확한 채널인지 확인 후 선택해주세요.
+        </div>
+      </div>
+    `;
+
+    resultContainer.innerHTML = html;
+
+  } catch (e) {
+    console.error('채널 검색 결과 표시 실패:', e);
+    resultContainer.innerHTML = `<p style="color: var(--brand);">검색 중 오류가 발생했습니다: ${e.message}</p>`;
+  }
+}
+
+// 채널 추가 확인 및 실행
+async function confirmAndAddChannel(channelId, channelTitle) {
+  try {
+    const confirmed = confirm(`"${channelTitle}" 채널을 추가하시겠습니까?\n\n채널 ID: ${channelId}`);
+    
+    if (!confirmed) {
+      return;
+    }
+
+    const success = await addChannelById(channelId);
+    if (success) {
+      if (typeof window.closeModal === 'function') {
+        window.closeModal('modal-add');
+      }
+      
+      // 입력창과 결과창 초기화
+      const input = document.getElementById('url-input');
+      const result = document.getElementById('url-result');
+      if (input) input.value = '';
+      if (result) result.innerHTML = '';
+    }
+
+  } catch (e) {
+    console.error('채널 추가 확인 실패:', e);
+    toast('채널 추가 실패: ' + e.message, 'error');
+  }
+}
+
+// ============================================================================
+// 이벤트 바인딩 초기화
+// ============================================================================
+function initializeChannelsEvents() {
+  console.log('채널 관리 이벤트 초기화 시작');
+
+  // 채널 추가 버튼
+  const addBtn = document.getElementById('btn-add-channel');
+  if (addBtn && !addBtn.dataset.bound) {
+    addBtn.dataset.bound = '1';
+    addBtn.addEventListener('click', openChannelAddModal);
+    console.log('채널 추가 버튼 바인딩 완료');
+  }
+
+  // 내보내기 버튼
+  const exportBtn = document.getElementById('btn-export-channels');
+  if (exportBtn && !exportBtn.dataset.bound) {
+    exportBtn.dataset.bound = '1';
+    exportBtn.addEventListener('click', exportChannels);
+    console.log('내보내기 버튼 바인딩 완료');
+  }
+
+  // 가져오기 버튼
+  const importBtn = document.getElementById('btn-import-channels');
+  const importFile = document.getElementById('file-import-channels');
+  if (importBtn && importFile && !importBtn.dataset.bound) {
+    importBtn.dataset.bound = '1';
+    importBtn.addEventListener('click', () => importFile.click());
+    
+    importFile.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      try {
+        await importChannelsFromFile(file);
+      } catch (e) {
+        console.error('파일 가져오기 실패:', e);
+      } finally {
+        importFile.value = '';
+      }
+    });
+    console.log('가져오기 버튼 바인딩 완료');
+  }
+
+  // 정렬 선택 변경
+  const sortSelect = document.getElementById('sort-channels');
+  if (sortSelect && !sortSelect.dataset.bound) {
+    sortSelect.dataset.bound = '1';
+    sortSelect.addEventListener('change', refreshChannels);
+    console.log('정렬 선택 바인딩 완료');
+  }
+
+  // 모달 내 검색 버튼
+  const searchBtn = document.getElementById('btn-url-add');
+  if (searchBtn && !searchBtn.dataset.bound) {
+    searchBtn.dataset.bound = '1';
+    searchBtn.addEventListener('click', searchAndAddChannel);
+    console.log('검색 버튼 바인딩 완료');
+  }
+
+  // Enter 키로 검색
+  const urlInput = document.getElementById('url-input');
+  if (urlInput && !urlInput.dataset.bound) {
+    urlInput.dataset.bound = '1';
+    urlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        searchAndAddChannel();
+      }
+    });
+    console.log('검색 입력 키보드 이벤트 바인딩 완료');
+  }
+
+  console.log('채널 관리 이벤트 초기화 완료');
+}
+
+// ============================================================================
+// 전역 노출 및 초기화
+// ============================================================================
+
 // 전역 노출(다른 파일에서 사용)
 window.getAllChannels = getAllChannels;
 window.deleteChannel = deleteChannel;
@@ -501,6 +791,21 @@ window.addChannelById = addChannelById;
 window.exportChannels = exportChannels;
 window.importChannelsFromFile = importChannelsFromFile;
 window.updateChannelThumbnails = updateChannelThumbnails;
+
+// 전역 함수들 (HTML에서 직접 호출)
+window.deleteChannelById = deleteChannelById;
+window.changeChannelPage = changeChannelPage;
+window.openChannelAddModal = openChannelAddModal;
+window.searchAndAddChannel = searchAndAddChannel;
+window.confirmAndAddChannel = confirmAndAddChannel; // 새로 추가
+
+// DOM 로드 완료 후 이벤트 바인딩
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeChannelsEvents);
+} else {
+  // 이미 로드된 경우 즉시 실행
+  setTimeout(initializeChannelsEvents, 100);
+}
 
 // 앱 시작 시 자동 썸네일 업데이트 (5초 후)
 setTimeout(() => {

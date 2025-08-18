@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 /**
  * main.js
- * 앱 오케스트레이션 및 초기화
+ * 앱 오케스트레이션 및 초기화 (채널 관리 버튼 이벤트 바인딩 개선)
  * - 본 파일에서는 텍스트 문구 중 '썸네일' 표기를 사용합니다. (기존 '인네일' 오타 수정)
  */
 
@@ -344,10 +344,10 @@
           const raw = (src.value || '')
             .replace(/^\s*[-*]{3,}\s*$/gm, '')
             .replace(/^\s*\*\s*/gm, '')
-            .replace(/^(##?)(\s*)/gm, '씸씸$2');
+            .replace(/^(##?)(\s*)/gm, '씰씰$2');
 
-          // 씸씸 ~ 다음 씸씸 사이를 덩어리로 묶어 10,000자 기준으로 분할
-          const parts = raw.split(/^씸씸.*$/gm);
+          // 씰씰 ~ 다음 씰씰 사이를 덩어리로 묶어 10,000자 기준으로 분할
+          const parts = raw.split(/^씰씰.*$/gm);
           const cleaned = parts.map((s) => s.trim()).filter(Boolean);
 
           const MAX = 10000;
@@ -389,8 +389,8 @@
 
   function initializeMyChannels() {
     try {
-      if (typeof window.initMyChannels === 'function') {
-        window.initMyChannels();
+      if (typeof window.initializeMyChannels === 'function') {
+        window.initializeMyChannels();
         return;
       }
       // 폴백: 안내만
@@ -475,7 +475,7 @@
     if (txtSplitBtn && txtSplitBtn.dataset.bound !== '1') {
       txtSplitBtn.dataset.bound = '1';
       on(txtSplitBtn, 'click', () => {
-        // 내비게이션을 통해 텍스트 분할 섹션으로 이동
+        // 네비게이션을 통해 텍스트 분할 섹션으로 이동
         const navBtn = $('#btn-text-splitter');
         if (navBtn && navBtn.classList.contains('nav-section')) {
           navBtn.click();
@@ -488,11 +488,16 @@
         }
       });
     }
+
+    // ⚠️ 채널 관리 관련 버튼들은 channels.js에서 직접 처리하므로 여기서는 제거
+    // channels.js의 initializeChannelsEvents()가 담당
   }
 
   // ========= 초기화 =========
   document.addEventListener('DOMContentLoaded', async () => {
     try {
+      console.log('main.js 초기화 시작');
+      
       // 테마 초기화
       window.loadTheme();
       bindThemeToggle();
