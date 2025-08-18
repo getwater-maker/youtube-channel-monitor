@@ -17,7 +17,7 @@ console.log('videos.js 로딩 시작 - 화면 표시 문제 해결 버전');
 
     const src = img.currentSrc || img.src || '';
 
-    // YouTube/Google 아바타 계열만 폴백 적용 (비디오 인네일 등은 건드리지 않음)
+    // YouTube/Google 아바타 계열만 폴백 적용 (비디오 썸네일 등은 건드리지 않음)
     const isLikelyAvatar =
       /yt3\.ggpht\.com/i.test(src) ||
       /googleusercontent\.com/i.test(src);
@@ -408,6 +408,46 @@ async function copyThumbnail(videoId, title) {
   }
 }
 
+// URL 복사 함수 (새로 추가)
+async function copyVideoUrl(videoId) {
+  if (!videoId) {
+    window.toast && window.toast('복사할 URL이 없습니다.', 'warning');
+    return;
+  }
+  
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const result = await safeClipboardCopy(url);
+  
+  if (result.success) {
+    const methodText = result.method === 'clipboard-api' ? '' : ' (호환 모드)';
+    window.toast && window.toast(`영상 URL을 복사했습니다!${methodText}`, 'success');
+  } else {
+    // 수동 복사 안내
+    const textArea = document.createElement('textarea');
+    textArea.value = url;
+    textArea.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:80%;height:100px;z-index:10000;background:white;color:black;border:2px solid #333;padding:10px;border-radius:8px;';
+    textArea.readOnly = true;
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    window.toast && window.toast('URL을 선택했습니다. Ctrl+C를 눌러 복사하세요.', 'info');
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    }, 5000);
+    
+    // 클릭하면 제거
+    textArea.addEventListener('click', () => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    });
+  }
+}
+
 // ============================================================================
 // 데이터 다운로드 기능 (현재 페이지만)
 // ============================================================================
@@ -774,7 +814,7 @@ function showEmptyState(tabName) {
 }
 
 // ============================================================================
-// 개선된 비디오 카드 렌더링 (고유 ID 사용)
+// 개선된 비디오 카드 렌더링 (고유 ID 사용) - URL 복사 버튼 추가
 // ============================================================================
 function renderVideoCards(container, videos, tabName) {
   console.log('renderVideoCards 시작:', videos.length, '개 비디오');
@@ -809,6 +849,7 @@ function renderVideoCards(container, videos, tabName) {
     const uniqueId = `${tabName}-${videoId}-${index}`;
     const thumbBtnId = `thumb-btn-${uniqueId}`;
     const titleBtnId = `title-btn-${uniqueId}`;
+    const urlBtnId = `url-btn-${uniqueId}`;
     const completeBtnId = `complete-btn-${uniqueId}`;
     
     // 작업완료 버튼 텍스트 (날짜 포함)
@@ -854,6 +895,10 @@ function renderVideoCards(container, videos, tabName) {
                     title="제목 복사">
               📝 제목
             </button>
+            <button id="${urlBtnId}" class="btn btn-sm btn-url" 
+                    title="URL 복사">
+              🔗 URL
+            </button>
           </div>
           <button id="${completeBtnId}" class="btn btn-sm ${isCompleted ? 'btn-success' : 'btn-secondary'}" 
                   title="${isCompleted ? `작업완료: ${completedInfo?.date || ''}` : '작업완료 표시'}">
@@ -889,6 +934,16 @@ function renderVideoCards(container, videos, tabName) {
         e.stopPropagation();
         e.preventDefault();
         copyTitle(title);
+      });
+    }
+    
+    // URL 복사 버튼 (새로 추가)
+    const urlBtn = document.getElementById(`url-btn-${uniqueId}`);
+    if (urlBtn) {
+      urlBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        copyVideoUrl(videoId);
       });
     }
     
@@ -1112,41 +1167,24 @@ function initializeSortFilter() {
 }
 
 // ============================================================================
-// 새로고침 버튼 추가
+// 새로고침 버튼 초기화 (위치 변경됨)
 // ============================================================================
-function addRefreshButtons() {
-  // 각 탭에 새로고침 버튼 추가
-  const tabs = ['latest', 'mutant'];
-  
-  tabs.forEach(tabName => {
-    const tabContent = document.getElementById(`video-tab-${tabName}`);
-    if (tabContent && !tabContent.querySelector('.refresh-btn')) {
-      const refreshBtn = document.createElement('button');
-      refreshBtn.className = 'btn btn-primary refresh-btn';
-      refreshBtn.innerHTML = '🔄 다시불러오기';
-      refreshBtn.style.cssText = 'margin-bottom: 16px; margin-right: 12px;';
-      refreshBtn.onclick = () => {
-        console.log('새로고침 버튼 클릭:', tabName);
-        refreshTabData(tabName);
-      };
-      
-      // 버튼을 맨 앞에 위치
-      tabContent.insertBefore(refreshBtn, tabContent.firstChild);
-    }
-  });
+function initializeVideoButtons() {
+  // 다시불러오기 버튼 (헤더에 이미 있음)
+  const refreshBtn = document.getElementById('btn-refresh-videos');
+  if (refreshBtn && !refreshBtn.dataset.bound) {
+    refreshBtn.dataset.bound = '1';
+    refreshBtn.onclick = () => {
+      console.log('새로고침 버튼 클릭:', window.mainState.currentTab);
+      refreshTabData(window.mainState.currentTab);
+    };
+  }
 
-  // 현재 페이지 다운로드 버튼 추가
-  const videoSection = document.getElementById('section-videos');
-  if (videoSection && !videoSection.querySelector('.download-current-btn')) {
-    const sectionActions = videoSection.querySelector('.section-actions');
-    if (sectionActions) {
-      const downloadBtn = document.createElement('button');
-      downloadBtn.className = 'btn btn-secondary download-current-btn';
-      downloadBtn.innerHTML = '📥 현재페이지 다운로드';
-      downloadBtn.onclick = downloadCurrentPageData;
-      
-      sectionActions.appendChild(downloadBtn);
-    }
+  // 현재 페이지 다운로드 버튼 (헤더에 이미 있음)
+  const downloadBtn = document.getElementById('btn-download-current');
+  if (downloadBtn && !downloadBtn.dataset.bound) {
+    downloadBtn.dataset.bound = '1';
+    downloadBtn.onclick = downloadCurrentPageData;
   }
 }
 
@@ -1194,7 +1232,7 @@ function initializeVideosSection() {
   initializeVideoTabs();
   initializePeriodButtons();
   initializeSortFilter();
-  addRefreshButtons();
+  initializeVideoButtons();
   
   // 캐시가 있으면 바로 표시
   if (hasLatestCache) {
@@ -1213,6 +1251,7 @@ window.refreshVideos = refreshCurrentTab;
 window.toggleVideoCompleted = toggleVideoCompleted;
 window.copyThumbnail = copyThumbnail;
 window.copyTitle = copyTitle;
+window.copyVideoUrl = copyVideoUrl;
 window.changePage = changePage;
 window.refreshTabData = refreshTabData;
 window.downloadCurrentPageData = downloadCurrentPageData;
@@ -1291,6 +1330,18 @@ style.textContent = `
     border-color: #319795;
   }
   
+  .btn-url {
+    background: #9f7aea;
+    color: white;
+    border-color: #9f7aea;
+    flex-shrink: 0;
+  }
+  
+  .btn-url:hover {
+    background: #805ad5;
+    border-color: #805ad5;
+  }
+  
   .loading-state {
     text-align: center;
     padding: 40px 20px;
@@ -1316,16 +1367,10 @@ style.textContent = `
     100% { transform: rotate(360deg); }
   }
   
-  .refresh-btn {
-    display: inline-flex;
-    align-items: center;
+  .video-actions-group {
+    display: flex;
     gap: 8px;
-  }
-  
-  .download-current-btn {
-    display: inline-flex;
     align-items: center;
-    gap: 8px;
   }
   
   .kw {
@@ -1379,7 +1424,7 @@ style.textContent = `
   /* 반응형 */
   @media (max-width: 768px) {
     .action-left {
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 4px;
     }
     
@@ -1387,6 +1432,11 @@ style.textContent = `
       flex-direction: column;
       align-items: stretch;
       gap: 8px;
+    }
+    
+    .video-actions-group {
+      flex-wrap: wrap;
+      justify-content: center;
     }
   }
 `;
