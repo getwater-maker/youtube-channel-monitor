@@ -138,11 +138,16 @@ function getDateRangeForPeriod(period) {
 }
 
 function filterVideosByDate(videos, period) {
-  // 모든 기간에서 조회수 5만 이상 필터 적용
+  console.log('필터링 기준:', VIDEO_CONFIG.MIN_VIEWS, '조회수 이상');
+  
+  // 동적 조회수 기준 적용
   const filteredByViews = videos.filter(v => {
     const views = parseInt(v.statistics?.viewCount || '0', 10);
-    return views >= VIDEO_CONFIG.MIN_VIEWS;
+    const passed = views >= VIDEO_CONFIG.MIN_VIEWS;
+    return passed;
   });
+  
+  console.log(`${videos.length}개 영상 중 ${filteredByViews.length}개가 조회수 기준 통과`);
   
   if (period === 'all') {
     return filteredByViews;
@@ -524,13 +529,13 @@ async function getChannelRecentLongformVideos(channel, perChannelMax = 10) {
     id: ids.join(',')
   });
 
-  const longform = (details.items || []).filter(v => {
-    const dur = moment.duration(v.contentDetails?.duration || 'PT0S').asSeconds();
-    const views = parseInt(v.statistics?.viewCount || '0', 10);
-    
-    // 롱폼 조건과 최소 조회수 조건
-    return dur >= VIDEO_CONFIG.MIN_LONGFORM_DURATION && views >= VIDEO_CONFIG.MIN_VIEWS;
-  });
+const longform = (details.items || []).filter(v => {
+  const dur = moment.duration(v.contentDetails?.duration || 'PT0S').asSeconds();
+  const views = parseInt(v.statistics?.viewCount || '0', 10);
+  
+  // 롱폼 조건만 체크, 조회수는 나중에 필터링
+  return dur >= VIDEO_CONFIG.MIN_LONGFORM_DURATION && views >= 1000; // 최소 1천 조회수
+});
 
   longform.forEach(v => {
     v.__channel = {
@@ -1133,6 +1138,7 @@ function updateSortOptions(tabName) {
 }
 
 function initializePeriodButtons() {
+  // 기간 버튼 이벤트 바인딩
   const periodButtons = document.querySelectorAll('.period-btn');
   periodButtons.forEach(btn => {
     if (btn.dataset.periodBound === '1') return;
@@ -1145,6 +1151,33 @@ function initializePeriodButtons() {
       periodButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       refreshCurrentTab();
+    });
+  });
+
+// 조회수 기준 버튼 이벤트 바인딩 (새로 추가)
+  const viewsButtons = document.querySelectorAll('.views-btn');
+  viewsButtons.forEach(btn => {
+    if (btn.dataset.viewsBound === '1') return;
+    btn.dataset.viewsBound = '1';
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const minViews = parseInt(btn.dataset.views, 10);
+      
+      // 조회수 기준 변경
+      VIDEO_CONFIG.MIN_VIEWS = minViews;
+      
+      // 버튼 활성화 상태 변경
+      viewsButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // 캐시된 데이터 다시 필터링 (새로 로드하지 않고)
+// 캐시된 데이터에서 다시 필터링 (빠른 처리)
+const currentTab = window.mainState.currentTab;
+displayVideos(currentTab);
+      
+      // 토스트 메시지 표시
+      window.toast && window.toast(`조회수 기준이 ${(minViews/10000)}만으로 변경되었습니다.`, 'success');
     });
   });
 }
