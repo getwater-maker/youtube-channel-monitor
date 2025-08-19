@@ -96,31 +96,37 @@
           <h2>🎥 영상 분석</h2>
           <div class="section-actions">
             <div class="video-filter-tabs">
-              <button class="video-tab" data-video-tab="mutant">🚀 돌연변이</button>
-              <button class="video-tab active" data-video-tab="latest">📱 최신영상</button>
-              
-              <!-- 정렬 선택 -->
-              <select id="sort-videos" style="margin-left: 16px; padding: 6px 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-weight: 600;">
-                <option value="views">조회수</option>
-                <option value="subscribers">구독자수</option>
-                <option value="latest">최근업로드</option>
-                <option value="mutantIndex">돌연변이지수</option>
-              </select>
-              
-              <!-- 기간 필터 -->
-              <div class="date-range" style="margin-left: 8px;">
-                <button class="period-btn" data-period="1w">1주</button>
-                <button class="period-btn" data-period="2w">2주</button>
-                <button class="period-btn active" data-period="1m">한달</button>
-                <button class="period-btn" data-period="all">전체</button>
-              </div>
-              
-              <!-- 다시불러오기와 다운로드 버튼 -->
-              <div class="video-actions-group" style="margin-left: 16px; display: flex; gap: 8px;">
-                <button id="btn-refresh-videos" class="btn btn-primary">🔄 다시불러오기</button>
-                <button id="btn-download-current" class="btn btn-secondary">📥 현재페이지 다운로드</button>
-              </div>
-            </div>
+  <!-- 정렬 선택 (돌연변이 앞으로 이동) -->
+  <select id="sort-videos" style="margin-right: 16px; padding: 6px 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-weight: 600;">
+    <option value="views">조회수</option>
+    <option value="subscribers">구독자수</option>
+    <option value="latest">최근업로드</option>
+    <option value="mutantIndex">돌연변이지수</option>
+  </select>
+  
+  <button class="video-tab" data-video-tab="mutant">🚀 돌연변이</button>
+  <button class="video-tab active" data-video-tab="latest">📱 최신영상</button>
+  
+  <!-- 조회수 기준 필터 (새로 추가) -->
+  <div class="views-range" style="margin-left: 16px;">
+    <button class="views-btn" data-views="10000">1만</button>
+    <button class="views-btn" data-views="30000">3만</button>
+    <button class="views-btn active" data-views="50000">5만</button>
+  </div>
+  
+  <!-- 기간 필터 -->
+  <div class="date-range" style="margin-left: 8px;">
+    <button class="period-btn" data-period="1w">1주</button>
+    <button class="period-btn" data-period="2w">2주</button>
+    <button class="period-btn active" data-period="1m">한달</button>
+    <button class="period-btn" data-period="all">전체</button>
+  </div>
+  
+  <!-- 다시불러오기만 남김 (현재페이지 다운로드 버튼 삭제) -->
+  <div class="video-actions-group" style="margin-left: 16px;">
+    <button id="btn-refresh-videos" class="btn btn-primary">🔄 다시불러오기</button>
+  </div>
+</div>
           </div>
         </div>
 
