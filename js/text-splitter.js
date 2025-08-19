@@ -1,12 +1,11 @@
 /**
  * text-splitter.js — 작업 도우미 (개선된 디자인 및 기능)
- * - 썸네일 문구는 전체 표시, 이미지 프롬프트는 확인용으로 축소
- * - 썸네일 문구와 이미지 프롬프트를 하나의 섹션으로 통합
- * - 유튜브 업로드 설명 중복 제거 및 글자수/복사 버튼 위로 이동
- * - extractScriptBody 함수 수정하여 ## 1장. 이후 내용 올바르게 추출
+ * - 참고영상정보와 AI가 만든 콘텐츠 위치 변경
+ * - AI 콘텐츠에서 원본 정보 자동 추출 및 참고영상정보에 자동 입력
+ * - 업로드 날짜 상하 버튼으로 변경
  */
 
-console.log('text-splitter.js (개선된 버전) 로딩 시작');
+console.log('text-splitter.js (수정된 버전) 로딩 시작');
 
 (function () {
   'use strict';
@@ -72,6 +71,15 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
   const autosize = (ta) => {
     const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
     ta.addEventListener('input', fit); fit();
+  };
+
+  // 날짜 변경 함수
+  const changeDate = (dateInput, days) => {
+    const currentDate = new Date(dateInput.value || today());
+    currentDate.setDate(currentDate.getDate() + days);
+    const mm = String(currentDate.getMonth()+1).padStart(2,'0');
+    const dd = String(currentDate.getDate()).padStart(2,'0');
+    dateInput.value = `${currentDate.getFullYear()}-${mm}-${dd}`;
   };
 
   // 문장 분할 (--- 보존)
@@ -199,6 +207,58 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
       .map(ln => ln.replace(/이미지\s*프림프트/gi,'').trim());
 
     return block.join('\n').trim();
+  }
+
+  // 원본 정보 추출 함수
+  function extractOriginalInfo(text) {
+    const lines = (text || '').replace(/\r\n/g, '\n').split('\n');
+    
+    // ## 원본 정보 섹션 찾기
+    let startIndex = -1;
+    let endIndex = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*##\s*원본\s*정보\s*$/i.test(lines[i])) {
+        startIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (startIndex === -1) return { thumbnail: '', title: '', url: '' };
+    
+    // 다음 ## 섹션까지 또는 파일 끝까지
+    for (let i = startIndex; i < lines.length; i++) {
+      if (lines[i].startsWith('##') && i > startIndex) {
+        endIndex = i - 1;
+        break;
+      }
+    }
+    
+    if (endIndex === -1) endIndex = lines.length - 1;
+    
+    const originalInfoLines = lines.slice(startIndex, endIndex + 1);
+    
+    let thumbnail = '';
+    let title = '';
+    let url = '';
+    
+    for (const line of originalInfoLines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('- 썸네일 문구:')) {
+        thumbnail = trimmedLine.replace(/^- 썸네일 문구:\s*/, '').replace(/^\[|\]$/g, '');
+      } else if (trimmedLine.startsWith('- 제목:')) {
+        title = trimmedLine.replace(/^- 제목:\s*/, '').replace(/^\[|\]$/g, '');
+      } else if (trimmedLine.startsWith('- URL:')) {
+        url = trimmedLine.replace(/^- URL:\s*/, '').replace(/^\[|\]$/g, '');
+      }
+    }
+    
+    return { thumbnail, title, url };
+  }
+
+  // 샵 하나(#)만 있는 줄 제거 함수
+  function removeSingleHashLines(text) {
+    return text.replace(/^#\s*$/gm, '');
   }
 
   function getNonEmptyLines(text){ return (text||'').replace(/\r\n/g,'\n').split('\n').map(s=>s.trim()).filter(Boolean); }
@@ -710,6 +770,14 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
       color:'var(--text, #e4e6ea)'
     });
     
+    // 날짜 입력 및 버튼 컨테이너
+    const dateContainer=document.createElement('div');
+    Object.assign(dateContainer.style,{
+      display:'flex',
+      alignItems:'center',
+      gap:'4px'
+    });
+    
     const dateInput=document.createElement('input'); 
     dateInput.type='date'; 
     dateInput.value=today(); 
@@ -722,6 +790,58 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
       color:'var(--text, #e4e6ea)',
       fontWeight:'600'
     });
+
+    // 날짜 변경 버튼들
+    const dateUpBtn=document.createElement('button');
+    dateUpBtn.textContent='▲';
+    Object.assign(dateUpBtn.style,{
+      width:'30px',
+      height:'20px',
+      padding:'0',
+      border:'1px solid var(--border, #2a3443)',
+      borderRadius:'4px',
+      background:'var(--glass-bg, rgba(255,255,255,0.05))',
+      color:'var(--text, #e4e6ea)',
+      cursor:'pointer',
+      fontSize:'10px',
+      display:'flex',
+      alignItems:'center',
+      justifyContent:'center'
+    });
+    
+    const dateDownBtn=document.createElement('button');
+    dateDownBtn.textContent='▼';
+    Object.assign(dateDownBtn.style,{
+      width:'30px',
+      height:'20px',
+      padding:'0',
+      border:'1px solid var(--border, #2a3443)',
+      borderRadius:'4px',
+      background:'var(--glass-bg, rgba(255,255,255,0.05))',
+      color:'var(--text, #e4e6ea)',
+      cursor:'pointer',
+      fontSize:'10px',
+      display:'flex',
+      alignItems:'center',
+      justifyContent:'center'
+    });
+
+    const dateBtnContainer=document.createElement('div');
+    Object.assign(dateBtnContainer.style,{
+      display:'flex',
+      flexDirection:'column',
+      gap:'2px'
+    });
+    
+    dateBtnContainer.appendChild(dateUpBtn);
+    dateBtnContainer.appendChild(dateDownBtn);
+    
+    dateContainer.appendChild(dateInput);
+    dateContainer.appendChild(dateBtnContainer);
+
+    // 날짜 버튼 이벤트
+    dateUpBtn.addEventListener('click', () => changeDate(dateInput, 1));
+    dateDownBtn.addEventListener('click', () => changeDate(dateInput, -1));
 
     const btnImport=document.createElement('button'); 
     btnImport.textContent='가져오기(txt)'; 
@@ -751,7 +871,7 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     importInput.style.display='none';
 
     hRight.appendChild(dateLabel); 
-    hRight.appendChild(dateInput);
+    hRight.appendChild(dateContainer);
     hRight.appendChild(btnImport); 
     hRight.appendChild(btnMeta);
     hRight.appendChild(importInput);
@@ -771,7 +891,54 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     gridTop.appendChild(leftCol); 
     gridTop.appendChild(rightCol);
 
-    // 참고영상 정보
+    // AI가 만든 콘텐츠 (위치 변경: 왼쪽으로)
+    const scriptSec=makeSection('');
+    const scriptHead=document.createElement('div'); 
+    Object.assign(scriptHead.style,{
+      display:'flex', 
+      alignItems:'center', 
+      justifyContent:'space-between',
+      marginBottom:'16px'
+    });
+    
+    const scriptTitle=document.createElement('div'); 
+    scriptTitle.textContent='AI가 만든 콘텐츠'; 
+    Object.assign(scriptTitle.style,{
+      fontWeight:'800',
+      fontSize:'1.3rem',
+      color:'var(--text, #e4e6ea)'
+    });
+    
+    const scriptBadge=charBadge({value:'', addEventListener:()=>{}});
+    scriptHead.appendChild(scriptTitle); 
+    scriptHead.appendChild(scriptBadge);
+    
+    const scriptArea=document.createElement('textarea'); 
+    Object.assign(scriptArea.style,{
+      width:'100%', 
+      minHeight:'320px', 
+      padding:'16px', 
+      resize:'vertical', 
+      border:'2px solid var(--border, #2a3443)', 
+      borderRadius:'12px', 
+      background:'var(--panel, #1e2329)', 
+      color:'var(--text, #e4e6ea)',
+      fontSize:'14px',
+      lineHeight:'1.6',
+      fontFamily:'ui-monospace, SFMono-Regular, monospace'
+    });
+    scriptArea.placeholder='여기에 전체 원문을 붙여넣으면 자동으로 구간을 추출합니다.';
+    
+    // 글자수 업데이트 함수 재정의
+    const updateScriptBadge = () => scriptBadge.textContent = ` / ${(scriptArea.value||'').length.toLocaleString('ko-KR')}자`;
+    scriptArea.addEventListener('input', updateScriptBadge);
+    updateScriptBadge();
+    
+    scriptSec.appendChild(scriptHead); 
+    scriptSec.appendChild(scriptArea);
+    leftCol.appendChild(scriptSec);
+
+    // 참고영상 정보 (위치 변경: 오른쪽으로)
     const refSec=makeSection('참고영상 정보');
     const table=document.createElement('div'); 
     Object.assign(table.style,{
@@ -837,56 +1004,9 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     const refTitle=mkRow('제목','참고용 제목');
     const refUrl=mkRow('주소','https://…', true);
     refSec.appendChild(table); 
-    leftCol.appendChild(refSec);
+    rightCol.appendChild(refSec);
 
-    // AI가 만든 콘텐츠 (중복 문구 제거, 글자수 표시 위로 이동)
-    const scriptSec=makeSection('');
-    const scriptHead=document.createElement('div'); 
-    Object.assign(scriptHead.style,{
-      display:'flex', 
-      alignItems:'center', 
-      justifyContent:'space-between',
-      marginBottom:'16px'
-    });
-    
-    const scriptTitle=document.createElement('div'); 
-    scriptTitle.textContent='AI가 만든 콘텐츠'; 
-    Object.assign(scriptTitle.style,{
-      fontWeight:'800',
-      fontSize:'1.3rem',
-      color:'var(--text, #e4e6ea)'
-    });
-    
-    const scriptBadge=charBadge({value:'', addEventListener:()=>{}});
-    scriptHead.appendChild(scriptTitle); 
-    scriptHead.appendChild(scriptBadge);
-    
-    const scriptArea=document.createElement('textarea'); 
-    Object.assign(scriptArea.style,{
-      width:'100%', 
-      minHeight:'320px', 
-      padding:'16px', 
-      resize:'vertical', 
-      border:'2px solid var(--border, #2a3443)', 
-      borderRadius:'12px', 
-      background:'var(--panel, #1e2329)', 
-      color:'var(--text, #e4e6ea)',
-      fontSize:'14px',
-      lineHeight:'1.6',
-      fontFamily:'ui-monospace, SFMono-Regular, monospace'
-    });
-    scriptArea.placeholder='여기에 전체 원문을 붙여넣으면 자동으로 구간을 추출합니다.';
-    
-    // 글자수 업데이트 함수 재정의
-    const updateScriptBadge = () => scriptBadge.textContent = ` / ${(scriptArea.value||'').length.toLocaleString('ko-KR')}자`;
-    scriptArea.addEventListener('input', updateScriptBadge);
-    updateScriptBadge();
-    
-    scriptSec.appendChild(scriptHead); 
-    scriptSec.appendChild(scriptArea);
-    leftCol.appendChild(scriptSec);
-
-    // 추천 제목 top 5 (왼쪽 유지)
+    // 추천 제목 top 5 (왼쪽으로 이동)
     const titleSec=makeSection('추천 제목 top 5');
     const ttWrap=document.createElement('div'); 
     Object.assign(ttWrap.style,{
@@ -904,7 +1024,7 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     titleSec.appendChild(ttWrap); 
     leftCol.appendChild(titleSec);
 
-    // 유튜브 업로드 설명 (중복 제거 및 헤더 통합)
+    // 유튜브 업로드 설명 (왼쪽으로 이동)
     const descSec=makeSection('');
     const descHead=document.createElement('div'); 
     Object.assign(descHead.style,{
@@ -983,9 +1103,7 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     descSec.appendChild(descInput);
     leftCol.appendChild(descSec);
 
-    // ------------------ 오른쪽 컬럼 ------------------
-
-    // 추천 썸네일 top 5 (썸네일 문구 + 이미지 프롬프트 통합)
+    // 추천 썸네일 top 5 (오른쪽으로 이동)
     const thumbSec=makeSection('추천 썸네일 top 5');
     const tWrap=document.createElement('div'); 
     Object.assign(tWrap.style,{
@@ -1004,7 +1122,7 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     thumbSec.appendChild(tWrap);
     rightCol.appendChild(thumbSec);
 
-    // 이미지 프롬프트 (공간 최적화, #9까지 확장)
+    // 이미지 프롬프트 (오른쪽으로 이동)
     const promptSec=makeSection('이미지 프롬프트');
     const promptList=document.createElement('div'); 
     Object.assign(promptList.style,{
@@ -1284,11 +1402,20 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
     function parseAll(){
       const full = state.scriptArea.value || '';
 
-      const desc = extractDescription(full);
+      // 원본 정보 추출 및 참고영상정보에 자동 입력
+      const originalInfo = extractOriginalInfo(full);
+      if (originalInfo.thumbnail) state.refThumb.value = originalInfo.thumbnail;
+      if (originalInfo.title) state.refTitle.value = originalInfo.title;
+      if (originalInfo.url) state.refUrl.value = originalInfo.url;
+
+      // 샵 하나만 있는 줄 제거
+      const cleanedFull = removeSingleHashLines(full);
+
+      const desc = extractDescription(cleanedFull);
       state.descInput.value = desc;
       state.descInput.dispatchEvent(new Event('input'));
 
-      const thumbs=extractThumb5(full), titles=extractTitle5(full);
+      const thumbs=extractThumb5(cleanedFull), titles=extractTitle5(cleanedFull);
       for(let i=0;i<5;i++){
         if (state.thumbRows[i]) {
           state.thumbRows[i].inputEl.value = thumbs[i] || '';
@@ -1299,10 +1426,10 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
       }
 
       // 이미지 프롬프트 매핑
-      fillPrompts(full);
+      fillPrompts(cleanedFull);
 
-      const opening=extractOpening(full);
-      const body=extractScriptBody(full);
+      const opening=extractOpening(cleanedFull);
+      const body=extractScriptBody(cleanedFull);
       
       // "## n장." 라인 정리 후 결합
       const cleanedOpening = cleanChapterLines(opening);
@@ -1381,4 +1508,4 @@ console.log('text-splitter.js (개선된 버전) 로딩 시작');
 
 })();
 
-console.log('text-splitter.js (개선된 버전) 로딩 완료');
+console.log('text-splitter.js (수정된 버전) 로딩 완료');
