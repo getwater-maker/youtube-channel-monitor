@@ -257,9 +257,9 @@ body {
   box-shadow: 0 4px 12px rgba(196,48,43,0.3);
 }
 
-/* 모달 */
+/* 모달 - 기본적으로 완전히 숨겨짐 */
 .modal {
-  display: none; 
+  display: none !important;
   position: fixed; 
   top: 0; 
   left: 0; 
@@ -267,11 +267,15 @@ body {
   height: 100%;
   background: rgba(0,0,0,0.7); 
   z-index: 1000; 
-  display: flex;
   align-items: center; 
   justify-content: center;
   padding: 20px;
   box-sizing: border-box;
+}
+
+/* 모달이 활성화될 때만 표시 */
+.modal.show {
+  display: flex !important;
 }
 .modal-content {
   background: var(--card); 
