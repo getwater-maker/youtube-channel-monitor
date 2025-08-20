@@ -103,16 +103,18 @@
   }
 
   // ========= 모달 =========
-  function openModal(modalId) {
-    const m = document.getElementById(modalId);
-    if (!m) return;
-    m.style.display = 'flex';
-  }
-  function closeModal(modalId) {
-    const m = document.getElementById(modalId);
-    if (!m) return;
-    m.style.display = 'none';
-  }
+function openModal(modalId) {
+  const m = document.getElementById(modalId);
+  if (!m) return;
+  m.style.display = 'flex';
+  m.classList.add('show'); // 이 줄 추가
+}
+function closeModal(modalId) {
+  const m = document.getElementById(modalId);
+  if (!m) return;
+  m.style.display = 'none';
+  m.classList.remove('show'); // 이 줄 추가
+}
   window.openModal = window.openModal || openModal;
   window.closeModal = window.closeModal || closeModal;
 

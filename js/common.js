@@ -231,8 +231,20 @@ function toast(msg, type = 'info', duration = 3000) {
 window.toast = toast;
 
 // 모달
-function openModal(id) { const m = qs('#' + id); if (m) m.style.display = 'block'; }
-function closeModal(id) { const m = qs('#' + id); if (m) m.style.display = 'none'; }
+function openModal(id) { 
+  const m = qs('#' + id); 
+  if (m) {
+    m.style.display = 'flex';
+    m.classList.add('show'); // 추가
+  }
+}
+function closeModal(id) { 
+  const m = qs('#' + id); 
+  if (m) {
+    m.style.display = 'none'; 
+    m.classList.remove('show'); // 추가
+  }
+}
 window.openModal = openModal;
 window.closeModal = closeModal;
 
