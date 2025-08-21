@@ -821,6 +821,61 @@ function showEmptyState(tabName) {
 // ============================================================================
 // 개선된 비디오 카드 렌더링 (고유 ID 사용) - URL 복사 버튼 추가
 // ============================================================================
+// 전체 정보 복사 함수 (새로 추가)
+async function copyFullVideoInfo(video) {
+  if (!video) {
+    window.toast && window.toast('복사할 영상 정보가 없습니다.', 'warning');
+    return;
+  }
+  
+  const ch = video.__channel || {};
+  const title = video.snippet?.title || '(제목 없음)';
+  const videoId = video.id || video.contentDetails?.videoId || '';
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const subscribers = numberWithCommas(ch.subscribers || 0);
+  const views = numberWithCommas(video.statistics?.viewCount || 0);
+  const uploadDate = moment(video.snippet?.publishedAt).format('YYYY-MM-DD');
+  
+  // 정리된 형태로 텍스트 구성
+  const fullInfo = `📺 제목: ${title}
+🔗 URL: ${url}
+👥 구독자: ${subscribers}명
+👀 조회수: ${views}회
+📅 업로드: ${uploadDate}`;
+  
+  const result = await safeClipboardCopy(fullInfo);
+  
+  if (result.success) {
+    const methodText = result.method === 'clipboard-api' ? '' : ' (호환 모드)';
+    window.toast && window.toast(`영상 정보를 복사했습니다!${methodText}`, 'success');
+  } else {
+    // 수동 복사 안내
+    const textArea = document.createElement('textarea');
+    textArea.value = fullInfo;
+    textArea.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:80%;height:300px;z-index:10000;background:white;color:black;border:2px solid #333;padding:10px;border-radius:8px;font-family:monospace;font-size:12px;';
+    textArea.readOnly = true;
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    window.toast && window.toast('영상 정보를 선택했습니다. Ctrl+C를 눌러 복사하세요.', 'info');
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    }, 5000);
+    
+    // 클릭하면 제거
+    textArea.addEventListener('click', () => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    });
+  }
+}
+
+// renderVideoCards 함수에서 HTML 부분 수정 - 기존 action-left 부분을 다음으로 교체
 function renderVideoCards(container, videos, tabName) {
   console.log('renderVideoCards 시작:', videos.length, '개 비디오');
   
@@ -853,8 +908,7 @@ function renderVideoCards(container, videos, tabName) {
     // 고유 ID 생성 (카드별 중복 방지)
     const uniqueId = `${tabName}-${videoId}-${index}`;
     const thumbBtnId = `thumb-btn-${uniqueId}`;
-    const titleBtnId = `title-btn-${uniqueId}`;
-    const urlBtnId = `url-btn-${uniqueId}`;
+    const infoBtnId = `info-btn-${uniqueId}`;
     const completeBtnId = `complete-btn-${uniqueId}`;
     
     // 작업완료 버튼 텍스트 (날짜 포함)
@@ -896,13 +950,9 @@ function renderVideoCards(container, videos, tabName) {
                     title="썸네일 복사">
               📷 썸네일
             </button>
-            <button id="${titleBtnId}" class="btn btn-sm btn-title" 
-                    title="제목 복사">
-              📝 제목
-            </button>
-            <button id="${urlBtnId}" class="btn btn-sm btn-url" 
-                    title="URL 복사">
-              🔗 URL
+            <button id="${infoBtnId}" class="btn btn-sm btn-info" 
+                    title="영상 정보 복사 (제목, URL, 채널, 구독자, 조회수, 업로드날짜)">
+              📋 정보
             </button>
           </div>
           <button id="${completeBtnId}" class="btn btn-sm ${isCompleted ? 'btn-success' : 'btn-secondary'}" 
@@ -919,7 +969,6 @@ function renderVideoCards(container, videos, tabName) {
   // 이벤트 바인딩 (고유 ID로 정확한 버튼 찾기)
   videos.forEach((v, index) => {
     const videoId = v.id || v.contentDetails?.videoId || '';
-    const title = v.snippet?.title || '(제목 없음)';
     const uniqueId = `${tabName}-${videoId}-${index}`;
     
     // 썸네일 복사 버튼
@@ -928,27 +977,17 @@ function renderVideoCards(container, videos, tabName) {
       thumbBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        copyThumbnail(videoId, title);
+        copyThumbnail(videoId, v.snippet?.title);
       });
     }
     
-    // 제목 복사 버튼
-    const titleBtn = document.getElementById(`title-btn-${uniqueId}`);
-    if (titleBtn) {
-      titleBtn.addEventListener('click', (e) => {
+    // 정보 복사 버튼 (기존 제목/URL 버튼을 대체)
+    const infoBtn = document.getElementById(`info-btn-${uniqueId}`);
+    if (infoBtn) {
+      infoBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        copyTitle(title);
-      });
-    }
-    
-    // URL 복사 버튼 (새로 추가)
-    const urlBtn = document.getElementById(`url-btn-${uniqueId}`);
-    if (urlBtn) {
-      urlBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        copyVideoUrl(videoId);
+        copyFullVideoInfo(v);
       });
     }
     
@@ -965,6 +1004,9 @@ function renderVideoCards(container, videos, tabName) {
   
   console.log('이벤트 바인딩 완료');
 }
+
+// 전역 함수로 내보내기
+window.copyFullVideoInfo = copyFullVideoInfo;
 
 function updateKeywords(videos, tabName) {
   const kwBox = document.getElementById(`${tabName}-keywords`);
@@ -1476,4 +1518,62 @@ style.textContent = `
 
 document.head.appendChild(style);
 
+// 전체 정보 복사 함수 (새로 추가)
+async function copyFullVideoInfo(video) {
+  if (!video) {
+    window.toast && window.toast('복사할 영상 정보가 없습니다.', 'warning');
+    return;
+  }
+  
+  const ch = video.__channel || {};
+  const title = video.snippet?.title || '(제목 없음)';
+  const videoId = video.id || video.contentDetails?.videoId || '';
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const channelName = ch.title || '(채널명 없음)';
+  const subscribers = numberWithCommas(ch.subscribers || 0);
+  const views = numberWithCommas(video.statistics?.viewCount || 0);
+  const uploadDate = moment(video.snippet?.publishedAt).format('YYYY-MM-DD');
+  
+  // 정리된 형태로 텍스트 구성
+  const fullInfo = `📺 제목: ${title}
+🔗 URL: ${url}
+👤 채널: ${channelName}
+👥 구독자: ${subscribers}명
+👀 조회수: ${views}회
+📅 업로드: ${uploadDate}`;
+  
+  const result = await safeClipboardCopy(fullInfo);
+  
+  if (result.success) {
+    const methodText = result.method === 'clipboard-api' ? '' : ' (호환 모드)';
+    window.toast && window.toast(`영상 정보를 복사했습니다!${methodText}`, 'success');
+  } else {
+    // 수동 복사 안내
+    const textArea = document.createElement('textarea');
+    textArea.value = fullInfo;
+    textArea.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:80%;height:300px;z-index:10000;background:white;color:black;border:2px solid #333;padding:10px;border-radius:8px;font-family:monospace;font-size:12px;';
+    textArea.readOnly = true;
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    window.toast && window.toast('영상 정보를 선택했습니다. Ctrl+C를 눌러 복사하세요.', 'info');
+    
+    // 5초 후 자동 제거
+    setTimeout(() => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    }, 5000);
+    
+    // 클릭하면 제거
+    textArea.addEventListener('click', () => {
+      if (textArea.parentNode) {
+        document.body.removeChild(textArea);
+      }
+    });
+  }
+}
+
+
 console.log('videos.js 로딩 완료 (화면 표시 문제 해결)');
+
