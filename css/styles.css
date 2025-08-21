@@ -860,3 +860,15 @@ body {
 #url-result::-webkit-scrollbar-thumb:hover {
   background: var(--brand);
 }
+
+.btn-info {
+    background: #17a2b8;
+    color: white;
+    border-color: #17a2b8;
+    flex-shrink: 0;
+  }
+  
+  .btn-info:hover {
+    background: #138496;
+    border-color: #117a8b;
+  }
