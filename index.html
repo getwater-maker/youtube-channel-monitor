@@ -30,6 +30,8 @@
           <button id="btn-channels" class="btn btn-secondary nav-section active">📺 채널관리</button>
           <button id="btn-videos" class="btn btn-secondary nav-section">🎥 영상분석</button>
           <button id="btn-text-splitter" class="btn btn-secondary">✂️ 텍스트 분할</button>
+          <!-- 🔹 새 기능 버튼 추가 -->
+          <button id="btn-scene-parser" class="btn btn-secondary nav-section">🖼️ 씬 프롬프트</button>
           <button id="btn-analyze" class="btn btn-primary">📊 채널 분석</button>
           <button id="btn-toggle-theme" class="btn btn-secondary">라이트 모드</button>
           <button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
@@ -155,7 +157,7 @@
         </div>
       </section>
 
-      <!-- 텍스트 분할 섹션 (새로 추가) -->
+      <!-- 텍스트 분할 섹션 -->
       <section class="section" id="section-text-splitter" data-section="text-splitter" style="display: none;">
         <div class="section-header">
           <h2>✂️ 텍스트 분할기</h2>
@@ -202,6 +204,56 @@
               <div id="empty-chunks-state" style="text-align: center; color: var(--muted); padding: 40px 20px;">
                 아직 결과가 없습니다. 왼쪽에서 텍스트를 입력하고 <strong>나누기</strong>를 눌러주세요.
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 🔹 씬 프롬프트 파서 섹션 -->
+      <section class="section" id="section-scene-parser" data-section="scene-parser" style="display: none;">
+        <div class="section-header">
+          <h2>🖼️ 씬 프롬프트 파서</h2>
+          <div class="section-actions">
+            <!-- 지우기 버튼만 남김 -->
+            <button id="scene-clear" class="btn btn-secondary">지우기</button>
+          </div>
+        </div>
+
+        <!-- 2분할 레이아웃 -->
+        <div class="scene-parser-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: calc(100vh - 200px);">
+          <!-- 입력 영역 -->
+          <div class="scene-input-area" style="display: flex; flex-direction: column;">
+            <label for="scene-input" style="font-weight: 600; margin-bottom: 8px;">입력 텍스트</label>
+            <textarea
+              id="scene-input"
+              placeholder="[1 ~ 2] 또는 [7] 같은 구간만 있어도 됩니다. 결과에는 따옴표 안의 이미지 프롬프트만 표시됩니다."
+              style="flex: 1; resize: none; padding: 16px; border-radius: 12px; border: 2px solid var(--border); background: var(--card); color: var(--text); line-height: 1.6; font-size: 14px; font-family: ui-sans-serif, system-ui, sans-serif;"
+            ></textarea>
+            <div class="help-text" style="margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.4;">
+              <strong>규칙:</strong> ① '이미지 프롬프트:' 라벨 뒤 첫 따옴표 구절 우선 ② 없다면 블록 내 가장 긴 따옴표 구절을 사용합니다. ③ 따옴표는 제거되어 표시됩니다.
+            </div>
+          </div>
+
+          <!-- 결과 영역 -->
+          <div class="scene-output-area" style="display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <label style="font-weight: 600;">결과</label>
+              <span style="font-size: 12px; color: var(--muted);">이미지 프롬프트</span>
+            </div>
+
+            <div class="table-wrap" style="flex: 1; overflow-y: auto; border: 2px solid var(--border); border-radius: 12px; background: var(--card);">
+              <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="position: sticky; top: 0; background: #0f1622;">
+                    <th class="col-scene" style="text-align:left; padding: 12px; border-bottom: 1px solid var(--border); width: 140px; white-space: nowrap;">씬구간</th>
+                    <th class="col-prompt" style="text-align:left; padding: 12px; border-bottom: 1px solid var(--border);">이미지 프롬프트 (따옴표 안 값만)</th>
+                    <th style="text-align:left; padding: 12px; border-bottom: 1px solid var(--border); width: 100px;">복사</th>
+                  </tr>
+                </thead>
+                <tbody id="scene-tbody">
+                  <tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding: 28px;">왼쪽에 입력을 붙여넣으세요.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -294,6 +346,8 @@
   <script src="js/my-channels.js"></script>
   <script src="js/oauth-manager.js"></script>
   <script src="js/text-splitter.js"></script>
+  <!-- 🔹 씬 프롬프트 파서 로딩 -->
+  <script src="js/scene-parser.js"></script>
   <script src="js/main.js"></script>
 
   <script>
