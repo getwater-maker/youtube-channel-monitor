@@ -1,14 +1,17 @@
 /* scene-parser.js — 씬 프롬프트 파서
-   변경점:
-   - 복사 버튼: 텍스트 분할기와 같은 .btn .btn-secondary 사용 + 복사 성공 시 색상 피드백(하이라이트)
-   - 신구간(씬 블록)마다 구분선 추가
    - 입력창 스크롤 제거 & autosize (입력 길이만큼 늘어남)
    - [n ~ m] / [n-m] / [n] 구간만 있어도 파싱
    - 결과에는 "이미지 프롬프트"의 따옴표 안 값만 표시
      우선순위: '이미지 프롬프트:' 라벨 뒤 첫 따옴표 구절 > 블록 내 최장 따옴표 구절
+   - 복사 버튼: 토글 방식 ("복사" ↔ "복사됨"), 텍스트 분할기와 동일 스타일(.btn .btn-secondary)
+   - 구분선: 신(씬) 구간마다 가로 구분선 추가
+   - 파일 저장: JSON 형식, 파일명 = "YYYY-MM-DD_프롬프트.Json"
 */
 
 (function () {
+  // ====== 모듈 상태 ======
+  let _lastResults = []; // [{scene, prompt}, ...]
+
   // ====== 유틸 ======
   const debounce = (fn, ms = 250) => {
     let t;
@@ -113,8 +116,44 @@
     return results;
   }
 
-  // 표 렌더링 (복사 버튼: .btn .btn-secondary)
+  // 파일 저장(JSON) — 파일명: YYYY-MM-DD_프롬프트.Json
+  function saveAsJson(items, dateStrInput) {
+    if (!items || !items.length) {
+      window.toast && window.toast('저장할 항목이 없습니다.', 'warning');
+      return;
+    }
+
+    const dateStr = (dateStrInput && /^\d{4}-\d{2}-\d{2}$/.test(dateStrInput))
+      ? dateStrInput
+      : formatToday();
+
+    const json = JSON.stringify(items, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+
+    const filename = `${dateStr}_프롬프트.Json`; // 요청한 대로 대문자 J
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 0);
+  }
+
+  function formatToday() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }
+
+  // 표 렌더링 (복사 버튼 토글 + 구분선)
   function renderRows(rows, tbody) {
+    _lastResults = rows.slice(); // 저장용 보관
+
     if (!rows.length) {
       tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding: 28px;">왼쪽에 입력을 붙여넣으세요. "[1 ~ 2]" 또는 "[7]" 구간 표기를 인식합니다.</td></tr>`;
       return;
@@ -147,33 +186,34 @@
       const tdCopy = document.createElement('td');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'btn btn-secondary'; // 텍스트 분할기와 동일한 버튼 스타일
+      btn.className = 'btn btn-secondary'; // 텍스트 분할기와 동일한 스타일
       btn.style.whiteSpace = 'nowrap';
       btn.setAttribute('aria-label', `프롬프트 복사 ${idx + 1}`);
       btn.textContent = '복사';
-      btn.addEventListener('click', async () => {
-  const isCopied = btn.classList.contains('is-copied');
 
-  if (isCopied) {
-    // 이미 "복사됨" 상태 → 다시 "복사"로 되돌리기
-    btn.classList.remove('is-copied');
-    btn.textContent = '복사';
-  } else {
-    // "복사" 상태 → 복사 시도 후 "복사됨"으로 유지
-    const ok = await copyText(r.prompt);
-    if (ok) {
-      btn.classList.add('is-copied');
-      btn.textContent = '복사됨';
-    } else {
-      btn.classList.add('is-failed');
-      btn.textContent = '복사 실패';
-      setTimeout(() => {
-        btn.classList.remove('is-failed');
-        btn.textContent = '복사';
-      }, 1500);
-    }
-  }
-});
+      // 토글 동작: "복사" -> 클릭 -> "복사됨"(유지), 다시 클릭 -> "복사"
+      btn.addEventListener('click', async () => {
+        const isCopied = btn.classList.contains('is-copied');
+        if (isCopied) {
+          btn.classList.remove('is-copied');
+          btn.textContent = '복사';
+        } else {
+          const ok = await copyText(r.prompt);
+          if (ok) {
+            btn.classList.add('is-copied');
+            btn.textContent = '복사됨';
+            window.toast && window.toast('복사되었습니다.', 'success');
+          } else {
+            btn.classList.add('is-failed');
+            btn.textContent = '복사 실패';
+            window.toast && window.toast('복사 실패', 'error');
+            setTimeout(() => {
+              btn.classList.remove('is-failed');
+              btn.textContent = '복사';
+            }, 1500);
+          }
+        }
+      });
 
       tdCopy.appendChild(btn);
 
@@ -195,11 +235,16 @@
     const $input = document.getElementById('scene-input');
     const $tbody = document.getElementById('scene-tbody');
     const $clear = document.getElementById('scene-clear');
+    const $save = document.getElementById('scene-save');
+    const $date = document.getElementById('scene-date');
 
-    if (!$input || !$tbody || !$clear) {
+    if (!$input || !$tbody || !$clear || !$save || !$date) {
       console.warn('[scene-parser] 요소를 찾을 수 없습니다. index.html 구성을 확인하세요.');
       return;
     }
+
+    // date 기본값 = 오늘
+    if (!$date.value) $date.value = formatToday();
 
     // 초기 autosize 적용
     autoResize($input);
@@ -218,6 +263,15 @@
       $input.value = '';
       doParse();
       $input.focus();
+    });
+
+    // 파일 저장(JSON)
+    $save.addEventListener('click', () => {
+      if (!_lastResults.length) {
+        window.toast && window.toast('저장할 항목이 없습니다.', 'warning');
+        return;
+      }
+      saveAsJson(_lastResults, $date.value);
     });
 
     // 최초 진입 시 빈 상태 렌더링
