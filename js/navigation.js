@@ -133,6 +133,14 @@ function loadSectionData(sectionName) {
       }
       break;
 
+    case 'scene-parser': // 🔹 추가
+      if (typeof window.initializeSceneParser === 'function') {
+        window.initializeSceneParser();
+      } else {
+        console.warn('initializeSceneParser 미정의: scene-parser.js 로드 여부 확인');
+      }
+      break;
+
     default:
       console.warn('알 수 없는 섹션:', sectionName);
   }
@@ -148,7 +156,8 @@ function bindNavigationEvents() {
     { id: 'btn-my-channels', section: 'my-channels' },
     { id: 'btn-channels', section: 'channels' },
     { id: 'btn-videos', section: 'videos' },
-    { id: 'btn-text-splitter', section: 'text-splitter' }
+    { id: 'btn-text-splitter', section: 'text-splitter' },
+    { id: 'btn-scene-parser', section: 'scene-parser' } // 🔹 추가
   ];
 
   mapping.forEach(({ id, section }) => {
