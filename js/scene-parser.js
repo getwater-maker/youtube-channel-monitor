@@ -1,30 +1,37 @@
 /**
- * scene-parser.js — FULL REPLACEMENT (sentence-aware)
- * - 표: 장면 | 이미지 프롬프트 | 복사  (넘버링 없음)
- * - [장면1] 이전 텍스트 무시, [장면n:] → [장면 nnn] 로 정규화, "## n장."으로 시작하는 줄 삭제(공백 1회)
- * - 대본 패널:
- *    · 헤더 한 줄: "대본 / 대본글자수 N자 / 예상시간 [...]"
- *    · 텍스트는 사용자가 입력한 원문 그대로 보존(덮어쓰지 않음)
- *    · 카드 분할은 '정제된 텍스트'를 사용하되, **문장 단위**로 10,000자 근처에서 안전 분할
- *    · 카드2는 (시작지점 이후 텍스트 길이 > 10,000)일 때만, 카드3은 > 20,000일 때만 표시
- *    · 각 카드: 헤더 "카드 n / n자 / [..]" + 개별 스크롤 + 빨강↔초록 토글 복사 버튼
- * - 모든 복사 버튼: 기본 빨강(#c4302b), 클릭 시 초록(#16a34a), 다시 클릭 시 빨강
- * - 날짜 UI: "업로드 날짜" + date + ▲/▼ 스택(클래식)
+ * scene-parser.js — 단일 입력(대본창) 기반 파서 & UI (요청 사양 반영)
+ *
+ * [범위 규칙]
+ *  - 대본(script)  : "장면 1"(또는 [장면 1], [장면 001] 등) ~ "## 🎨 이미지 프롬프트" 바로 위 줄
+ *  - 이미지 프롬프트: "## 🎨 이미지 프롬프트" 라인 포함 ~ "총 장면 수:" 바로 위 줄
+ *
+ * [추가 파싱 규칙]
+ *  - 줄의 첫 글자가 '#' 인 라인은 삭제하고, 그 자리는 "공백 1줄"로 유지(전체적으로는 연속 공백 1줄로 압축)
+ *
+ * [기능/디자인]
+ *  - 상단: 단일 입력창(대본창, 고정높이 + 스크롤)
+ *  - 하단: 2분할(좌=카드 무제한 세로 스택, 우=이미지 프롬프트 결과 표)
+ *  - 카드 분할: 문장 경계 기준 10,000자 근처로 무제한 분할, 시작 지점은 "초반 45초 훅" → [장면1] → 텍스트 시작
+ *  - 복사 버튼: 빨강↔초록 토글
  */
 
 (function () {
   'use strict';
 
-  /* ===== Constants ===== */
-  const READ_SPEED_CPM   = 360;         // 분당 360자
-  const CARD_LIMIT       = 10000;       // 카드 당 목표 글자수
-  const TA_HEIGHT        = 220;         // textarea & card 높이(px)
+  /* =========================================================
+   * 기본 상수/유틸
+   * ======================================================= */
+  const READ_SPEED_CPM = 360;   // 분당 360자
+  const CARD_LIMIT     = 10000; // 카드 당 목표 글자수
+  const INPUT_H        = 480;   // 대본창 높이
+  const CARD_H         = 220;   // 카드 본문 높이
 
-  /* ===== Utilities ===== */
+  const $  = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
   const pad2 = n => String(n).padStart(2,'0');
   const pad3 = n => String(n).padStart(3,'0');
 
-  const fmtDuration = chars => {
+  const fmtDuration = (chars) => {
     const s = Math.floor((chars / READ_SPEED_CPM) * 60);
     return `[ ${pad2(Math.floor(s/3600))}시 ${pad2(Math.floor((s%3600)/60))}분 ${pad2(s%60)}초 ]`;
   };
@@ -36,8 +43,8 @@
     return `${d.getFullYear()}-${mm}-${dd}`;
   };
 
-  const downloadFile = (filename, data, mime) => {
-    const blob = data instanceof Blob ? data : new Blob([data], { type: mime || 'text/plain;charset=utf-8' });
+  const downloadFile = (filename, data, mime='text/plain;charset=utf-8') => {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename;
@@ -46,95 +53,161 @@
   };
 
   const showToast = (msg, type) => {
-    try { if (typeof window.toast === 'function' && window.toast !== showToast) return window.toast(msg, type); }
-    catch(_) {}
-    console.log('[Toast]', type||'', msg);
+    try { if (typeof window.toast === 'function') return window.toast(msg, type||'info'); } catch(_) {}
+    console.log('[Toast]', type||'info', msg);
   };
 
-  /* ===== Copy buttons: RED <-> GREEN ===== */
+  /* =========================================================
+   * 복사 버튼(빨강↔초록) 스타일/동작
+   * ======================================================= */
   function ensureCopyStyles() {
-    if (document.getElementById('copy-style-toggle')) return;
+    if (document.getElementById('sp-copy-style')) return;
     const st = document.createElement('style');
-    st.id = 'copy-style-toggle';
+    st.id = 'sp-copy-style';
     st.textContent = `
-      .btn-copy { padding:6px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid transparent; }
-      .btn-red   { background:#c4302b; border-color:#c4302b; color:#fff; }
-      .btn-green { background:#16a34a; border-color:#16a34a; color:#fff; }
+      .sp-btn-copy { padding:6px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid transparent; }
+      .sp-btn-red   { background:#c4302b; border-color:#c4302b; color:#fff; }
+      .sp-btn-green { background:#16a34a; border-color:#16a34a; color:#fff; }
     `;
     document.head.appendChild(st);
   }
   function wireCopyToggle(btn, getText) {
     ensureCopyStyles();
-    btn.classList.add('btn-copy', 'btn-red');
+    btn.classList.add('sp-btn-copy','sp-btn-red');
     btn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(typeof getText==='function' ? (getText()||'') : ''); } catch {}
-      if (btn.classList.contains('btn-red')) {
-        btn.classList.remove('btn-red'); btn.classList.add('btn-green');
-      } else {
-        btn.classList.remove('btn-green'); btn.classList.add('btn-red');
-      }
+      btn.classList.toggle('sp-btn-red');
+      btn.classList.toggle('sp-btn-green');
     });
   }
 
-  /* ===== Text preprocessing for parsing only (원문은 보존) =====
-     1) 첫 [장면1] 이전 삭제 (']' 또는 ':' 허용)
-     2) [장면n: ...] → [장면 nnn] 로 정규화(뒤 내용 제거)
-     3) [장면 n] → [장면 nnn]
-     4) "## n장."으로 시작하는 줄 삭제, 빈 줄 1회 유지
-  */
-  function preprocessScriptText(text) {
+  /* =========================================================
+   * 범위 계산(대본/이미지프롬프트)
+   *  - 범위를 먼저 계산한 뒤, 각 범위에 '# 시작 줄 삭제 + 공백 압축' 적용
+   * ======================================================= */
+
+  // 라인 시작 인덱스
+  const lineStartAt = (text, idx) => (idx <= 0 ? 0 : text.lastIndexOf('\n', idx-1)+1);
+  // 다음 줄 시작 인덱스(= 현 라인의 끝+개행까지)
+  const lineEndAt = (text, idx) => {
+    const nl = text.indexOf('\n', idx);
+    return nl === -1 ? text.length : (nl + 1);
+  };
+
+  // "장면 1" 시작 위치 찾기(여러 표기 허용)
+  function findScene1Index(text) {
+    const candidates = [];
+
+    // [장면 1], [장면 001], [장면1], [장면001], 뒤가 ] 또는 :
+    const reBracket = /\[\s*장면\s*0*1\s*(?:\]|\:)/i;
+    const m1 = reBracket.exec(text);
+    if (m1) candidates.push(m1.index);
+
+    // 라인 어디든 "장면 1" (공백/0패딩 허용)
+    const rePlain = /장면\s*0*1\b/i;
+    const m2 = rePlain.exec(text);
+    if (m2) candidates.push(m2.index);
+
+    if (!candidates.length) return 0;
+    return Math.min(...candidates);
+  }
+
+  // "^## 🎨 이미지 프롬프트" 헤더 라인 시작/끝 찾기
+  function findImageHeading(text) {
+    const re = /^[ \t]*##[ \t]*🎨[ \t]*이미지[ \t]*프롬프트.*$/m;
+    const m  = re.exec(text);
+    if (!m) return null;
+    const start = lineStartAt(text, m.index);        // 헤더 라인 시작
+    const end   = lineEndAt(text, m.index);          // 헤더 라인 끝(개행 포함)
+    return { start, end };
+  }
+
+  // "총 장면 수:" 라인 시작 찾기 (헤더 이후에서)
+  function findTotalScenesLine(text, fromIdx) {
+    const slice = text.slice(fromIdx);
+    const re = /^.*총[ \t]*장면[ \t]*수[ \t]*:.*$/m;
+    const m  = re.exec(slice);
+    if (!m) return null;
+    // 전체 텍스트 기준 라인 시작
+    const absIdx = fromIdx + m.index;
+    const lineStart = lineStartAt(text, absIdx);
+    return { lineStart };
+  }
+
+  // 요청한 범위에 맞춰 script/prompt 세그먼트 산출
+  function pickSegments(raw) {
+    const sceneStart   = findScene1Index(raw);              // "장면 1" 시작
+    const imgHeading   = findImageHeading(raw);             // "## 🎨 이미지 프롬프트" 라인
+    const imgStartLine = imgHeading ? imgHeading.start : raw.length;
+
+    // Script: sceneStart ~ (이미지 헤더 '바로 위 줄') → 헤더 라인 시작 직전까지
+    const scriptSeg = raw.slice(sceneStart, imgStartLine);
+
+    // Prompt: (이미지 헤더 라인 포함) ~ ("총 장면 수:" '바로 위 줄'까지)
+    let promptSeg = '';
+    if (imgHeading) {
+      const totalLine = findTotalScenesLine(raw, imgHeading.end);
+      const endIdx = totalLine ? totalLine.lineStart : raw.length;
+      promptSeg = raw.slice(imgHeading.start, endIdx);
+    }
+
+    return { scriptSeg, promptSeg };
+  }
+
+  /* =========================================================
+   * '# 시작 줄 삭제 + 1줄 공백 유지' 및 공백 압축
+   * ======================================================= */
+  function removeHashHeadingLinesKeepGap(text) {
+    const lines = String(text||'').replace(/\r\n/g,'\n').split('\n');
+    const out = [];
+    for (const ln of lines) {
+      if (/^\s*#/.test(ln)) {
+        if (out.length===0 || out[out.length-1] !== '') out.push('');
+      } else {
+        out.push(ln);
+      }
+    }
+    // 연속 공백은 1줄로, 앞뒤 과도한 공백 제거
+    return out.join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '');
+  }
+
+  /* =========================================================
+   * 기존 전처리/블록/프롬프트 추출 로직(유지)
+   *   - 전처리에서 [장면n:] → [장면 nnn], [장면 n] → [장면 nnn]
+   *   - "## n장." 라인 제거(빈 줄 1회 유지)
+   * ======================================================= */
+  function preprocessScriptTextForBlocks(text) {
     if (!text) return '';
 
-    // 1) 첫 [장면1] 이전 삭제
-    const firstIdx = text.search(/\[\s*장면\s*0*1\s*(?:\]|:)/i);
-    if (firstIdx > 0) text = text.slice(firstIdx);
+    let t = String(text);
 
-    // 2) [장면n: ...] 케이스
-    text = text.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
-    text = text.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\n]*/gi,    (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    // [장면n: ...] → [장면 nnn]
+    t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\n]*/gi,    (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    // [장면 n] → [장면 nnn]
+    t = t.replace(/\[\s*장면\s*(\d{1,3})\s*\]/gi,         (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
 
-    // 3) [장면 n]
-    text = text.replace(/\[\s*장면\s*(\d{1,3})\s*\]/gi,         (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
-
-    // 4) "## n장."으로 시작하는 줄 삭제
-    const lines = text.replace(/\r\n/g,'\n').split('\n');
+    // "## n장." 으로 시작하는 줄 삭제(빈 줄 1회 유지)
+    const lines = t.replace(/\r\n/g,'\n').split('\n');
     const out = [];
     for (const ln of lines) {
       if (/^##\s*\d+\s*장\./i.test(ln)) {
-        if (out.length===0 || out[out.length-1] !== '') out.push(''); // 빈 줄 1회 유지
+        if (out.length===0 || out[out.length-1] !== '') out.push('');
       } else out.push(ln);
     }
-    let res = out.join('\n').replace(/\n{3,}/g, '\n\n');
-    return res;
+    return out.join('\n').replace(/\n{3,}/g,'\n\n');
   }
 
-  /* ===== Prompt extraction ===== */
-  function findQuotedSegments(t) {
-    const re = /["“”'‘’]([^"“”'‘’]+)["“”'‘’]/g;
-    const out = []; let m;
-    while ((m = re.exec(t)) !== null) out.push({ text: m[1], index: m.index });
-    return out;
-  }
-  // "이미지 프(롬|름)프트:" 뒤 첫 인용구, 없으면 가장 긴 인용구
-  function extractPromptFromBlock(blockText) {
-    const labelRe = /이미지\s*프(?:롬|름)프트\s*:/i;
-    const idx = blockText.search(labelRe);
-    const qs  = findQuotedSegments(blockText);
-    if (!qs.length) return '';
-    if (idx >= 0) {
-      const after = qs.find(q => q.index >= idx);
-      if (after) return (after.text||'').trim();
-    }
-    return qs.sort((a,b)=>b.text.length-a.text.length)[0].text.trim();
-  }
-
-  /* ===== Scene block parsing for table ===== */
-  function parseSceneBlocks(fullText) {
-    const text  = preprocessScriptText(fullText);
-    const lines = text.replace(/\r\n/g,'\n').split('\n');
+  // [장면 nnn] 블록 분리(없으면 하나의 블록으로)
+  function parseSceneBlocks(text) {
+    const t = preprocessScriptTextForBlocks(text||'');
+    const lines = t.replace(/\r\n/g,'\n').split('\n');
     const headerRe = /\[\s*장면\s*(\d{1,3})\s*\]/i;
 
-    let started=false, cur=null;
+    let cur=null, started=false;
     const blocks=[];
     for (const ln of lines) {
       const m = ln.match(headerRe);
@@ -149,68 +222,330 @@
       }
     }
     if (cur) blocks.push(cur);
-    return blocks.map(b => ({ label:b.label, body:b.body.join('\n').trim() }));
+    if (!blocks.length && (t || '').trim()) {
+      blocks.push({ label:'-', body: t.split('\n') });
+    }
+    return blocks.map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() }));
   }
 
-  /* ===== Table: 장면 | 이미지 프롬프트 | 복사 ===== */
-  function ensureSceneTableHeader() {
-    const tbody = document.getElementById('scene-tbody');
-    if (!tbody) return;
-    const table = tbody.closest('table');
-    const thead = table ? table.querySelector('thead') : null;
-    if (!thead) return;
-    thead.innerHTML = `
-      <tr>
-        <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:160px;">장면</th>
-        <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border);">이미지 프롬프트</th>
-        <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:110px;">복사</th>
-      </tr>
+  // 따옴표 구문 추출 & 선택 규칙
+  function getQuotedSegments(text, startIndex = 0) {
+    const src = String(text || '');
+    const segments = [];
+    const patterns = [
+      /"([^"]+)"/g,
+      /'([^']+)'/g,
+      /“([^”]+)”/g,
+      /‘([^’]+)’/g,
+      /`([^`]+)`/g
+    ];
+    for (const re of patterns) {
+      re.lastIndex = 0; let m;
+      while ((m = re.exec(src)) !== null) {
+        const content = m[1]; const start = m.index; const end = re.lastIndex;
+        if (end > startIndex) segments.push({ content, start, end, len: content.length });
+      }
+    }
+    segments.sort((a,b)=>a.start-b.start);
+    return segments;
+  }
+  function extractPromptFromBlock(blockText) {
+    const src = String(blockText || '');
+    const labelIdx = src.search(/이미지\s*프(?:롬|름)프트\s*:/i);
+    const quoted = getQuotedSegments(src, 0);
+    if (!quoted.length) return '';
+    if (labelIdx >= 0) {
+      const after = quoted.find(q => q.start >= labelIdx);
+      if (after) return after.content.trim();
+      const tailLine = src.slice(labelIdx).split('\n')[0].replace(/^[^:]*:/, '').trim();
+      if (tailLine) return tailLine.replace(/^["'“‘`]|["'”’`]$/g,'').trim();
+    }
+    return quoted.sort((a,b)=>b.len-a.len)[0].content.trim();
+  }
+
+  /* =========================================================
+   * 카드 분할(문장 경계, 무제한)
+   *  - 시작 지점: "초반 45초 훅" → 첫 [장면1] → 0
+   * ======================================================= */
+  function startIndexForCards(cleanedText) {
+    let i = cleanedText.search(/초반\s*45\s*초\s*훅/i);
+    if (i === -1) {
+      const j = cleanedText.search(/\[\s*장면\s*0*1\s*(?:\]|:)/i);
+      i = (j === -1) ? 0 : j;
+    }
+    return i < 0 ? 0 : i;
+  }
+
+  function sentenceEndPositions(str) {
+    const ends = [];
+    const END_PUNCT = '.!?！？。…';
+    const TRAIL = '’”"\'\\)］〕〉》」『』）」】]';
+    for (let i=0;i<str.length;i++) {
+      const ch = str[i];
+      if (END_PUNCT.includes(ch)) {
+        let j = i + 1;
+        while (j < str.length && TRAIL.includes(str[j])) j++;
+        ends.push(j);
+      }
+    }
+    if (ends.length === 0 || ends[ends.length-1] !== str.length) ends.push(str.length);
+    return ends;
+  }
+
+  function cutAtSentenceBoundary(str, limit) {
+    const ends = sentenceEndPositions(str);
+    let cut = ends[0];
+    for (let k=0;k<ends.length;k++) {
+      if (ends[k] <= limit) cut = ends[k];
+      else break;
+    }
+    return { head: str.slice(0, cut), tail: str.slice(cut) };
+  }
+
+  function splitCardsUnlimitedFromScript(scriptRaw) {
+    const cleanedNoHash = removeHashHeadingLinesKeepGap(scriptRaw||'');
+    // 블록 표준화(장면 라벨 등)
+    const cleaned = preprocessScriptTextForBlocks(cleanedNoHash);
+    const start   = startIndexForCards(cleaned);
+    let rest = cleaned.slice(start);
+
+    const chunks = [];
+    while (rest && rest.trim().length) {
+      const { head, tail } = cutAtSentenceBoundary(rest, CARD_LIMIT);
+      chunks.push(head.trim());
+      rest = tail;
+      if (!rest || !rest.trim()) break;
+    }
+    return chunks;
+  }
+
+  /* =========================================================
+   * 레이아웃: 상단 대본창 + 하단 2분할
+   * ======================================================= */
+  function ensureLayoutStyles() {
+    if (document.getElementById('sp-layout-style')) return;
+    const st = document.createElement('style');
+    st.id = 'sp-layout-style';
+    st.textContent = `
+      #section-scene-parser .scene-parser-content {
+        display: block !important;   /* 위→아래 흐름 보장 */
+        height: auto !important;
+      }
+      #sp-top-input { margin-bottom: 16px; }
+      #sp-top-input label { font-weight: 800; margin-bottom: 8px; display: inline-block; color: var(--text); }
+      #scene-input {
+        width: 100%;
+        height: ${INPUT_H}px;
+        resize: none !important;
+        overflow-y: auto !important;
+        padding: 16px;
+        border-radius: 12px;
+        border: 2px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        line-height: 1.6;
+        font-size: 14px;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      #sp-bottom-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 24px;
+        align-items: start;
+        margin-top: 12px;
+      }
+      #sp-cards { display: flex; flex-direction: column; gap: 12px; }
+      .sp-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--glass-bg);
+        padding: 12px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .sp-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .sp-card-title { font-weight: 700; color: var(--brand); }
+      .sp-card-pre {
+        margin: 0; padding: 0;
+        white-space: pre-wrap; word-break: break-word;
+        line-height: 1.6; font-family: ui-monospace, SFMono-Regular, monospace;
+        max-height: ${CARD_H}px; overflow-y: auto;
+      }
+      @media (max-width: 900px) { #sp-bottom-grid { grid-template-columns: 1fr; } }
     `;
+    document.head.appendChild(st);
   }
-  function renderSceneTable(rows) {
+
+  function rebuildSceneLayout() {
+    const section = document.getElementById('section-scene-parser');
+    if (!section) return;
+    const oldContent = section.querySelector('.scene-parser-content');
+    if (!oldContent) return;
+
+    const oldInputArea  = oldContent.querySelector('.scene-input-area');
+    const oldOutputArea = oldContent.querySelector('.scene-output-area');
+    const tableWrap = oldOutputArea ? oldOutputArea.querySelector('.table-wrap') : null;
+
+    // 상단: 대본창
+    const topInput = document.createElement('div');
+    topInput.id = 'sp-top-input';
+    const label = document.createElement('label');
+    label.setAttribute('for','scene-input');
+    label.textContent = '대본창';
+    topInput.appendChild(label);
+
+    const sceneInput = $('#scene-input', oldInputArea || document);
+    if (sceneInput) {
+      sceneInput.style.overflow = 'auto';
+      sceneInput.style.resize   = 'none';
+      sceneInput.style.height   = INPUT_H + 'px';
+      topInput.appendChild(sceneInput);
+    }
+
+    // 하단: 2분할
+    const bottomGrid = document.createElement('div');
+    bottomGrid.id = 'sp-bottom-grid';
+
+    const leftCards = document.createElement('div');
+    leftCards.id = 'sp-cards';
+
+    const rightPanel = document.createElement('div');
+    if (tableWrap) rightPanel.appendChild(tableWrap);
+    else if (oldOutputArea) rightPanel.appendChild(oldOutputArea);
+
+    bottomGrid.appendChild(leftCards);
+    bottomGrid.appendChild(rightPanel);
+
+    // 교체
+    oldContent.innerHTML = '';
+    oldContent.appendChild(topInput);
+    oldContent.appendChild(bottomGrid);
+  }
+
+  /* =========================================================
+   * 렌더링
+   * ======================================================= */
+
+  // 우측 표: 이미지 프롬프트 범위에서 블록/프롬프트 추출
+  function renderPromptTableFromInput() {
     const tbody = document.getElementById('scene-tbody');
     if (!tbody) return;
-    ensureSceneTableHeader();
 
-    if (!rows || rows.length===0) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:28px; color:var(--muted);">입력을 붙여넣으세요.</td></tr>';
+    const thead = tbody.closest('table')?.querySelector('thead');
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th class="col-scene"  style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:160px;">장면</th>
+          <th class="col-prompt" style="text-align:left; padding:12px; border-bottom:1px solid var(--border);">이미지 프롬프트</th>
+          <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:110px;">복사</th>
+        </tr>
+      `;
+    }
+
+    const input = $('#scene-input');
+    const raw   = input ? (input.value || '') : '';
+    const { promptSeg } = pickSegments(raw);
+    const promptClean   = removeHashHeadingLinesKeepGap(promptSeg);
+    const blocks        = parseSceneBlocks(promptClean);
+
+    const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
+                       .filter(r => (r.prompt||'').trim().length);
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding: 28px;">이미지 프롬프트 범위에서 유효한 프롬프트를 찾지 못했습니다.</td></tr>`;
       return;
     }
+
     const frag = document.createDocumentFragment();
     rows.forEach(({ label, prompt }) => {
       const tr = document.createElement('tr');
 
-      const tdL = document.createElement('td');
-      tdL.textContent = label;
-      Object.assign(tdL.style,{ padding:'12px', borderBottom:'1px solid var(--border)' });
+      const tdScene = document.createElement('td');
+      tdScene.className = 'col-scene';
+      tdScene.style.whiteSpace = 'nowrap';
+      tdScene.style.padding = '12px';
+      tdScene.style.borderBottom = '1px solid var(--border)';
+      tdScene.textContent = label;
 
-      const tdP = document.createElement('td');
-      tdP.textContent = prompt || '';
-      Object.assign(tdP.style,{ padding:'12px', borderBottom:'1px solid var(--border)' });
+      const tdPrompt = document.createElement('td');
+      tdPrompt.className = 'col-prompt';
+      tdPrompt.style.padding = '12px';
+      tdPrompt.style.borderBottom = '1px solid var(--border)';
+      const divText = document.createElement('div');
+      divText.className = 'prompt-text';
+      divText.textContent = prompt || '';
+      tdPrompt.appendChild(divText);
 
-      const tdC = document.createElement('td');
-      Object.assign(tdC.style,{ padding:'12px', borderBottom:'1px solid var(--border)' });
-
+      const tdCopy = document.createElement('td');
+      tdCopy.style.padding = '12px';
+      tdCopy.style.borderBottom = '1px solid var(--border)';
       const btn = document.createElement('button');
       btn.textContent = '복사';
       wireCopyToggle(btn, () => prompt || '');
-      tdC.appendChild(btn);
+      tdCopy.appendChild(btn);
 
-      tr.appendChild(tdL); tr.appendChild(tdP); tr.appendChild(tdC);
+      tr.appendChild(tdScene);
+      tr.appendChild(tdPrompt);
+      tr.appendChild(tdCopy);
       frag.appendChild(tr);
     });
+
     tbody.innerHTML = '';
     tbody.appendChild(frag);
   }
-  const computeSceneRowsFromInput = () => {
-    const input = document.getElementById('scene-input');
-    if (!input) return [];
-    const blocks = parseSceneBlocks(input.value || '');
-    return blocks.map(({ label, body }) => ({ label, prompt: extractPromptFromBlock(body) }));
-  };
 
-  /* ===== Date UI (classic) ===== */
-  function changeDate(dateInput, days){
+  // 좌측 카드: 대본 범위에서 문장경계 분할(무제한)
+  function renderCardsFromInput() {
+    const container = document.getElementById('sp-cards');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const input = $('#scene-input');
+    const raw   = input ? (input.value || '') : '';
+    const { scriptSeg } = pickSegments(raw);
+
+    const chunks = splitCardsUnlimitedFromScript(scriptSeg);
+
+    if (!chunks.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = '카드로 만들 텍스트가 없습니다. 대본창에 텍스트를 입력해주세요.';
+      container.appendChild(empty);
+      return;
+    }
+
+    chunks.forEach((text, idx) => {
+      const n = (text||'').length;
+
+      const card = document.createElement('div');
+      card.className = 'sp-card';
+
+      const head = document.createElement('div');
+      head.className = 'sp-card-head';
+
+      const title = document.createElement('div');
+      title.className = 'sp-card-title';
+      title.textContent = `카드 ${String(idx+1)} / ${n.toLocaleString('ko-KR')}자 / ${fmtDuration(n)}`;
+
+      const btn = document.createElement('button');
+      btn.textContent = '복사';
+      wireCopyToggle(btn, () => text || '');
+
+      const pre = document.createElement('pre');
+      pre.className = 'sp-card-pre';
+      pre.textContent = text || '';
+
+      head.appendChild(title);
+      head.appendChild(btn);
+      card.appendChild(head);
+      card.appendChild(pre);
+      container.appendChild(card);
+    });
+  }
+
+  /* =========================================================
+   * 날짜 UI (유지)
+   * ======================================================= */
+  function changeDate(dateInput, days) {
     const d = new Date(dateInput.value || today());
     d.setDate(d.getDate() + days);
     const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -218,6 +553,7 @@
     dateInput.value = `${d.getFullYear()}-${mm}-${dd}`;
     dateInput.dispatchEvent(new Event('change'));
   }
+
   function restoreDateUI() {
     const sec = document.getElementById('section-scene-parser');
     if (!sec) return;
@@ -229,15 +565,15 @@
 
     const label = document.createElement('div');
     label.textContent = '업로드 날짜';
-    Object.assign(label.style, { fontWeight:'600', marginRight:'8px', color:'var(--text,#e4e6ea)' });
+    Object.assign(label.style,{ fontWeight:'600', marginRight:'8px', color:'var(--text,#e4e6ea)' });
 
     const wrap = document.createElement('div');
     wrap.className = 'sp-date-wrap';
-    Object.assign(wrap.style, { display:'inline-flex', alignItems:'center', gap:'6px', marginRight:'8px' });
+    Object.assign(wrap.style,{ display:'inline-flex', alignItems:'center', gap:'6px', marginRight:'8px' });
 
     date.type = 'date';
     if (!date.value) date.value = today();
-    Object.assign(date.style, {
+    Object.assign(date.style,{
       height:'40px', padding:'8px 12px',
       border:'2px solid var(--border,#2a3443)', borderRadius:'8px',
       background:'var(--panel,#1e2329)', color:'var(--text,#e4e6ea)', fontWeight:'600'
@@ -245,228 +581,89 @@
 
     const col = document.createElement('div');
     Object.assign(col.style,{ display:'flex', flexDirection:'column', gap:'2px' });
-    const mk = t => {
-      const b=document.createElement('button'); b.textContent=t;
+
+    const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t;
       Object.assign(b.style,{
         width:'30px', height:'20px', padding:'0',
         border:'1px solid var(--border,#2a3443)', borderRadius:'4px',
         background:'var(--glass-bg,rgba(255,255,255,.05))',
         color:'var(--text,#e4e6ea)', fontSize:'10px',
         display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'
-      }); return b;
-    };
+      }); return b; };
     const up=mk('▲'), dn=mk('▼');
     up.addEventListener('click',()=>changeDate(date,1));
     dn.addEventListener('click',()=>changeDate(date,-1));
-
     col.appendChild(up); col.appendChild(dn);
-    wrap.appendChild(date); wrap.appendChild(col);
 
-    actions.insertBefore(label, actions.firstChild || null);
+    wrap.appendChild(date); wrap.appendChild(col);
+    actions.insertBefore(label, actions.firstChild||null);
     actions.insertBefore(wrap, label.nextSibling);
   }
 
-  /* ===== Sentence-aware card splitting ===== */
-
-  // 카드 시작 지점: "초반 45초 훅" > 첫 [장면1] > 0
-  function startIndexForCards(cleanedText) {
-    let i = cleanedText.search(/초반\s*45\s*초\s*훅/i);
-    if (i === -1) {
-      const j = cleanedText.search(/\[\s*장면\s*0*1\s*(?:\]|:)/i);
-      i = (j === -1) ? 0 : j;
-    }
-    return i < 0 ? 0 : i;
-  }
-
-  // 문장 경계 인덱스 계산: 마침표/물음표/느낌표/중국어종결/ellipsis 뒤의 따옴표까지 포함
-  function sentenceEndPositions(str) {
-    const ends = [];
-    const END_PUNCT = '.!?！？。…';
-    const TRAIL = '’”"\')］〕〉》」』）]'; // 닫는 따옴표/괄호류
-    for (let i=0;i<str.length;i++) {
-      const ch = str[i];
-      if (END_PUNCT.includes(ch)) {
-        let j = i + 1;
-        while (j < str.length && TRAIL.includes(str[j])) j++;
-        ends.push(j);
-      }
-    }
-    if (ends.length === 0 || ends[ends.length-1] !== str.length) {
-      ends.push(str.length); // 문장부호가 없으면 끝까지 하나로 취급
-    }
-    return ends;
-  }
-
-  // limit 이하의 가장 가까운 문장 경계에서 자르기.
-  // limit 이내 경계가 없으면 첫 경계에서 자른다(문장 하나가 limit보다 길 때 허용).
-  function cutAtSentenceBoundary(str, limit) {
-    const ends = sentenceEndPositions(str);
-    let cut = ends[0];
-    for (let k=0;k<ends.length;k++) {
-      if (ends[k] <= limit) cut = ends[k];
-      else break;
-    }
-    return { head: str.slice(0, cut), tail: str.slice(cut) };
-  }
-
-  // 문장 단위 카드 1~3 생성
-  function splitCardsBySentence(rawText) {
-    const cleaned = preprocessScriptText(rawText || '');
-    const baseStart = startIndexForCards(cleaned);
-    const base = cleaned.slice(baseStart);      // 분할 대상
-    const totalLen = base.length;
-
-    if (!totalLen) return ['', '', '', 0];      // [c1,c2,c3,totalLen]
-
-    const c1res = cutAtSentenceBoundary(base, CARD_LIMIT);
-    const c1 = c1res.head;
-
-    const c2 = (totalLen > CARD_LIMIT)
-      ? cutAtSentenceBoundary(c1res.tail, CARD_LIMIT).head
-      : '';
-
-    const c3 = (totalLen > CARD_LIMIT*2)
-      ? cutAtSentenceBoundary(cutAtSentenceBoundary(c1res.tail, CARD_LIMIT).tail, CARD_LIMIT).head
-      : '';
-
-    return [c1, c2, c3, totalLen];
-  }
-
-  /* ===== Script Panel (UI) ===== */
-  function ensurePanelStyle() {
-    if (document.getElementById('scene-panel-style')) return;
-    const st = document.createElement('style');
-    st.id = 'scene-panel-style';
-    st.textContent = `
-      #scene-script-panel{border:2px solid var(--border,#2a3443);border-radius:16px;padding:20px;background:var(--card,#151b24);margin:16px 0 24px;box-shadow:0 4px 20px rgba(0,0,0,.1)}
-      #scene-script-head{display:flex;align-items:center;gap:8px;margin-bottom:12px;white-space:nowrap}
-      #scene-script-head .title{font-weight:800;font-size:1.2rem;color:var(--text,#e4e6ea)}
-      #scene-script-head .meta{font-weight:800;color:var(--muted,#9aa4b2)}
-      #scene-script-input{width:100%;height:${TA_HEIGHT}px;padding:16px;resize:none;overflow-y:auto;border:2px solid var(--border,#2a3443);border-radius:12px;background:var(--panel,#1e2329);color:var(--text,#e4e6ea);font:14px/1.6 ui-monospace,SFMono-Regular,monospace}
-      #scene-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
-      .scene-card{border:1px solid var(--border,#2a3443);border-radius:12px;background:var(--glass-bg,rgba(255,255,255,.02));padding:12px;display:flex;flex-direction:column;gap:8px;height:${TA_HEIGHT}px}
-      .scene-card-row{display:flex;align-items:center;justify-content:space-between}
-      .scene-card-title{font-weight:700;color:var(--brand,#c4302b)}
-      .scene-card pre{flex:1 1 auto;min-height:0;overflow-y:auto;margin:0;padding:0;white-space:pre-wrap;word-break:break-word;line-height:1.6;font-family:inherit}
-      .scene-cards-hidden{display:none !important;}
-    `;
-    document.head.appendChild(st);
-  }
-
-  function renderScriptPanel() {
-    const section = document.getElementById('section-scene-parser');
-    if (!section || document.getElementById('scene-script-panel')) return;
-    ensurePanelStyle();
-
-    const content = section.querySelector('.scene-parser-content');
-
-    const panel  = document.createElement('section'); panel.id = 'scene-script-panel';
-    const head   = document.createElement('div');     head.id  = 'scene-script-head';
-
-    const title  = document.createElement('span'); title.className='title'; title.textContent = '대본';
-    const meta   = document.createElement('span'); meta.className='meta';  meta.textContent  = ' / 대본글자수 0자 / 예상시간 [ 00시 00분 00초 ]';
-    head.appendChild(title); head.appendChild(meta);
-
-    const ta     = document.createElement('textarea'); ta.id   = 'scene-script-input';
-    ta.placeholder = '여기에 대본을 붙여넣으면, 카드 1·2·3이 문장 단위로 분할되어 생성됩니다. (시작: "초반 45초 훅" → 없으면 첫 [장면1])';
-
-    const grid   = document.createElement('div');  grid.id = 'scene-cards'; grid.classList.add('scene-cards-hidden');
-
-    function makeCard(idx, chunkText) {
-      const card = document.createElement('div'); card.className = 'scene-card';
-      const row  = document.createElement('div'); row.className  = 'scene-card-row';
-      const left = document.createElement('div'); left.className = 'scene-card-title';
-      const n    = (chunkText || '').length;
-      left.textContent = `카드 ${idx} / ${n.toLocaleString('ko-KR')}자 / ${fmtDuration(n)}`;
-      const btn  = document.createElement('button'); btn.textContent='복사';
-      wireCopyToggle(btn, () => chunkText || '');
-      const pre  = document.createElement('pre'); pre.textContent = chunkText || '';
-
-      row.appendChild(left); row.appendChild(btn);
-      card.appendChild(row); card.appendChild(pre);
-      return card;
-    }
-
-    function renderCardsFrom(raw) {
-      const [c1, c2, c3, totalLen] = splitCardsBySentence(raw);
-      grid.innerHTML = '';
-
-      if (totalLen > 0) grid.appendChild(makeCard(1, c1));
-      if (totalLen > CARD_LIMIT) grid.appendChild(makeCard(2, c2));
-      if (totalLen > CARD_LIMIT*2) grid.appendChild(makeCard(3, c3));
-    }
-
-    function onInput() {
-      const raw = ta.value || '';
-      meta.textContent = ` / 대본글자수 ${raw.length.toLocaleString('ko-KR')}자 / 예상시간 ${fmtDuration(raw.length)}`;
-      if (raw.trim().length > 0) {
-        grid.classList.remove('scene-cards-hidden');
-        renderCardsFrom(raw);
-      } else {
-        grid.classList.add('scene-cards-hidden');
-        grid.innerHTML = '';
-      }
-    }
-
-    ta.addEventListener('input', onInput);
-    onInput();
-
-    panel.appendChild(head);
-    panel.appendChild(ta);
-    panel.appendChild(grid);
-
-    if (content) section.insertBefore(panel, content);
-    else section.prepend(panel);
-  }
-
-  /* ===== Init ===== */
+  /* =========================================================
+   * 초기화
+   * ======================================================= */
   function initializeSceneParser() {
     if (window._sceneParserInitialized) return;
     window._sceneParserInitialized = true;
 
-    // Script panel (top)
-    renderScriptPanel();
-
-    // Date UI (classic)
+    ensureLayoutStyles();
+    rebuildSceneLayout();
     restoreDateUI();
 
-    // Table wiring
-    const $input = document.getElementById('scene-input');
-    const $tbody = document.getElementById('scene-tbody');
-    const $save  = document.getElementById('scene-save');
-    const $clear = document.getElementById('scene-clear');
-    if (!$input || !$tbody) {
-      console.warn('[scene-parser] Missing #scene-input or #scene-tbody');
-      return;
-    }
+    const input   = $('#scene-input');
+    const btnSave = $('#scene-save');
+    const btnClear= $('#scene-clear');
 
-    const rerender = () => renderSceneTable(computeSceneRowsFromInput());
-    $input.addEventListener('input', () => {
-      // NOTE: 입력 박스 내용은 보존. 파싱은 내부적으로 preprocessScriptText()를 사용.
-      rerender();
-    });
-    if ($clear) $clear.addEventListener('click', () => { $input.value=''; rerender(); });
-    if ($save) {
-      $save.addEventListener('click', () => {
-        const rows = computeSceneRowsFromInput();
-        const header = '장면\t이미지 프롬프트';
-        const lines  = [header, ...rows.map(r => `${r.label}\t${(r.prompt||'').replace(/\t/g,' ')}`)];
-        downloadFile(`scene-prompts_${today()}.tsv`, lines.join('\n'), 'text/tab-separated-values;charset=utf-8');
-        showToast('파일 저장 완료','success');
+    const recomputeAll = () => {
+      renderCardsFromInput();       // 대본 범위 → 카드 무제한
+      renderPromptTableFromInput(); // 이미지 프롬프트 범위 → 표
+    };
+
+    if (input) {
+      input.addEventListener('input', debounce(recomputeAll, 120));
+      input.addEventListener('paste', () => setTimeout(recomputeAll, 0));
+    }
+    if (btnSave) {
+      btnSave.addEventListener('click', () => {
+        const raw = input ? (input.value||'') : '';
+        const { promptSeg } = pickSegments(raw);
+        const clean = removeHashHeadingLinesKeepGap(promptSeg);
+        const blocks = parseSceneBlocks(clean);
+        const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
+                           .filter(r => (r.prompt||'').trim().length);
+        if (!rows.length) { showToast('저장할 프롬프트가 없습니다.', 'warning'); return; }
+        const lines = ['장면\t이미지 프롬프트', ...rows.map(r => `${r.label}\t${(r.prompt||'').replace(/\t/g,' ')}`)];
+        downloadFile(`${today()}_scene-prompts.tsv`, lines.join('\n'), 'text/tab-separated-values;charset=utf-8');
+        showToast('프롬프트 목록을 저장했습니다. (TSV)', 'success');
+      });
+    }
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        if (input) input.value = '';
+        recomputeAll();
       });
     }
 
-    rerender();
+    recomputeAll();
   }
 
+  // 간단한 디바운스
+  function debounce(fn, ms) {
+    let t=null;
+    return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); };
+  }
+
+  // 전역
   window.initializeSceneParser = initializeSceneParser;
 
+  // DOM 상태에 따라 초기화
   if (document.getElementById('section-scene-parser')) {
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(() => { try { initializeSceneParser(); } catch(e){ console.error(e); } }, 0);
+      setTimeout(() => { try{ initializeSceneParser(); } catch(e){ console.error(e); } }, 0);
     } else {
       document.addEventListener('DOMContentLoaded', () => {
-        try { initializeSceneParser(); } catch(e){ console.error(e); }
+        try{ initializeSceneParser(); } catch(e){ console.error(e); }
       });
     }
   }
