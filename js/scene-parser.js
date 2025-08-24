@@ -3,20 +3,17 @@
  * - 하단 두 영역(카드 / 프롬프트 표) 높이 초기부터 동일
  * - 좌 타이틀: "대본입력창 / 글자수 N / 예상시간 [ hh:mm:ss ]"
  * - 우 타이틀: "이미지 프롬프트 입력창 / 장면 갯수 n"
- * - 줄 시작이 '#' 인 줄 및 '---' 단독 줄 제거(빈 줄 1회 유지)
- * - 이미지 프롬프트 파싱: [장면 N], **[장면 N]**, [장면 N: ...] 모두 인식
- * - "## 👤 주인공 이미지 프롬프트:" 블록을 장면 001 위에 별도 행으로 표시(주인공 | 이미지 프롬프트 | 복사)
- * - 저장(JSON): id=세자리 장면번호, prompt=프롬프트, suggested_filenames=[id.jpg,id.png]
+ * - 빈 상태 테이블 셀 패딩 상하좌우 동일(12px)
  */
 
 (function () {
   'use strict';
 
   /* ===== 설정 ===== */
-  const READ_SPEED_CPM = 360;    // 분당 글자수(읽기 속도)
-  const CARD_LIMIT     = 10000;  // 카드 분할 상한(문장 경계 기준)
+  const READ_SPEED_CPM = 360;    // 분당 글자수(읽기속도)
+  const CARD_LIMIT     = 10000;  // 카드 분할 상한
   const INPUT_H        = 360;    // 좌/우 입력창 동일 높이(px)
-  const CARD_H         = 220;    // 카드 본문 스크롤 높이
+  const CARD_H         = 220;    // 카드 한 장 본문 높이
   const BOTTOM_BASE_MIN= 260;    // 하단 두 박스의 최소 공통 높이(초기 동기화용)
 
   /* ===== 유틸 ===== */
@@ -31,6 +28,7 @@
     return `${d.getFullYear()}-${mm}-${dd}`;
   };
 
+  // 카드 타이틀: "00시 00분 00초" / 섹션 타이틀: [ 00:00:00 ]
   const fmtHuman = (chars) => {
     const s = Math.floor((chars / READ_SPEED_CPM) * 60);
     return `[ ${pad2(Math.floor(s/3600))}시 ${pad2(Math.floor((s%3600)/60))}분 ${pad2(s%60)}초 ]`;
@@ -49,88 +47,8 @@
     URL.revokeObjectURL(a.href);
   };
 
-  /* ===== 날짜 UI ===== */
-  function changeDate(dateInput, days){
-    const d = new Date(dateInput.value || today());
-    d.setDate(d.getDate() + days);
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    dateInput.value = `${d.getFullYear()}-${mm}-${dd}`;
-    dateInput.dispatchEvent(new Event('change'));
-  }
-
-  function restoreDateUI(){
-    const sec = document.getElementById('section-scene-parser');
-    if (!sec) return;
-
-    const actions = sec.querySelector('.section-header .section-actions');
-    if (!actions) return;
-
-    const prev = actions.querySelector('.sp-date-wrap');
-    if (prev) prev.remove();
-
-    const label = document.createElement('div');
-    label.textContent = '업로드 날짜';
-    Object.assign(label.style, {
-      fontWeight: '600',
-      marginRight: '8px',
-      color: 'var(--text,#e4e6ea)'
-    });
-
-    let date = sec.querySelector('#scene-date');
-    if (!date) {
-      date = document.createElement('input');
-      date.id = 'scene-date';
-    }
-    date.type = 'date';
-    if (!date.value) date.value = today();
-    Object.assign(date.style, {
-      height: '40px',
-      padding: '8px 12px',
-      border: '2px solid var(--border,#2a3443)',
-      borderRadius: '8px',
-      background: 'var(--panel,#1e2329)',
-      color: 'var(--text,#e4e6ea)',
-      fontWeight: '600'
-    });
-
-    const mkBtn = (t) => {
-      const b = document.createElement('button'); b.textContent = t;
-      Object.assign(b.style, {
-        width: '30px',
-        height: '20px',
-        padding: '0',
-        border: '1px solid var(--border,#2a3443)',
-        borderRadius: '4px',
-        background: 'var(--glass-bg,rgba(255,255,255,.05))',
-        color: 'var(--text,#e4e6ea)',
-        fontSize: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer'
-      });
-      return b;
-    };
-    const up = mkBtn('▲'), dn = mkBtn('▼');
-    up.addEventListener('click', () => changeDate(date, 1));
-    dn.addEventListener('click', () => changeDate(date,-1));
-
-    const col = document.createElement('div');
-    Object.assign(col.style, { display:'flex', flexDirection:'column', gap:'2px' });
-    col.appendChild(up); col.appendChild(dn);
-
-    const wrap = document.createElement('div');
-    wrap.className = 'sp-date-wrap';
-    Object.assign(wrap.style, { display:'inline-flex', alignItems:'center', gap:'6px', marginRight:'8px' });
-    wrap.appendChild(date); wrap.appendChild(col);
-
-    actions.insertBefore(label, actions.firstChild || null);
-    actions.insertBefore(wrap, label.nextSibling);
-  }
-
   /* ===== 텍스트 정리 ===== */
-  // 줄 시작이 '#' 인 줄 및 '---' 단독 줄 제거, 빈 줄 1개만 유지
+  // 줄 시작 '#' 라인 및 '---' 라인 제거, 빈 줄 1개 유지
   function sanitizeLines(text) {
     const lines = String(text||'').replace(/\r\n/g,'\n').split('\n');
     const out = [];
@@ -156,9 +74,8 @@
   function normalizeForScenes(text) {
     if (!text) return '';
     let t = String(text);
-    // [장면 7: ...] / **[장면 7]** / [장면 7] → [장면 007]
-    t = t.replace(/\*{0,3}\s*\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]\s*\*{0,3}/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
-    t = t.replace(/\*{0,3}\s*\[\s*장면\s*(\d{1,3})\s*\]\s*\*{0,3}/gi,          (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    t = t.replace(/\[\s*장면\s*(\d{1,3})\s*\]/gi,          (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
     // "## 1장." 같은 챕터 라인은 제거(빈 줄 유지)
     const lines = t.replace(/\r\n/g,'\n').split('\n');
     const out = [];
@@ -213,32 +130,6 @@
     return src;
   }
 
-  /* ===== 주인공 프롬프트 파서 ===== */
-  function parseHeroPrompt(raw) {
-    if (!raw) return '';
-    const txt = String(raw).replace(/\r\n/g, '\n');
-    const heroHeader = /^[ \t]*##[ \t]*👤?[ \t]*주인공[ \t]*이미지[ \t]*프롬프트\s*:?\s*$/mi;
-    const m = txt.match(heroHeader);
-    if (!m) return '';
-
-    // 시작 인덱스 = 헤더 라인의 끝 다음 줄부터
-    const start = txt.indexOf(m[0]) + m[0].length;
-
-    // 다음 경계: [장면 N] 헤더 또는 다음 ##/--- 섹션
-    const nextScene = txt.slice(start).search(/^\s*\[\s*장면\s*\d{1,3}\s*\]/m);
-    const nextHash  = txt.slice(start).search(/^\s*##\s+/m);
-    const nextDash  = txt.slice(start).search(/^\s*-{3,}\s*$/m);
-
-    const candidates = [nextScene, nextHash, nextDash].filter(v => v >= 0);
-    const offset = candidates.length ? Math.min(...candidates) : -1;
-    const end = offset >= 0 ? start + offset : txt.length;
-
-    const body = txt.slice(start, end).trim();
-    // 헤더/--- 제거 규칙 적용
-    const cleaned = sanitizeLines(body);
-    return cleaned.trim();
-  }
-
   /* ===== 카드 분할 ===== */
   function sentenceEnds(str) {
     const ends = [];
@@ -261,7 +152,7 @@
       if (ends[k] <= limit) cut = ends[k];
       else break;
     }
-    return { head: str.slice(0, cut), tail: str.slice(0).slice(cut) };
+    return { head: str.slice(0, cut), tail: str.slice(cut) };
   }
   function splitCards(scriptRaw) {
     const clipped = clipBeforeImagePrompt(scriptRaw||'');
@@ -369,11 +260,12 @@
     const rightTitle = document.createElement('div'); rightTitle.className = 'sp-section-title'; rightTitle.id = 'sp-right-title';
     const rightInputWrap = document.createElement('div'); rightInputWrap.className = 'sp-input-wrap';
     const promptInput = document.createElement('textarea'); promptInput.id='prompt-input';
-    promptInput.placeholder = '예: ## 👤 주인공 이미지 프롬프트: \\n설명...\\n\\n[장면 001] ...';
+    promptInput.placeholder = '예: [장면 001]\\n이미지 프롬프트: "..."';
     rightInputWrap.appendChild(promptInput);
     const bottomRight = document.createElement('div'); bottomRight.id = 'sp-bottom-right';
     const rightTableWrap = document.createElement('div'); rightTableWrap.className = 'sp-table-wrap';
-    if (oldOutputArea) rightTableWrap.appendChild(oldOutputArea);
+    if (tableWrap) rightTableWrap.appendChild(tableWrap);
+    else if (oldOutputArea) rightTableWrap.appendChild(oldOutputArea);
     bottomRight.appendChild(rightTableWrap);
     right.appendChild(rightTitle);
     right.appendChild(rightInputWrap);
@@ -400,7 +292,7 @@
     }
     if (rightTitle) {
       const blocks = parseSceneBlocks(promptInput ? promptInput.value : '');
-      rightTitle.textContent = `이미지 프롬프트 입력창 / 장면 갯수 ${blocks.length} 개`;
+      rightTitle.textContent = `이미지 프롬프트 입력창 / 장면 갯수 ${blocks.length}`;
     }
   }
 
@@ -410,11 +302,11 @@
     const R = $('#sp-bottom-right');
     if (!L || !R) return;
 
-    // 초기 동일 높이 적용
+    // 초기 최소값을 동일하게 부여
     L.style.minHeight = R.style.minHeight = `${BOTTOM_BASE_MIN}px`;
     L.style.height = R.style.height = 'auto';
 
-    // 내용 기준 최대값으로 맞춤
+    // 현재 내용 기준 최대값으로 동기화
     const h = Math.max(L.offsetHeight, R.offsetHeight, BOTTOM_BASE_MIN);
     L.style.minHeight = R.style.minHeight = `${h}px`;
   }
@@ -441,56 +333,12 @@
       prompt: extractPrompt(b.text)
     })).filter(r => (r.prompt||'').trim());
 
-    // ★ 주인공 프롬프트 행을 최상단에 추가
-    const hero = parseHeroPrompt(promptRaw);
-    const frag = document.createDocumentFragment();
-
-    if (hero) {
-      const tr = document.createElement('tr');
-
-      const tdHero = document.createElement('td');
-      tdHero.className = 'col-scene';
-      tdHero.style.whiteSpace = 'nowrap';
-      tdHero.style.padding = '12px';
-      tdHero.style.borderBottom = '1px solid var(--border)';
-      tdHero.textContent = '주인공';
-
-      const tdPrompt = document.createElement('td');
-      tdPrompt.className = 'col-prompt';
-      tdPrompt.style.padding = '12px';
-      tdPrompt.style.borderBottom = '1px solid var(--border)';
-      const divText = document.createElement('div');
-      divText.className = 'prompt-text';
-      divText.textContent = hero;
-      tdPrompt.appendChild(divText);
-
-      const tdCopy = document.createElement('td');
-      tdCopy.style.padding = '12px';
-      tdCopy.style.borderBottom = '1px solid var(--border)';
-      const btn = document.createElement('button');
-      btn.textContent = '복사';
-      btn.className = 'btn btn-danger';
-      btn.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(hero); } catch {}
-      });
-      tdCopy.appendChild(btn);
-
-      tr.appendChild(tdHero);
-      tr.appendChild(tdPrompt);
-      tr.appendChild(tdCopy);
-      frag.appendChild(tr);
-    }
-
     if (!rows.length) {
-      if (!hero) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding:12px;">이미지 프롬프트 입력창에서 유효한 프롬프트를 찾지 못했습니다.</td></tr>`;
-      } else {
-        tbody.innerHTML = '';
-        tbody.appendChild(frag);
-      }
+      tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding:12px;">이미지 프롬프트 입력창에서 유효한 프롬프트를 찾지 못했습니다.</td></tr>`;
       return;
     }
 
+    const frag = document.createDocumentFragment();
     rows.forEach(({ id, prompt }) => {
       const tr = document.createElement('tr');
 
@@ -588,7 +436,6 @@
 
     ensureStyles();
     buildLayout();
-    restoreDateUI();
 
     const sceneInput  = $('#scene-input');
     const promptInput = $('#prompt-input');
@@ -611,7 +458,7 @@
       promptInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
     }
 
-    // 저장(JSON) — 우측 입력 기준(장면만 저장; 주인공은 제외)
+    // 저장(JSON) — 우측 입력 기준
     if (btnSave) {
       btnSave.addEventListener('click', () => {
         const rows = parseSceneBlocks($('#prompt-input')?.value || '')
@@ -657,4 +504,3 @@
     }
   }
 })();
-
