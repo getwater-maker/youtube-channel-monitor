@@ -1,31 +1,36 @@
 /**
- * scene-parser.js — 단일 입력(대본창) 기반 파서 & UI (요청 사양 반영)
+ * scene-parser.js — 2섹션(좌=대화, 우=이미지프롬프트) 레이아웃 + JSON 저장
  *
- * [범위 규칙]
- *  - 대본(script)  : "장면 1"(또는 [장면 1], [장면 001] 등) ~ "## 🎨 이미지 프롬프트" 바로 위 줄
- *  - 이미지 프롬프트: "## 🎨 이미지 프롬프트" 라인 포함 ~ "총 장면 수:" 바로 위 줄
+ * 섹션 구성
+ *  - 좌측 "대화 섹션": 대본 입력창 + 카드(무제한)
+ *  - 우측 "이미지 프롬프트 섹션": 프롬프트 입력창 + 표
  *
- * [추가 파싱 규칙]
- *  - 줄의 첫 글자가 '#' 인 라인은 삭제하고, 그 자리는 "공백 1줄"로 유지(전체적으로는 연속 공백 1줄로 압축)
+ * 파싱 규칙(공통)
+ *  - 줄 시작이 '#' 인 줄 삭제
+ *  - 하이픈만 있는 구분선(---, ---- …) 삭제
+ *  - 위 삭제로 생긴 빈 줄은 1줄만 유지
+ *  - 카드 분할은 문장 경계 기준으로 무제한
+ *  - 작은따옴표(')는 인용부호로 취급하지 않음 (woman's 보호)
  *
- * [기능/디자인]
- *  - 상단: 단일 입력창(대본창, 고정높이 + 스크롤)
- *  - 하단: 2분할(좌=카드 무제한 세로 스택, 우=이미지 프롬프트 결과 표)
- *  - 카드 분할: 문장 경계 기준 10,000자 근처로 무제한 분할, 시작 지점은 "초반 45초 훅" → [장면1] → 텍스트 시작
- *  - 복사 버튼: 빨강↔초록 토글
+ * 저장(JSON)
+ * {
+ *   version: 1,
+ *   exported_at: "YYYY-MM-DD",
+ *   count: N,
+ *   items: [{ id:"001", prompt:"...", suggested_filenames:["001.jpg","001.png"] }, ...]
+ * }
  */
 
 (function () {
   'use strict';
 
-  /* =========================================================
-   * 기본 상수/유틸
-   * ======================================================= */
-  const READ_SPEED_CPM = 360;   // 분당 360자
-  const CARD_LIMIT     = 10000; // 카드 당 목표 글자수
-  const INPUT_H        = 480;   // 대본창 높이
-  const CARD_H         = 220;   // 카드 본문 높이
+  /* ===== 설정 ===== */
+  const READ_SPEED_CPM = 360;
+  const CARD_LIMIT     = 10000;
+  const INPUT_H        = 360;  // 두 입력창 동일 높이
+  const CARD_H         = 220;
 
+  /* ===== 유틸 ===== */
   const $  = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
   const pad2 = n => String(n).padStart(2,'0');
@@ -35,15 +40,13 @@
     const s = Math.floor((chars / READ_SPEED_CPM) * 60);
     return `[ ${pad2(Math.floor(s/3600))}시 ${pad2(Math.floor((s%3600)/60))}분 ${pad2(s%60)}초 ]`;
   };
-
   const today = () => {
     const d = new Date();
     const mm = String(d.getMonth()+1).padStart(2,'0');
     const dd = String(d.getDate()).padStart(2,'0');
     return `${d.getFullYear()}-${mm}-${dd}`;
   };
-
-  const downloadFile = (filename, data, mime='text/plain;charset=utf-8') => {
+  const downloadFile = (filename, data, mime='application/json;charset=utf-8') => {
     const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -51,15 +54,12 @@
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
   };
-
   const showToast = (msg, type) => {
     try { if (typeof window.toast === 'function') return window.toast(msg, type||'info'); } catch(_) {}
     console.log('[Toast]', type||'info', msg);
   };
 
-  /* =========================================================
-   * 복사 버튼(빨강↔초록) 스타일/동작
-   * ======================================================= */
+  /* ===== 복사 버튼 ===== */
   function ensureCopyStyles() {
     if (document.getElementById('sp-copy-style')) return;
     const st = document.createElement('style');
@@ -76,121 +76,37 @@
     btn.classList.add('sp-btn-copy','sp-btn-red');
     btn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(typeof getText==='function' ? (getText()||'') : ''); } catch {}
-      btn.classList.toggle('sp-btn-red');
-      btn.classList.toggle('sp-btn-green');
+      btn.classList.toggle('sp-btn-red'); btn.classList.toggle('sp-btn-green');
     });
   }
 
-  /* =========================================================
-   * 범위 계산(대본/이미지프롬프트)
-   *  - 범위를 먼저 계산한 뒤, 각 범위에 '# 시작 줄 삭제 + 공백 압축' 적용
-   * ======================================================= */
-
-  // 라인 시작 인덱스
-  const lineStartAt = (text, idx) => (idx <= 0 ? 0 : text.lastIndexOf('\n', idx-1)+1);
-  // 다음 줄 시작 인덱스(= 현 라인의 끝+개행까지)
-  const lineEndAt = (text, idx) => {
-    const nl = text.indexOf('\n', idx);
-    return nl === -1 ? text.length : (nl + 1);
-  };
-
-  // "장면 1" 시작 위치 찾기(여러 표기 허용)
-  function findScene1Index(text) {
-    const candidates = [];
-
-    // [장면 1], [장면 001], [장면1], [장면001], 뒤가 ] 또는 :
-    const reBracket = /\[\s*장면\s*0*1\s*(?:\]|\:)/i;
-    const m1 = reBracket.exec(text);
-    if (m1) candidates.push(m1.index);
-
-    // 라인 어디든 "장면 1" (공백/0패딩 허용)
-    const rePlain = /장면\s*0*1\b/i;
-    const m2 = rePlain.exec(text);
-    if (m2) candidates.push(m2.index);
-
-    if (!candidates.length) return 0;
-    return Math.min(...candidates);
-  }
-
-  // "^## 🎨 이미지 프롬프트" 헤더 라인 시작/끝 찾기
-  function findImageHeading(text) {
-    const re = /^[ \t]*##[ \t]*🎨[ \t]*이미지[ \t]*프롬프트.*$/m;
-    const m  = re.exec(text);
-    if (!m) return null;
-    const start = lineStartAt(text, m.index);        // 헤더 라인 시작
-    const end   = lineEndAt(text, m.index);          // 헤더 라인 끝(개행 포함)
-    return { start, end };
-  }
-
-  // "총 장면 수:" 라인 시작 찾기 (헤더 이후에서)
-  function findTotalScenesLine(text, fromIdx) {
-    const slice = text.slice(fromIdx);
-    const re = /^.*총[ \t]*장면[ \t]*수[ \t]*:.*$/m;
-    const m  = re.exec(slice);
-    if (!m) return null;
-    // 전체 텍스트 기준 라인 시작
-    const absIdx = fromIdx + m.index;
-    const lineStart = lineStartAt(text, absIdx);
-    return { lineStart };
-  }
-
-  // 요청한 범위에 맞춰 script/prompt 세그먼트 산출
-  function pickSegments(raw) {
-    const sceneStart   = findScene1Index(raw);              // "장면 1" 시작
-    const imgHeading   = findImageHeading(raw);             // "## 🎨 이미지 프롬프트" 라인
-    const imgStartLine = imgHeading ? imgHeading.start : raw.length;
-
-    // Script: sceneStart ~ (이미지 헤더 '바로 위 줄') → 헤더 라인 시작 직전까지
-    const scriptSeg = raw.slice(sceneStart, imgStartLine);
-
-    // Prompt: (이미지 헤더 라인 포함) ~ ("총 장면 수:" '바로 위 줄'까지)
-    let promptSeg = '';
-    if (imgHeading) {
-      const totalLine = findTotalScenesLine(raw, imgHeading.end);
-      const endIdx = totalLine ? totalLine.lineStart : raw.length;
-      promptSeg = raw.slice(imgHeading.start, endIdx);
-    }
-
-    return { scriptSeg, promptSeg };
-  }
-
-  /* =========================================================
-   * '# 시작 줄 삭제 + 1줄 공백 유지' 및 공백 압축
-   * ======================================================= */
-  function removeHashHeadingLinesKeepGap(text) {
+  /* ===== 정리/보조 ===== */
+  function sanitizeLines(text) {
     const lines = String(text||'').replace(/\r\n/g,'\n').split('\n');
     const out = [];
     for (const ln of lines) {
-      if (/^\s*#/.test(ln)) {
+      if (/^\s*#/.test(ln) || /^\s*-{3,}\s*$/.test(ln)) {
         if (out.length===0 || out[out.length-1] !== '') out.push('');
-      } else {
-        out.push(ln);
-      }
+      } else out.push(ln);
     }
-    // 연속 공백은 1줄로, 앞뒤 과도한 공백 제거
     return out.join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .replace(/^\n+/, '')
       .replace(/\n+$/, '');
   }
-
-  /* =========================================================
-   * 기존 전처리/블록/프롬프트 추출 로직(유지)
-   *   - 전처리에서 [장면n:] → [장면 nnn], [장면 n] → [장면 nnn]
-   *   - "## n장." 라인 제거(빈 줄 1회 유지)
-   * ======================================================= */
-  function preprocessScriptTextForBlocks(text) {
+  function clipTextBeforeImagePrompt(fullText) {
+    const t = String(fullText || '');
+    const re = /^[ \t]*##[ \t]*🎨[ \t]*이미지[ \t]*프롬프트.*$/m;
+    const m  = re.exec(t);
+    if (m) return t.slice(0, m.index);
+    return t;
+  }
+  function normalizeForSceneBlocks(text) {
     if (!text) return '';
-
     let t = String(text);
-
-    // [장면n: ...] → [장면 nnn]
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\n]*/gi,    (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
-    // [장면 n] → [장면 nnn]
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*\]/gi,         (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
-
-    // "## n장." 으로 시작하는 줄 삭제(빈 줄 1회 유지)
     const lines = t.replace(/\r\n/g,'\n').split('\n');
     const out = [];
     for (const ln of lines) {
@@ -201,9 +117,9 @@
     return out.join('\n').replace(/\n{3,}/g,'\n\n');
   }
 
-  // [장면 nnn] 블록 분리(없으면 하나의 블록으로)
+  /* ===== 씬 블록 / 프롬프트 추출 ===== */
   function parseSceneBlocks(text) {
-    const t = preprocessScriptTextForBlocks(text||'');
+    const t = normalizeForSceneBlocks(text||'');
     const lines = t.replace(/\r\n/g,'\n').split('\n');
     const headerRe = /\[\s*장면\s*(\d{1,3})\s*\]/i;
 
@@ -228,17 +144,11 @@
     return blocks.map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() }));
   }
 
-  // 따옴표 구문 추출 & 선택 규칙
+  // 작은따옴표(') 제외 — 인용부호: " ” `
   function getQuotedSegments(text, startIndex = 0) {
     const src = String(text || '');
     const segments = [];
-    const patterns = [
-      /"([^"]+)"/g,
-      /'([^']+)'/g,
-      /“([^”]+)”/g,
-      /‘([^’]+)’/g,
-      /`([^`]+)`/g
-    ];
+    const patterns = [/\"([^"]+)\"/g, /“([^”]+)”/g, /`([^`]+)`/g];
     for (const re of patterns) {
       re.lastIndex = 0; let m;
       while ((m = re.exec(src)) !== null) {
@@ -250,23 +160,21 @@
     return segments;
   }
   function extractPromptFromBlock(blockText) {
-    const src = String(blockText || '');
+    let src = String(blockText || '').trim();
+    src = src.replace(/^\*{1,3}\s*/, '').trim();
     const labelIdx = src.search(/이미지\s*프(?:롬|름)프트\s*:/i);
-    const quoted = getQuotedSegments(src, 0);
-    if (!quoted.length) return '';
     if (labelIdx >= 0) {
-      const after = quoted.find(q => q.start >= labelIdx);
-      if (after) return after.content.trim();
-      const tailLine = src.slice(labelIdx).split('\n')[0].replace(/^[^:]*:/, '').trim();
-      if (tailLine) return tailLine.replace(/^["'“‘`]|["'”’`]$/g,'').trim();
+      const tail = src.slice(labelIdx).replace(/^[^:]*:/, '').trim();
+      const quotedAfter = getQuotedSegments(tail, 0);
+      if (quotedAfter.length) return quotedAfter[0].content.trim();
+      return tail;
     }
-    return quoted.sort((a,b)=>b.len-a.len)[0].content.trim();
+    const quoted = getQuotedSegments(src, 0);
+    if (quoted.length) return quoted.sort((a,b)=>b.len-a.len)[0].content.trim();
+    return src;
   }
 
-  /* =========================================================
-   * 카드 분할(문장 경계, 무제한)
-   *  - 시작 지점: "초반 45초 훅" → 첫 [장면1] → 0
-   * ======================================================= */
+  /* ===== 카드 분할 ===== */
   function startIndexForCards(cleanedText) {
     let i = cleanedText.search(/초반\s*45\s*초\s*훅/i);
     if (i === -1) {
@@ -275,11 +183,10 @@
     }
     return i < 0 ? 0 : i;
   }
-
   function sentenceEndPositions(str) {
     const ends = [];
     const END_PUNCT = '.!?！？。…';
-    const TRAIL = '’”"\'\\)］〕〉》」『』）」】]';
+    const TRAIL = '’”"\'\\)］〕〉》」『』」】]';
     for (let i=0;i<str.length;i++) {
       const ch = str[i];
       if (END_PUNCT.includes(ch)) {
@@ -291,7 +198,6 @@
     if (ends.length === 0 || ends[ends.length-1] !== str.length) ends.push(str.length);
     return ends;
   }
-
   function cutAtSentenceBoundary(str, limit) {
     const ends = sentenceEndPositions(str);
     let cut = ends[0];
@@ -301,12 +207,11 @@
     }
     return { head: str.slice(0, cut), tail: str.slice(cut) };
   }
-
   function splitCardsUnlimitedFromScript(scriptRaw) {
-    const cleanedNoHash = removeHashHeadingLinesKeepGap(scriptRaw||'');
-    // 블록 표준화(장면 라벨 등)
-    const cleaned = preprocessScriptTextForBlocks(cleanedNoHash);
-    const start   = startIndexForCards(cleaned);
+    const clipped = clipTextBeforeImagePrompt(scriptRaw||'');
+    const cleanedNoHdr = sanitizeLines(clipped);
+    const cleaned = normalizeForSceneBlocks(cleanedNoHdr);
+    const start = startIndexForCards(cleaned);
     let rest = cleaned.slice(start);
 
     const chunks = [];
@@ -319,27 +224,44 @@
     return chunks;
   }
 
-  /* =========================================================
-   * 레이아웃: 상단 대본창 + 하단 2분할
-   * ======================================================= */
+  /* ===== 레이아웃: 2 섹션(좌/우) ===== */
   function ensureLayoutStyles() {
     if (document.getElementById('sp-layout-style')) return;
     const st = document.createElement('style');
     st.id = 'sp-layout-style';
     st.textContent = `
-      #section-scene-parser .scene-parser-content {
-        display: block !important;   /* 위→아래 흐름 보장 */
-        height: auto !important;
+      #section-scene-parser .scene-parser-content { display:block !important; height:auto !important; }
+
+      /* 전체 2섹션 좌우 */
+      #sp-two-sections {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items: start;
+        margin-bottom: 12px;
       }
-      #sp-top-input { margin-bottom: 16px; }
-      #sp-top-input label { font-weight: 800; margin-bottom: 8px; display: inline-block; color: var(--text); }
-      #scene-input {
-        width: 100%;
+      .sp-section {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--glass-bg);
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .sp-section-title { font-weight: 900; color: var(--text); }
+
+      /* 입력 블록(두 섹션 동일 높이) */
+      .sp-input-wrap { display:flex; flex-direction:column; gap:6px; }
+      .sp-input-wrap label { font-weight: 700; color: var(--text); }
+      .sp-input-wrap textarea {
         height: ${INPUT_H}px;
+        min-height: ${INPUT_H}px;
+        max-height: ${INPUT_H}px;
         resize: none !important;
         overflow-y: auto !important;
         padding: 16px;
-        border-radius: 12px;
+        border-radius: 10px;
         border: 2px solid var(--border);
         background: var(--card);
         color: var(--text);
@@ -347,18 +269,13 @@
         font-size: 14px;
         font-family: ui-sans-serif, system-ui, sans-serif;
       }
-      #sp-bottom-grid {
-        display: grid;
-        grid-template-columns: 1.2fr 1fr;
-        gap: 24px;
-        align-items: start;
-        margin-top: 12px;
-      }
-      #sp-cards { display: flex; flex-direction: column; gap: 12px; }
+
+      /* 좌측 카드 리스트 */
+      #sp-cards { display:flex; flex-direction:column; gap:12px; }
       .sp-card {
         border: 1px solid var(--border);
         border-radius: 12px;
-        background: var(--glass-bg);
+        background: var(--panel, rgba(255,255,255,.02));
         padding: 12px;
         display: flex; flex-direction: column; gap: 8px;
       }
@@ -370,7 +287,13 @@
         line-height: 1.6; font-family: ui-monospace, SFMono-Regular, monospace;
         max-height: ${CARD_H}px; overflow-y: auto;
       }
-      @media (max-width: 900px) { #sp-bottom-grid { grid-template-columns: 1fr; } }
+
+      /* 하단 표(우측 섹션 안) */
+      .sp-table-wrap { width:100%; }
+
+      @media (max-width: 1000px) {
+        #sp-two-sections { grid-template-columns: 1fr; }
+      }
     `;
     document.head.appendChild(st);
   }
@@ -383,50 +306,56 @@
 
     const oldInputArea  = oldContent.querySelector('.scene-input-area');
     const oldOutputArea = oldContent.querySelector('.scene-output-area');
-    const tableWrap = oldOutputArea ? oldOutputArea.querySelector('.table-wrap') : null;
+    const tableWrap = oldOutputArea ? oldOutputArea.querySelector('.table-wrap') : null; // ← 기존 표 컨테이너
 
-    // 상단: 대본창
-    const topInput = document.createElement('div');
-    topInput.id = 'sp-top-input';
-    const label = document.createElement('label');
-    label.setAttribute('for','scene-input');
-    label.textContent = '대본창';
-    topInput.appendChild(label);
+    // 최상위: 두 섹션
+    const two = document.createElement('div'); two.id = 'sp-two-sections';
 
+    /* 좌 — 대화 섹션 */
+    const left = document.createElement('div'); left.className = 'sp-section';
+    const leftTitle = document.createElement('div'); leftTitle.className = 'sp-section-title';
+    leftTitle.textContent = '대화 섹션';
+    const leftInputWrap = document.createElement('div'); leftInputWrap.className = 'sp-input-wrap';
+    const lblScene = document.createElement('label'); lblScene.setAttribute('for','scene-input'); lblScene.textContent = '대본 입력창';
     const sceneInput = $('#scene-input', oldInputArea || document);
-    if (sceneInput) {
-      sceneInput.style.overflow = 'auto';
-      sceneInput.style.resize   = 'none';
-      sceneInput.style.height   = INPUT_H + 'px';
-      topInput.appendChild(sceneInput);
-    }
+    if (sceneInput) { sceneInput.style.resize='none'; sceneInput.style.overflow='auto'; }
+    leftInputWrap.appendChild(lblScene);
+    if (sceneInput) leftInputWrap.appendChild(sceneInput);
+    const leftCards = document.createElement('div'); leftCards.id='sp-cards';
 
-    // 하단: 2분할
-    const bottomGrid = document.createElement('div');
-    bottomGrid.id = 'sp-bottom-grid';
+    left.appendChild(leftTitle);
+    left.appendChild(leftInputWrap);
+    left.appendChild(leftCards);
 
-    const leftCards = document.createElement('div');
-    leftCards.id = 'sp-cards';
+    /* 우 — 이미지 프롬프트 섹션 */
+    const right = document.createElement('div'); right.className = 'sp-section';
+    const rightTitle = document.createElement('div'); rightTitle.className = 'sp-section-title';
+    rightTitle.textContent = '이미지 프롬프트 섹션';
+    const rightInputWrap = document.createElement('div'); rightInputWrap.className = 'sp-input-wrap';
+    const lblPrompt = document.createElement('label'); lblPrompt.setAttribute('for','prompt-input'); lblPrompt.textContent = '이미지 프롬프트 입력창';
+    const promptInput = document.createElement('textarea'); promptInput.id='prompt-input';
+    promptInput.placeholder = '예: [장면 001]\\n이미지 프롬프트: "..."';
+    rightInputWrap.appendChild(lblPrompt);
+    rightInputWrap.appendChild(promptInput);
+    const rightTableWrap = document.createElement('div'); rightTableWrap.className = 'sp-table-wrap';
+    if (tableWrap) rightTableWrap.appendChild(tableWrap);
+    else if (oldOutputArea) rightTableWrap.appendChild(oldOutputArea);
 
-    const rightPanel = document.createElement('div');
-    if (tableWrap) rightPanel.appendChild(tableWrap);
-    else if (oldOutputArea) rightPanel.appendChild(oldOutputArea);
+    right.appendChild(rightTitle);
+    right.appendChild(rightInputWrap);
+    right.appendChild(rightTableWrap);
 
-    bottomGrid.appendChild(leftCards);
-    bottomGrid.appendChild(rightPanel);
+    // 조립
+    two.appendChild(left);
+    two.appendChild(right);
 
     // 교체
     oldContent.innerHTML = '';
-    oldContent.appendChild(topInput);
-    oldContent.appendChild(bottomGrid);
+    oldContent.appendChild(two);
   }
 
-  /* =========================================================
-   * 렌더링
-   * ======================================================= */
-
-  // 우측 표: 이미지 프롬프트 범위에서 블록/프롬프트 추출
-  function renderPromptTableFromInput() {
+  /* ===== 렌더링 ===== */
+  function renderPromptTable() {
     const tbody = document.getElementById('scene-tbody');
     if (!tbody) return;
 
@@ -441,17 +370,15 @@
       `;
     }
 
-    const input = $('#scene-input');
-    const raw   = input ? (input.value || '') : '';
-    const { promptSeg } = pickSegments(raw);
-    const promptClean   = removeHashHeadingLinesKeepGap(promptSeg);
-    const blocks        = parseSceneBlocks(promptClean);
+    const promptRaw = ($('#prompt-input')?.value || '');
+    const promptClean = sanitizeLines(promptRaw);
+    const blocks = parseSceneBlocks(promptClean);
 
     const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
                        .filter(r => (r.prompt||'').trim().length);
 
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding: 28px;">이미지 프롬프트 범위에서 유효한 프롬프트를 찾지 못했습니다.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="empty" style="color: var(--muted); text-align:center; padding: 28px;">이미지 프롬프트 입력창에서 유효한 프롬프트를 찾지 못했습니다.</td></tr>`;
       return;
     }
 
@@ -493,17 +420,13 @@
     tbody.appendChild(frag);
   }
 
-  // 좌측 카드: 대본 범위에서 문장경계 분할(무제한)
-  function renderCardsFromInput() {
+  function renderCards() {
     const container = document.getElementById('sp-cards');
     if (!container) return;
     container.innerHTML = '';
 
-    const input = $('#scene-input');
-    const raw   = input ? (input.value || '') : '';
-    const { scriptSeg } = pickSegments(raw);
-
-    const chunks = splitCardsUnlimitedFromScript(scriptSeg);
+    const raw = ($('#scene-input')?.value || '');
+    const chunks = splitCardsUnlimitedFromScript(raw);
 
     if (!chunks.length) {
       const empty = document.createElement('div');
@@ -542,9 +465,7 @@
     });
   }
 
-  /* =========================================================
-   * 날짜 UI (유지)
-   * ======================================================= */
+  /* ===== 저장(JSON) & 기타 ===== */
   function changeDate(dateInput, days) {
     const d = new Date(dateInput.value || today());
     d.setDate(d.getDate() + days);
@@ -553,7 +474,6 @@
     dateInput.value = `${d.getFullYear()}-${mm}-${dd}`;
     dateInput.dispatchEvent(new Event('change'));
   }
-
   function restoreDateUI() {
     const sec = document.getElementById('section-scene-parser');
     if (!sec) return;
@@ -600,9 +520,7 @@
     actions.insertBefore(wrap, label.nextSibling);
   }
 
-  /* =========================================================
-   * 초기화
-   * ======================================================= */
+  /* ===== 초기화 ===== */
   function initializeSceneParser() {
     if (window._sceneParserInitialized) return;
     window._sceneParserInitialized = true;
@@ -611,53 +529,61 @@
     rebuildSceneLayout();
     restoreDateUI();
 
-    const input   = $('#scene-input');
-    const btnSave = $('#scene-save');
-    const btnClear= $('#scene-clear');
+    const sceneInput  = $('#scene-input');
+    const promptInput = $('#prompt-input');
+    const btnSave     = $('#scene-save');
+    const btnClear    = $('#scene-clear');
 
-    const recomputeAll = () => {
-      renderCardsFromInput();       // 대본 범위 → 카드 무제한
-      renderPromptTableFromInput(); // 이미지 프롬프트 범위 → 표
-    };
+    const recomputeAll = () => { renderCards(); renderPromptTable(); };
 
-    if (input) {
-      input.addEventListener('input', debounce(recomputeAll, 120));
-      input.addEventListener('paste', () => setTimeout(recomputeAll, 0));
+    if (sceneInput) {
+      sceneInput.addEventListener('input', debounce(recomputeAll, 120));
+      sceneInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
     }
+    if (promptInput) {
+      promptInput.addEventListener('input', debounce(recomputeAll, 120));
+      promptInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
+    }
+
+    // 저장: 우측 입력창 → JSON
     if (btnSave) {
       btnSave.addEventListener('click', () => {
-        const raw = input ? (input.value||'') : '';
-        const { promptSeg } = pickSegments(raw);
-        const clean = removeHashHeadingLinesKeepGap(promptSeg);
-        const blocks = parseSceneBlocks(clean);
-        const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
-                           .filter(r => (r.prompt||'').trim().length);
+        const promptClean = sanitizeLines($('#prompt-input')?.value || '');
+        const blocks = parseSceneBlocks(promptClean);
+        const rows = blocks
+          .map(({label, body}, i) => {
+            const prompt = extractPromptFromBlock(body).trim();
+            if (!prompt) return null;
+            const m = (label||'').match(/(\d{1,3})/);
+            const id = pad3(m ? parseInt(m[1],10) : (i+1));
+            return { id, prompt, suggested_filenames: [`${id}.jpg`, `${id}.png`] };
+          })
+          .filter(Boolean);
+
         if (!rows.length) { showToast('저장할 프롬프트가 없습니다.', 'warning'); return; }
-        const lines = ['장면\t이미지 프롬프트', ...rows.map(r => `${r.label}\t${(r.prompt||'').replace(/\t/g,' ')}`)];
-        downloadFile(`${today()}_scene-prompts.tsv`, lines.join('\n'), 'text/tab-separated-values;charset=utf-8');
-        showToast('프롬프트 목록을 저장했습니다. (TSV)', 'success');
+
+        const payload = { version:1, exported_at: today(), count: rows.length, items: rows };
+        downloadFile(`${today()}_image-prompts.json`, JSON.stringify(payload, null, 2));
+        showToast('이미지 프롬프트(JSON) 저장 완료', 'success');
       });
     }
+
     if (btnClear) {
       btnClear.addEventListener('click', () => {
-        if (input) input.value = '';
+        if (sceneInput)  sceneInput.value  = '';
+        if (promptInput) promptInput.value = '';
         recomputeAll();
       });
     }
 
+    // 초기 렌더
     recomputeAll();
   }
 
-  // 간단한 디바운스
-  function debounce(fn, ms) {
-    let t=null;
-    return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); };
-  }
+  function debounce(fn, ms){ let t=null; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); }; }
 
-  // 전역
   window.initializeSceneParser = initializeSceneParser;
 
-  // DOM 상태에 따라 초기화
   if (document.getElementById('section-scene-parser')) {
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
       setTimeout(() => { try{ initializeSceneParser(); } catch(e){ console.error(e); } }, 0);
