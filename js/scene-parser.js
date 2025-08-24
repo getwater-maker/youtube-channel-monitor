@@ -400,7 +400,7 @@
     }
     if (rightTitle) {
       const blocks = parseSceneBlocks(promptInput ? promptInput.value : '');
-      rightTitle.textContent = `이미지 프롬프트 입력창 / 장면 갯수 ${blocks.length}`;
+      rightTitle.textContent = `이미지 프롬프트 입력창 / 장면 갯수 ${blocks.length} 개`;
     }
   }
 
@@ -657,3 +657,4 @@
     }
   }
 })();
+
