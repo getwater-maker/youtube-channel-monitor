@@ -392,18 +392,45 @@
     return body;
   }
 
-  /* ===== 섹션(🎬 …) 토큰 추출 ===== */
+  /* ===== 섹션(🎬 …) 토큰 추출 =====
+     - 패턴 A: "##/### (🎬) 훅 장면 이미지 프롬프트:" 또는 "##/### (🎬) 1장 장면별 이미지 프롬프트:" 등
+     - 패턴 B: "##/### ... 3장 ..." 처럼 제목 안 어딘가에 "<숫자>장"이 포함된 경우(이미지 프롬프트 문구가 없어도 인정)
+     - 둘 다 지원하며, '주인공 이미지 프롬프트' 제목은 제외한다. */
   function findSectionTokens(full) {
     const text = String(full || '');
-    const tokens = [];
-    const re = /^\s*##\s*🎬\s*(.+?)\s*(?:장면별\s*이미지\s*프롬프트|이미지\s*프롬프트)\s*:?\s*$/gim;
+    const byIndex = new Map();
+
+    // 패턴 A: ...이미지 프롬프트
     let m;
-    while ((m = re.exec(text)) !== null) {
-      let title = (m[1] || '').trim();        // 예) '훅 장면', '1장'
-      title = `🎬 ${title}`;                   // 항상 🎬 접두사
-      tokens.push({ type: 'section', index: m.index, title });
+    const reA = /^\s*#{2,3}\s*(?:🎬\s*)?(.+?)\s*(?:장면별\s*이미지\s*프롬프트|이미지\s*프롬프트)\s*:?\s*$/gim;
+    while ((m = reA.exec(text)) !== null) {
+      const fullLine = m[0];         // 제목 전체 라인
+      if (/주인공\s*이미지\s*프롬프트/i.test(fullLine)) continue; // 주인공 섹션 제외
+
+      // 숫자 'n장' 우선 인식, 없으면 원문 제목(훅 등)
+      const numMatch = /(\d{1,3})\s*장\b/i.exec(fullLine) || /(\d{1,3})\s*장\b/i.exec(m[1] || '');
+      const raw = (m[1] || '').trim();
+      const title = numMatch ? `🎬 ${parseInt(numMatch[1],10)}장` : `🎬 ${raw}`;
+      if (!byIndex.has(m.index)) byIndex.set(m.index, { type:'section', index:m.index, title });
     }
-    return tokens.sort((a,b)=>a.index-b.index);
+
+    // 패턴 B: #... <숫자>장 ... (이미지 프롬프트 문구가 없어도 섹션으로 인정)
+    const reHeading = /^\s*#{2,3}\s+(.+)$/gim;
+    while ((m = reHeading.exec(text)) !== null) {
+      const fullLine = m[0];
+      const idx  = m.index;
+      if (byIndex.has(idx)) continue; // 이미 A에서 잡힌 라인은 건너뜀
+      if (/주인공\s*이미지\s*프롬프트/i.test(fullLine)) continue; // 주인공 제외
+      if (/이미지\s*프롬프트/i.test(fullLine)) continue;         // '이미지 프롬프트' 제목은 A에서 처리
+
+      const num = /(\d{1,3})\s*장\b/i.exec(fullLine);
+      if (num) {
+        const n = parseInt(num[1], 10);
+        byIndex.set(idx, { type:'section', index: idx, title: `🎬 ${n}장` });
+      }
+    }
+
+    return Array.from(byIndex.values()).sort((a,b)=>a.index-b.index);
   }
 
   /* ===== 원문에서 장면 헤더(**장면 n** / [장면 n]) 위치 찾기 ===== */
