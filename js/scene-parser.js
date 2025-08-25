@@ -366,7 +366,6 @@
   }
 
   /* ===== 주인공 프롬프트 추출 ===== */
-  // 우측 입력창(#prompt-input) 안에서
   // "### 👤 주인공 이미지 프롬프트:" 제목 다음 ~ 다음 제목("##" 또는 "###") 전까지를 추출
   function extractProtagonistPrompt(full) {
     const text = String(full || '').replace(/\r\n/g, '\n');
@@ -385,12 +384,44 @@
     }
 
     const body = lines.slice(start, end)
-      .filter(ln => !/^\s*#{2,3}\s+/.test(ln))         // 다른 제목 라인 제거
-      .map(ln => ln.replace(/^\*\*(.+?)\*\*$/g, '$1')) // 굵게 마크다운 제거
+      .filter(ln => !/^\s*#{2,3}\s+/.test(ln))
+      .map(ln => ln.replace(/^\*\*(.+?)\*\*$/g, '$1'))
       .join('\n')
       .trim();
 
     return body;
+  }
+
+  /* ===== 섹션(🎬 …) 토큰 추출 ===== */
+  function findSectionTokens(full) {
+    const text = String(full || '');
+    const tokens = [];
+    const re = /^\s*##\s*🎬\s*(.+?)\s*(?:장면별\s*이미지\s*프롬프트|이미지\s*프롬프트)\s*:?\s*$/gim;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      let title = (m[1] || '').trim();        // 예) '훅 장면', '1장'
+      title = `🎬 ${title}`;                   // 항상 🎬 접두사
+      tokens.push({ type: 'section', index: m.index, title });
+    }
+    return tokens.sort((a,b)=>a.index-b.index);
+  }
+
+  /* ===== 원문에서 장면 헤더(**장면 n** / [장면 n]) 위치 찾기 ===== */
+  function findSceneTokens(full) {
+    const text = String(full || '');
+    const tokens = [];
+    const push = (n, idx) => tokens.push({ type:'scene', index: idx, label:`장면 ${pad3(parseInt(n,10))}` });
+
+    let m;
+    const reBold = /\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi;
+    while ((m = reBold.exec(text)) !== null) push(m[1], m.index);
+
+    const reBr = /\[\s*장면\s*(\d{1,3})\s*\]/gi;
+    while ((m = reBr.exec(text)) !== null) push(m[1], m.index);
+
+    // 인덱스 순서대로 정렬
+    tokens.sort((a,b)=>a.index-b.index);
+    return tokens;
   }
 
   /* ===== 표 렌더링 ===== */
@@ -402,7 +433,7 @@
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th class="col-scene"  style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:160px;">장면</th>
+          <th class="col-scene"  style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:220px;">장면</th>
           <th class="col-prompt" style="text-align:left; padding:12px; border-bottom:1px solid var(--border);">이미지 프롬프트</th>
           <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:110px;">복사</th>
         </tr>
@@ -416,9 +447,10 @@
     const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
                        .filter(r => (r.prompt||'').trim().length);
 
+    const rowsMap = new Map(rows.map(r => [r.label, r.prompt]));
     const frag = document.createDocumentFragment();
 
-    // 1) 헤더 바로 아래 "주인공" 행 추가 (있을 때만)
+    // 0) 헤더 바로 아래 "주인공" 행 (있을 때만)
     const protagonist = extractProtagonistPrompt(promptRaw);
     if (protagonist) {
       const trPro = document.createElement('tr');
@@ -453,8 +485,96 @@
       frag.appendChild(trPro);
     }
 
-    // 2) 일반 "장면 001 ..." 행들
-    if (!rows.length) {
+    // 1) 섹션/장면 토큰을 원문 순서대로 병합
+    const sectionTokens = findSectionTokens(promptRaw);
+    const sceneTokens   = findSceneTokens(promptRaw);
+
+    // 각 섹션별 프롬프트 개수 계산(해당 섹션 이후 ~ 다음 섹션 직전 장면 수)
+    for (let i = 0; i < sectionTokens.length; i++) {
+      const sec  = sectionTokens[i];
+      const next = sectionTokens[i+1] || { index: Infinity };
+      let count = 0;
+      for (const s of sceneTokens) {
+        if (s.index > sec.index && s.index < next.index && rowsMap.has(s.label)) count++;
+      }
+      sec.count = count;
+    }
+
+    const tokens = [...sectionTokens, ...sceneTokens].sort((a,b)=>a.index-b.index);
+    const addedScenes = new Set();
+
+    // 2) 토큰 순회하며 섹션은 "제목 / 프롬프트 n개"(복사버튼 X), 장면은 기존처럼 표시
+    for (const tk of tokens) {
+      if (tk.type === 'section') {
+        const trSec = document.createElement('tr');
+
+        const tdScene = document.createElement('td');
+        tdScene.className = 'col-scene';
+        tdScene.style.whiteSpace = 'nowrap';
+        tdScene.style.padding = '12px';
+        tdScene.style.borderBottom = '1px solid var(--border)';
+        tdScene.textContent = `${tk.title} / 프롬프트 ${tk.count||0}개`;
+
+        const tdPrompt = document.createElement('td');
+        tdPrompt.className = 'col-prompt';
+        tdPrompt.style.padding = '12px';
+        tdPrompt.style.borderBottom = '1px solid var(--border)';
+        tdPrompt.textContent = ''; // 섹션 제목행은 본문 없음
+
+        const tdCopy = document.createElement('td');
+        tdCopy.style.padding = '12px';
+        tdCopy.style.borderBottom = '1px solid var(--border)';
+        // 복사 버튼 없음
+
+        trSec.appendChild(tdScene);
+        trSec.appendChild(tdPrompt);
+        trSec.appendChild(tdCopy);
+        frag.appendChild(trSec);
+      } else if (tk.type === 'scene') {
+        if (addedScenes.has(tk.label)) continue; // 중복 방지
+        const prompt = rowsMap.get(tk.label);
+        if (!prompt) continue;
+
+        const tr = document.createElement('tr');
+
+        const tdScene = document.createElement('td');
+        tdScene.className = 'col-scene';
+        tdScene.style.whiteSpace = 'nowrap';
+        tdScene.style.padding = '12px';
+        tdScene.style.borderBottom = '1px solid var(--border)';
+        tdScene.textContent = tk.label;
+
+        const tdPrompt = document.createElement('td');
+        tdPrompt.className = 'col-prompt';
+        tdPrompt.style.padding = '12px';
+        tdPrompt.style.borderBottom = '1px solid var(--border)';
+        const divText = document.createElement('div');
+        divText.className = 'prompt-text';
+        divText.textContent = prompt || '';
+        tdPrompt.appendChild(divText);
+
+        const tdCopy = document.createElement('td');
+        tdCopy.style.padding = '12px';
+        tdCopy.style.borderBottom = '1px solid var(--border)';
+        const btn = document.createElement('button');
+        btn.textContent = '복사';
+        wireCopyToggle(btn, () => prompt || '');
+        tdCopy.appendChild(btn);
+
+        tr.appendChild(tdScene);
+        tr.appendChild(tdPrompt);
+        tr.appendChild(tdCopy);
+        frag.appendChild(tr);
+
+        addedScenes.add(tk.label);
+      }
+    }
+
+    // 3) 내용 출력
+    tbody.innerHTML = '';
+    if (frag.childNodes.length) {
+      tbody.appendChild(frag);
+    } else {
       const trEmpty = document.createElement('tr');
       const td = document.createElement('td');
       td.colSpan = 3;
@@ -464,51 +584,8 @@
       td.style.padding = '28px';
       td.textContent = '이미지 프롬프트 입력창에서 유효한 프롬프트를 찾지 못했습니다.';
       trEmpty.appendChild(td);
-      tbody.innerHTML = '';
-      // 주인공만 있어도 위에서 frag에 추가되었으니 같이 출력
-      if (protagonist) {
-        tbody.appendChild(frag);
-      } else {
-        tbody.appendChild(trEmpty);
-      }
-      return;
+      tbody.appendChild(trEmpty);
     }
-
-    rows.forEach(({ label, prompt }) => {
-      const tr = document.createElement('tr');
-
-      const tdScene = document.createElement('td');
-      tdScene.className = 'col-scene';
-      tdScene.style.whiteSpace = 'nowrap';
-      tdScene.style.padding = '12px';
-      tdScene.style.borderBottom = '1px solid var(--border)';
-      tdScene.textContent = label;
-
-      const tdPrompt = document.createElement('td');
-      tdPrompt.className = 'col-prompt';
-      tdPrompt.style.padding = '12px';
-      tdPrompt.style.borderBottom = '1px solid var(--border)';
-      const divText = document.createElement('div');
-      divText.className = 'prompt-text';
-      divText.textContent = prompt || '';
-      tdPrompt.appendChild(divText);
-
-      const tdCopy = document.createElement('td');
-      tdCopy.style.padding = '12px';
-      tdCopy.style.borderBottom = '1px solid var(--border)';
-      const btn = document.createElement('button');
-      btn.textContent = '복사';
-      wireCopyToggle(btn, () => prompt || '');
-      tdCopy.appendChild(btn);
-
-      tr.appendChild(tdScene);
-      tr.appendChild(tdPrompt);
-      tr.appendChild(tdCopy);
-      frag.appendChild(tr);
-    });
-
-    tbody.innerHTML = '';
-    tbody.appendChild(frag);
   }
 
   function renderCards() {
