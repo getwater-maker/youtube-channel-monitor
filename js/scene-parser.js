@@ -2,7 +2,7 @@
  * scene-parser.js — 2섹션(좌=대화, 우=이미지프롬프트) 레이아웃 + JSON 저장
  *
  * 섹션 구성
- *  - 좌측 "대화 섹션": 대본 입력창 + 카드(무제한)
+ *  - 좌측 "대본 입력창": 대본 입력창 + 카드(무제한)
  *  - 우측 "이미지 프롬프트 섹션": 프롬프트 입력창 + 표
  *
  * 파싱 규칙(공통)
@@ -104,9 +104,19 @@
   function normalizeForSceneBlocks(text) {
     if (!text) return '';
     let t = String(text);
+
+    // [장면 n: ...] → [장면 n]
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\]\n]*\]/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    // [장면 n: ...  (닫힘 누락)] → [장면 n]
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*:[^\n]*/gi,    (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    // [장면 n] → [장면 n]
     t = t.replace(/\[\s*장면\s*(\d{1,3})\s*\]/gi,         (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+
+    // **장면 n** 또는 **장면 n:** → [장면 n]  (굵게 머리표기를 허용)
+    t = t.replace(/\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi,     (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+    t = t.replace(/\*\*\s*장면\s*(\d{1,3})\s*:\s*\*\*/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+
+    // "## 1장." 같은 챕터 라인은 제거(빈 줄 유지)
     const lines = t.replace(/\r\n/g,'\n').split('\n');
     const out = [];
     for (const ln of lines) {
@@ -253,7 +263,9 @@
 
       /* 입력 블록(두 섹션 동일 높이) */
       .sp-input-wrap { display:flex; flex-direction:column; gap:6px; }
-      .sp-input-wrap label { font-weight: 700; color: var(--text); }
+      /* 라벨은 시각적으로 숨겨 동일선상 정렬(타이틀 아래 바로 입력창이 오도록) */
+      .sp-input-wrap label { display:none; }
+
       .sp-input-wrap textarea {
         height: ${INPUT_H}px;
         min-height: ${INPUT_H}px;
@@ -311,8 +323,10 @@
     // 최상위: 두 섹션
     const two = document.createElement('div'); two.id = 'sp-two-sections';
 
-    /* 좌 — 대화 섹션 (타이틀 표시하지 않음) */
+    /* 좌 — 대본 입력창 (타이틀 추가로 우측과 동일선상) */
     const left = document.createElement('div'); left.className = 'sp-section';
+    const leftTitle = document.createElement('div'); leftTitle.className = 'sp-section-title';
+    leftTitle.textContent = '대본 입력창';
     const leftInputWrap = document.createElement('div'); leftInputWrap.className = 'sp-input-wrap';
     const lblScene = document.createElement('label'); lblScene.setAttribute('for','scene-input'); lblScene.textContent = '대본 입력창';
     const sceneInput = $('#scene-input', oldInputArea || document);
@@ -320,17 +334,19 @@
     leftInputWrap.appendChild(lblScene);
     if (sceneInput) leftInputWrap.appendChild(sceneInput);
     const leftCards = document.createElement('div'); leftCards.id='sp-cards';
+
+    left.appendChild(leftTitle);
     left.appendChild(leftInputWrap);
     left.appendChild(leftCards);
 
-    /* 우 — 이미지 프롬프트 섹션 */
+    /* 우 — 이미지 프롬프트 섹션 (기존 구조 유지) */
     const right = document.createElement('div'); right.className = 'sp-section';
     const rightTitle = document.createElement('div'); rightTitle.className = 'sp-section-title';
     rightTitle.textContent = '이미지 프롬프트 섹션';
     const rightInputWrap = document.createElement('div'); rightInputWrap.className = 'sp-input-wrap';
-    const lblPrompt = document.createElement('label'); lblPrompt.setAttribute('for','prompt-input'); 
+    const lblPrompt = document.createElement('label'); lblPrompt.setAttribute('for','prompt-input'); lblPrompt.textContent = '이미지 프롬프트 입력창';
     const promptInput = document.createElement('textarea'); promptInput.id='prompt-input';
-    promptInput.placeholder = '예: [장면 001]\\n이미지 프롬프트: "..."';
+    promptInput.placeholder = '예: [장면 001]\n이미지 프롬프트: "..."';
     rightInputWrap.appendChild(lblPrompt);
     rightInputWrap.appendChild(promptInput);
     const rightTableWrap = document.createElement('div'); rightTableWrap.className = 'sp-table-wrap';
