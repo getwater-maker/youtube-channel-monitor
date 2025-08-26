@@ -11,7 +11,7 @@
     ├── navigation.js 
     ├── my-channels.js 
     ├── oauth-manager.js 
-    ├── text-splitter.js
+    ├── scene-parser.js
     └── main.js 
 
 난 코딩을 못해요. 그러니 아무리 설명해도 난 몰라요. 토큰을 아껴야하니 전체파일 코딩보다는 수정해야할 첫문장과 마지막 문장을 알려주시고, 그 내용을 어떻게 수정해야 하는지 알려주세요
