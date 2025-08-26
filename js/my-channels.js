@@ -1,355 +1,405 @@
-// my-channels.js — "내 채널들" UI/동작(팝업 OAuth 대응, 전역 클릭 위임, 안내 강화)
-console.log('my-channels.js 로딩 시작');
+// my-channels.js — "내 채널들" 통합 보드 (내 채널/구독 + 등록 채널 관리)
+// - OAuth(팝업) 로그인 상태 표시/갱신
+// - 등록 채널 관리(추가/삭제/정렬/검색/가져오기/내보내기)
+// - "내 영상 관리" 섹션/버튼 연동
+console.log('my-channels.js (통합 보드) 로딩');
 
-window.myChannelsState = window.myChannelsState || {
-  initialized: false,
-  list: [] // { id, title, thumbnail, subscriberCount, uploadsPlaylistId }
-};
+(function(){
+  'use strict';
 
-// ===== 안전 토스트(전역 toast와 이름 충돌 방지) =====
-const showToast = (msg, type) => {
-  try {
-    if (typeof window.toast === 'function' && window.toast !== showToast) {
-      return window.toast(msg, type); // common.js의 전역 toast 사용
+  // ===== 유틸 =====
+  const $  = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const fmt = (n) => {
+    const v = parseInt(n || 0, 10);
+    return isNaN(v) ? '0' : v.toLocaleString('ko-KR');
+  };
+  const toast = (m,t) => { try{ window.toast(m,t||'info'); }catch{ alert(m); } };
+
+  // ===== OAuth 연동 (oauth-manager.js 의 전역 함수 사용) =====
+  function reflectLoginStatus() {
+    const token = (window.getAccessToken && window.getAccessToken()) || null;
+    const btnSignin  = $('#btn-oauth-signin');
+    const btnSignout = $('#btn-oauth-signout');
+    if (btnSignin)  btnSignin.style.display  = token ? 'none' : '';
+    if (btnSignout) btnSignout.style.display = token ? '' : 'none';
+    const status = $('#mych-status');
+    if (status) status.textContent = token ? '로그인됨' : '로그인 필요';
+  }
+
+  async function initOAuthButtons(){
+    const signIn = $('#btn-oauth-signin');
+    const signOut= $('#btn-oauth-signout');
+
+    if (signIn && !signIn.dataset.bound) {
+      signIn.dataset.bound='1';
+      signIn.addEventListener('click', async () => {
+        try {
+          await window.oauthSignIn?.('consent'); // oauth-manager.js
+          reflectLoginStatus();
+          await loadMyChannelAndSubs();
+        } catch(e) {
+          console.error(e);
+          toast('로그인 실패', 'error');
+        }
+      });
     }
-  } catch {}
-  // 전역 toast가 없거나, 우연히 자기 자신일 때는 alert로 폴백
-  alert(msg);
-};
+    if (signOut && !signOut.dataset.bound) {
+      signOut.dataset.bound='1';
+      signOut.addEventListener('click', async () => {
+        try {
+          window.oauthSignOut?.();
+        } finally {
+          reflectLoginStatus();
+          clearOwnLists();
+        }
+      });
+    }
 
-// ---- 유틸 ----
-function $id(id) { return document.getElementById(id); }
-function formatNumber(n) {
-  const v = Number(n || 0);
-  return isNaN(v) ? '0' : v.toLocaleString('ko-KR');
-}
-
-// 섹션 요소 확보(없어도 안전하게 작동)
-function ensureMyChannelsLayout() {
-  const root = document.getElementById('section-my-channels') || document;
-
-  // 상태 표시
-  let status = $id('mych-status');
-  if (!status) {
-    const hdr = root.querySelector('.mych-controls') || root.querySelector('.section-header') || root;
-    const span = document.createElement('span');
-    span.id = 'mych-status';
-    span.style.cssText = 'margin-left:8px;color:var(--muted);font-weight:600;';
-    span.textContent = '로그인 필요';
-    hdr.appendChild(span);
-    status = span;
+    // 최초 상태 반영
+    reflectLoginStatus();
   }
 
-  // 리스트 컨테이너
-  let list = $id('my-channels-list');
-  if (!list) {
-    list = document.createElement('div');
-    list.id = 'my-channels-list';
-    const section = root.querySelector('.section') || root;
-    section.appendChild(list);
+  // ===== 내 채널/구독 영역 =====
+  function clearOwnLists(){
+    const own = $('#my-channels-list'); if (own) own.innerHTML='';
+    const subs= $('#my-subscriptions-list'); if (subs) subs.innerHTML='';
   }
 
-  // 빈 상태
-  let empty = $id('mych-empty');
-  if (!empty) {
-    empty = document.createElement('div');
-    empty.id = 'mych-empty';
-    empty.className = 'empty-state';
-    empty.innerHTML = `
-      <div class="empty-icon">🙂</div>
-      <p class="muted">Google 로그인 후 <b>내 채널/내 구독</b>을 불러올 수 있어요.</p>`;
-    list.parentElement.insertBefore(empty, list);
-  }
-
-  return { list, empty, status };
-}
-
-function setStatus(text) {
-  const { status } = ensureMyChannelsLayout();
-  status.textContent = text || '';
-}
-
-function reflectLoginStatus() {
-  const token = (window.getAccessToken && window.getAccessToken()) || null;
-  const btnSignin  = $id('btn-oauth-signin');
-  const btnSignout = $id('btn-oauth-signout');
-  if (btnSignin)  btnSignin.style.display  = token ? 'none' : '';
-  if (btnSignout) btnSignout.style.display = token ? '' : 'none';
-  setStatus(token ? '로그인됨' : '로그인 필요');
-}
-
-// ---- API 호출 ----
-async function fetchMyChannel() {
-  const j = await window.ytAuth('channels', {
-    part: 'snippet,contentDetails,statistics',
-    mine: true,
-    maxResults: 50
-  });
-  const out = [];
-  for (const it of (j.items || [])) {
-    const uploads = it.contentDetails?.relatedPlaylists?.uploads || '';
-    out.push({
-      id: it.id,
-      title: it.snippet?.title || '(제목 없음)',
-      thumbnail:
-        it.snippet?.thumbnails?.high?.url ||
-        it.snippet?.thumbnails?.medium?.url ||
-        it.snippet?.thumbnails?.default?.url ||
-        'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj',
-      subscriberCount: parseInt(it.statistics?.subscriberCount || '0', 10),
-      uploadsPlaylistId: uploads
-    });
-  }
-  return out;
-}
-
-async function fetchMySubscriptions() {
-  // subscriptions.list → channelId 모으고 → channels.list로 상세
-  const ids = [];
-  let pageToken = undefined;
-  while (true) {
-    const s = await window.ytAuth('subscriptions', {
-      part: 'snippet',
-      mine: true,
-      maxResults: 50,
-      ...(pageToken ? { pageToken } : {})
-    });
-    (s.items || []).forEach(it => {
-      const id = it.snippet?.resourceId?.channelId;
-      if (id) ids.push(id);
-    });
-    if (!s.nextPageToken) break;
-    pageToken = s.nextPageToken;
-  }
-  if (!ids.length) return [];
-
-  const out = [];
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    const cj = await window.ytAuth('channels', {
+  async function fetchMyChannel(){
+    const j = await window.ytAuth('channels', {
       part: 'snippet,contentDetails,statistics',
-      id: batch.join(',')
+      mine: true,
+      maxResults: 50
     });
-    (cj.items || []).forEach(it => {
+    const out=[];
+    (j.items||[]).forEach(it=>{
       const uploads = it.contentDetails?.relatedPlaylists?.uploads || '';
       out.push({
         id: it.id,
         title: it.snippet?.title || '(제목 없음)',
-        thumbnail:
-          it.snippet?.thumbnails?.high?.url ||
-          it.snippet?.thumbnails?.medium?.url ||
-          it.snippet?.thumbnails?.default?.url ||
-          'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj',
-        subscriberCount: parseInt(it.statistics?.subscriberCount || '0', 10),
+        thumbnail: it.snippet?.thumbnails?.high?.url || it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url || 'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj',
+        subscriberCount: parseInt(it.statistics?.subscriberCount || '0',10),
+        videoCount: parseInt(it.statistics?.videoCount || '0',10),
         uploadsPlaylistId: uploads
       });
     });
+    return out;
   }
-  return out;
-}
-
-// ---- IndexedDB 저장(모니터링 목록에 추가) ----
-async function addToMonitored(channel) {
-  try {
-    if (typeof idbGet === 'function' && typeof idbSet === 'function') {
-      const existing = await idbGet('my_channels', channel.id);
-      if (existing) { showToast('이미 모니터링 중인 채널입니다.', 'info'); return; }
-      await idbSet('my_channels', channel.id, channel);
-      showToast('모니터링 목록에 추가되었습니다.', 'success');
-      if (typeof window.getAllChannels === 'function') {
-        await window.getAllChannels(true);
-      }
-    } else {
-      showToast('저장소가 준비되지 않았습니다.', 'error');
+  async function fetchMySubscriptions(){
+    const ids=[]; let pageToken;
+    while(true){
+      const s = await window.ytAuth('subscriptions', {
+        part:'snippet', mine:true, maxResults:50, ...(pageToken?{pageToken}:{})
+      });
+      (s.items||[]).forEach(it=>{
+        const id = it.snippet?.resourceId?.channelId;
+        if (id) ids.push(id);
+      });
+      if (!s.nextPageToken) break;
+      pageToken = s.nextPageToken;
     }
-  } catch (e) {
-    console.error('채널 저장 실패', e);
-    showToast('채널 저장에 실패했습니다.', 'error');
+    if (!ids.length) return [];
+    const out=[];
+    for (let i=0;i<ids.length;i+=50){
+      const batch = ids.slice(i, i+50);
+      const cj = await window.ytAuth('channels', {
+        part:'snippet,statistics', id: batch.join(',')
+      });
+      (cj.items||[]).forEach(ch=>{
+        out.push({
+          id: ch.id,
+          title: ch.snippet?.title || '(제목 없음)',
+          thumbnail: ch.snippet?.thumbnails?.high?.url || ch.snippet?.thumbnails?.default?.url || 'https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj',
+          subscriberCount: parseInt(ch.statistics?.subscriberCount || '0',10)
+        });
+      });
+    }
+    return out;
   }
-}
 
-// ---- 렌더링 ----
-function renderChannelList(list) {
-  const { empty } = ensureMyChannelsLayout();
-  const wrap = $id('my-channels-list');
-  if (!wrap) return;
-
-  if (!list || list.length === 0) {
-    if (empty) empty.style.display = '';
-    wrap.innerHTML = '';
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  wrap.innerHTML = list.map(ch => `
-    <div class="channel-card">
-      <img class="channel-thumb" src="${ch.thumbnail}"
-           alt="${ch.title}"
-           onerror="this.src='https://yt3.ggpht.com/a/default-user=s88-c-k-c0x00ffffff-no-rj'">
-      <div class="channel-meta">
-        <h3 title="${ch.title}">
-          <a href="https://www.youtube.com/channel/${ch.id}" target="_blank" rel="noopener">${ch.title}</a>
-        </h3>
-        <div class="row">
-          <div><strong>구독자</strong> ${formatNumber(ch.subscriberCount)}</div>
-          <div><strong>ID</strong> ${ch.id}</div>
+  function renderOwn(list){
+    const wrap = $('#my-channels-list'); if (!wrap) return;
+    if (!list.length){
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🙂</div>
+          <p class="muted">로그인 후 <b>내 채널</b> 정보를 볼 수 있습니다.</p>
+        </div>`;
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="section-header" style="border-bottom:none;padding-bottom:0;margin-bottom:8px;">
+        <h4 style="margin:0;">내 채널</h4>
+      </div>`;
+    const grid = document.createElement('div');
+    grid.className = 'channel-list horizontal-grid';
+    list.forEach(ch=>{
+      const el = document.createElement('div');
+      el.className = 'channel-card';
+      el.innerHTML = `
+        <img class="channel-thumb" src="${ch.thumbnail}" alt="${ch.title}">
+        <div class="channel-meta">
+          <h3>${ch.title}</h3>
+          <div class="row">
+            <span>구독자 <strong>${fmt(ch.subscriberCount)}</strong></span>
+            <span>영상 <strong>${fmt(ch.videoCount)}</strong></span>
+          </div>
+          <div class="latest">업로드 재생목록: ${ch.uploadsPlaylistId || '-'}</div>
         </div>
-        <div class="latest">업로드 플레이리스트: <code>${ch.uploadsPlaylistId || '-'}</code></div>
-      </div>
-      <div class="channel-actions">
-        <button class="btn btn-primary" type="button" data-add="${ch.id}">모니터링에 추가</button>
-      </div>
-    </div>
-  `).join('');
-
-  wrap.querySelectorAll('[data-add]').forEach(btn => {
-    if (btn.dataset.bound === '1') return;
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-add');
-      const ch = list.find(x => x.id === id);
-      if (ch) addToMonitored(ch);
+        <div class="channel-actions">
+          <a class="btn btn-secondary" href="https://www.youtube.com/channel/${ch.id}" target="_blank">채널 열기</a>
+        </div>`;
+      grid.appendChild(el);
     });
-  });
-}
-
-// ---- 내보내기 ----
-async function exportAllJSON() {
-  try {
-    let data = [];
-    if (window.myChannelsState.list?.length) {
-      data = window.myChannelsState.list;
-    } else if (typeof window.getAllChannels === 'function') {
-      data = await window.getAllChannels(true);
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'channels-export.json'; a.click();
-    URL.revokeObjectURL(url);
-    showToast(`내보내기 완료 (${data.length}개)`, 'success');
-  } catch (e) {
-    console.error(e);
-    showToast('내보내기에 실패했습니다.', 'error');
+    wrap.appendChild(grid);
   }
-}
-
-// ---- 데모 채널(로그인 없이 체험) ----
-function loadDemo() {
-  const demo = [
-    { id:'UC_x5XG1OV2P6uZZ5FSM9Ttw', title:'Google Developers', thumbnail:'https://yt3.ggpht.com/ytc/AKedOLRk-demo=s88-c-k-c0x00ffffff-no-rj', subscriberCount:1000000, uploadsPlaylistId:'' },
-    { id:'UCE_M8A5yxnLfW0KghEeajjw', title:'Apple',             thumbnail:'https://yt3.ggpht.com/ytc/AKedOLRk-demo2=s88-c-k-c0x00ffffff-no-rj', subscriberCount:18000000, uploadsPlaylistId:'' }
-  ];
-  window.myChannelsState.list = demo;
-  renderChannelList(demo);
-  setStatus('데모 채널 2개 표시 (로그인 필요 없음)');
-}
-
-// ---- 버튼(전역 위임) 바인딩 ----
-function bindMyChannelsEventsOnce() {
-  if (document.body.dataset.mychDelegated === '1') return;
-  document.body.dataset.mychDelegated = '1';
-
-  document.addEventListener('click', async (e) => {
-    const el = e.target.closest('button, a');
-    if (!el) return;
-
-    const id = el.id || '';
-    const label = (el.textContent || '').trim();
-
-    const isSignin   = ['btn-oauth-signin'].includes(id) || /google\s*로그인/i.test(label) || /채널\s*연동/i.test(label);
-    const isSignout  = ['btn-oauth-signout'].includes(id) || /로그아웃/i.test(label);
-    const isLoadMine = ['btn-load-my-channel'].includes(id) || /내\s*채널\s*불러오기/i.test(label);
-    const isLoadSubs = ['btn-load-subscriptions'].includes(id) || /내\s*구독\s*불러오기/i.test(label);
-    const isExport   = ['btn-export-all'].includes(id) || /전체\s*내보내기/i.test(label);
-    const isDemo     = ['btn-demo'].includes(id) || /데모\s*체험/i.test(label);
-
-    if (!(isSignin || isSignout || isLoadMine || isLoadSubs || isExport || isDemo)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    try {
-      if (isSignin) {
-        console.log('[내채널] Google 로그인/채널연동 버튼 클릭');
-        await window.oauthSignIn();
-        reflectLoginStatus();             // ← 로그인 후 즉시 UI 갱신
-        return;
-      }
-      if (isSignout) {
-        window.oauthSignOut && window.oauthSignOut();
-        reflectLoginStatus();
-        renderChannelList([]);
-        return;
-      }
-      if (isDemo) {
-        loadDemo();
-        return;
-      }
-      if (isExport) {
-        await exportAllJSON();
-        return;
-      }
-      if (isLoadMine) {
-        setStatus('내 채널 불러오는 중…');
-        const list = await fetchMyChannel();
-        window.myChannelsState.list = list;
-        renderChannelList(list);
-        setStatus(`내 채널 ${list.length}개 로드`);
-        return;
-      }
-      if (isLoadSubs) {
-        setStatus('내 구독 불러오는 중…');
-        const list = await fetchMySubscriptions();
-        window.myChannelsState.list = list;
-        renderChannelList(list);
-        setStatus(`구독 채널 ${list.length}개 로드`);
-        return;
-      }
-    } catch (err) {
-      console.error('버튼 처리 중 오류:', err);
-      const msg = String(err?.message || err || '');
-      if (/SERVICE_DISABLED|accessNotConfigured|youtube\.googleapis\.com\/overview/i.test(msg)) {
-        showToast('YouTube Data API v3가 이 프로젝트에서 꺼져있습니다. GCP에서 Enable 후 다시 시도하세요.', 'error');
-      } else if (/insufficientPermissions|forbidden|403/i.test(msg)) {
-        showToast('권한 오류입니다. 동의 화면에서 권한을 허용했는지 확인해 주세요.', 'error');
-      } else {
-        showToast(msg, 'error');
-      }
-      setStatus('오류');
+  function renderSubs(list){
+    const wrap = $('#my-subscriptions-list'); if (!wrap) return;
+    if (!list.length){
+      wrap.innerHTML = '';
+      return;
     }
-  }, true);
+    wrap.innerHTML = `
+      <div class="section-header" style="border-bottom:none;padding-bottom:0;margin-bottom:8px;">
+        <h4 style="margin:0;">내 구독 (${list.length}개)</h4>
+      </div>`;
+    const grid = document.createElement('div');
+    grid.className = 'channel-list horizontal-grid';
+    list.forEach(ch=>{
+      const el = document.createElement('div');
+      el.className = 'channel-card';
+      el.innerHTML = `
+        <img class="channel-thumb" src="${ch.thumbnail}" alt="${ch.title}">
+        <div class="channel-meta">
+          <h3>${ch.title}</h3>
+          <div class="row">
+            <span>구독자 <strong>${fmt(ch.subscriberCount)}</strong></span>
+          </div>
+        </div>
+        <div class="channel-actions">
+          <a class="btn btn-secondary" href="https://www.youtube.com/channel/${ch.id}" target="_blank">채널 열기</a>
+        </div>`;
+      grid.appendChild(el);
+    });
+    wrap.appendChild(grid);
+  }
 
-  // OAuth 이벤트로도 UI 갱신
-  window.addEventListener('oauth:login', reflectLoginStatus);
-  window.addEventListener('oauth:logout', reflectLoginStatus);
-
-  console.log('내채널 전역 클릭 위임 바인딩 완료');
-}
-
-// ---- 초기화 ----
-async function initializeMyChannels() {
-  console.log('내채널 초기화 시작');
-  ensureMyChannelsLayout();
-  bindMyChannelsEventsOnce();
-
-  try { await window.initOAuthManager?.(); } catch (e) { console.warn('OAuth 매니저 초기화 실패', e); }
-  reflectLoginStatus();
-
-  // 기존 저장 채널 안내
-  try {
-    if (typeof window.getAllChannels === 'function') {
-      const existing = await window.getAllChannels();
-      if (existing && existing.length) {
-        setStatus(`이미 모니터링 중: ${existing.length}개 · 상단 버튼으로 내 구독을 불러오세요`);
-      }
+  async function loadMyChannelAndSubs(){
+    const token = (window.getAccessToken && window.getAccessToken()) || null;
+    if (!token){ clearOwnLists(); return; }
+    try{
+      $('#mych-status') && ($('#mych-status').textContent = '불러오는 중…');
+      const [mine, subs] = await Promise.allSettled([fetchMyChannel(), fetchMySubscriptions()]);
+      const mineList = mine.status==='fulfilled'? (mine.value||[]) : [];
+      const subsList = subs.status==='fulfilled'? (subs.value||[]) : [];
+      renderOwn(mineList);
+      renderSubs(subsList);
+      reflectLoginStatus();
+    }catch(e){
+      console.error(e);
+      toast('내 채널/구독 불러오기 실패', 'error');
     }
-  } catch {}
+  }
 
-  console.log('내채널 초기화 완료');
-}
+  // ===== 등록 채널 관리 보드 =====
+  const MC_PAGE_SIZE = 12;
+  let mcState = {
+    sort: 'subscribers',
+    search: '',
+    page: 1,
+    list: []
+  };
 
-// 전역 공개
-window.initializeMyChannels = initializeMyChannels;
+  function sortChannels(list, mode){
+    if (mode === 'videos') {
+      list.sort((a,b)=>parseInt(b.videoCount||'0')-parseInt(a.videoCount||'0'));
+    } else if (mode === 'latest') {
+      list.sort((a,b)=>new Date(b.latestUploadDate||0)-new Date(a.latestUploadDate||0));
+    } else {
+      list.sort((a,b)=>parseInt(b.subscriberCount||'0')-parseInt(a.subscriberCount||'0'));
+    }
+  }
 
-console.log('my-channels.js 로딩 완료');
+  async function mcLoadAll(){
+    try{
+      const all = await idbAll('my_channels');
+      mcState.list = all;
+      mcRender();
+    }catch(e){
+      console.error(e);
+      toast('등록 채널 목록을 불러올 수 없습니다.', 'error');
+    }
+  }
+
+  function mcRender(){
+    const wrap = $('#mc-channel-list'); if (!wrap) return;
+    const cnt  = $('#mc-channel-count');
+
+    // 검색/정렬/페이지
+    const q = (mcState.search||'').toLowerCase().trim();
+    let arr = [...mcState.list];
+    if (q) arr = arr.filter(ch => (ch.title||'').toLowerCase().includes(q));
+    sortChannels(arr, mcState.sort);
+
+    // 카운트
+    if (cnt) cnt.textContent = String(arr.length);
+
+    // 페이징
+    const start = (mcState.page-1)*MC_PAGE_SIZE;
+    const pageItems = arr.slice(start, start+MC_PAGE_SIZE);
+
+    if (!arr.length){
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📺</div>
+          <p class="muted">아직 등록된 채널이 없습니다.</p>
+          <button class="btn btn-primary" onclick="document.getElementById('mc-btn-add').click()">첫 채널 추가하기</button>
+        </div>`;
+      $('#mc-pagination') && ($('#mc-pagination').innerHTML='');
+      return;
+    }
+
+    // 리스트
+    const html = pageItems.map(ch=>{
+      const yesterday = ''; // 간단화: 필요 시 dailySubs 사용 가능
+      const thumb = (ch.thumbnail||'').trim() || `https://yt3.ggpht.com/ytc/${ch.id}`;
+      return `
+      <div class="channel-card" data-id="${ch.id}">
+        <img class="channel-thumb" src="${thumb}" alt="${ch.title}">
+        <div class="channel-meta">
+          <h3><a href="https://www.youtube.com/channel/${ch.id}" target="_blank">${ch.title}</a></h3>
+          <div class="row">
+            <span>구독자 <strong>${fmt(ch.subscriberCount)}</strong></span>
+            <span>영상 <strong>${fmt(ch.videoCount)}</strong></span>
+            <span>최근업로드 <strong>${(ch.latestUploadDate||'-').toString().slice(0,10)}</strong></span>
+          </div>
+          <div class="latest">${yesterday || ''}</div>
+        </div>
+        <div class="channel-actions">
+          <button class="btn btn-secondary" data-open-ch="${ch.id}">채널 열기</button>
+          <button class="btn btn-danger" data-del-ch="${ch.id}">삭제</button>
+        </div>
+      </div>`;
+    }).join('');
+    wrap.innerHTML = html;
+
+    // 버튼 바인딩
+    $$('#mc-channel-list [data-open-ch]').forEach(btn=>{
+      btn.onclick = ()=> window.open(`https://www.youtube.com/channel/${btn.dataset.openCh}`, '_blank');
+    });
+    $$('#mc-channel-list [data-del-ch]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        if (!confirm('이 채널을 삭제할까요?')) return;
+        try{
+          await idbDel('my_channels', btn.dataset.delCh);
+          toast('삭제되었습니다.', 'success');
+        }catch(e){ console.error(e); toast('삭제 실패', 'error'); }
+        mcLoadAll();
+      };
+    });
+
+    // 페이지네이션(간단)
+    const totalPages = Math.max(1, Math.ceil(arr.length/MC_PAGE_SIZE));
+    const p = $('#mc-pagination');
+    if (p){
+      let pg = '';
+      for (let i=1;i<=totalPages;i++){
+        pg += `<button class="btn btn-secondary" data-mc-page="${i}" style="margin-right:6px;${i===mcState.page?'background:var(--border);':''}">${i}</button>`;
+      }
+      p.innerHTML = pg;
+      $$('#mc-pagination [data-mc-page]').forEach(b=>{
+        b.onclick = ()=>{ mcState.page = parseInt(b.dataset.mcPage,10); mcRender(); };
+      });
+    }
+  }
+
+  function bindManageBoard(){
+    const addBtn = $('#mc-btn-add');
+    const expBtn = $('#mc-btn-export');
+    const impBtn = $('#mc-btn-import');
+    const impFile= $('#mc-file-import');
+    const sortSel= $('#mc-sort');
+    const search = $('#mc-search');
+
+    addBtn && (addBtn.onclick = async ()=>{
+      const channelId = prompt('추가할 채널 ID를 입력하세요 (예: UCxxxx...)');
+      if (!channelId) return;
+      try{
+        // channels.js의 addChannelById 있으면 사용, 없으면 간단 실패 안내
+        if (typeof window.addChannelById === 'function'){
+          const ok = await window.addChannelById(channelId.trim());
+          if (ok) mcLoadAll();
+        }else{
+          toast('addChannelById 함수를 찾을 수 없습니다. channels.js를 확인하세요.', 'error');
+        }
+      }catch(e){ console.error(e); toast('채널 추가 실패', 'error'); }
+    });
+
+    expBtn && (expBtn.onclick = async ()=>{
+      try{
+        const all = await idbAll('my_channels');
+        const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `channels-export-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(a.href);
+        toast('내보내기 완료', 'success');
+      }catch(e){ console.error(e); toast('내보내기 실패', 'error'); }
+    });
+
+    impBtn && (impBtn.onclick = ()=> impFile && impFile.click());
+    impFile && (impFile.onchange = async (ev)=>{
+      const f = ev.target.files?.[0];
+      if (!f) return;
+      try{
+        const text = await f.text();
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) throw new Error('JSON 배열이 아닙니다.');
+        for (const ch of arr) { await idbPut('my_channels', ch); }
+        toast(`가져오기 완료 (${arr.length}개)`, 'success');
+        mcLoadAll();
+      }catch(e){ console.error(e); toast('가져오기 실패: '+e.message, 'error'); }
+      ev.target.value = '';
+    });
+
+    sortSel && (sortSel.onchange = ()=>{ mcState.sort = sortSel.value; mcState.page=1; mcRender(); });
+    search && (search.oninput  = ()=>{ mcState.search = search.value; mcState.page=1; mcRender(); });
+  }
+
+  // ===== “내 영상 관리 열기” 버튼 =====
+  function bindOpenVideoManager(){
+    const btn = $('#btn-open-video-manager');
+    if (!btn || btn.dataset.bound==='1') return;
+    btn.dataset.bound='1';
+    btn.onclick = ()=>{
+      // 섹션이 있으면 이동 (section-video-manager), 없으면 영상분석 탭으로 이동
+      if (typeof window.showSection === 'function'){
+        const target = document.getElementById('section-video-manager') ? 'video-manager' : 'videos';
+        window.showSection(target);
+      }else{
+        toast('내 영상 관리/영상분석 섹션을 찾을 수 없습니다.', 'warning');
+      }
+    };
+  }
+
+  // ===== 초기화 =====
+  document.addEventListener('DOMContentLoaded', () => {
+    initOAuthButtons();
+    loadMyChannelAndSubs();
+    bindManageBoard();
+    mcLoadAll();
+    bindOpenVideoManager();
+
+    // 섹션 전환 시 ‘내 채널들’ 들어오면 자동 새로고침
+    const navBtn = document.getElementById('btn-my-channels');
+    if (navBtn && !navBtn.dataset.bound) {
+      navBtn.dataset.bound='1';
+      navBtn.addEventListener('click', ()=>{
+        setTimeout(()=>{ reflectLoginStatus(); loadMyChannelAndSubs(); mcLoadAll(); }, 50);
+      });
+    }
+  });
+
+})();

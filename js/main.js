@@ -389,27 +389,30 @@ function closeModal(modalId) {
   }
   window.initializeTextSplitter = window.initializeTextSplitter || initializeTextSplitter;
 
-  function initializeMyChannels() {
-    try {
-      if (typeof window.initializeMyChannels === 'function') {
-        window.initializeMyChannels();
-        return;
-      }
-      // 폴백: 안내만
-      const content = $('#my-channels-content');
-      if (content) {
-        content.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">👥</div>
-            <p class="muted">Google 로그인 후 내 채널/구독을 불러오세요.</p>
-          </div>
-        `;
-      }
-    } catch (e) {
-      console.warn('initializeMyChannels fallback error:', e);
+// ⚠️ 재귀 방지: 폴백 함수 이름을 분리합니다.
+function initializeMyChannelsFallback() {
+  try {
+    // 폴백: 안내만 표시
+    const content = $('#my-channels-content');
+    if (content) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <p class="muted">Google 로그인 후 내 채널/구독을 불러오세요.</p>
+        </div>
+      `;
     }
+  } catch (e) {
+    console.warn('initializeMyChannels fallback error:', e);
   }
-  window.initializeMyChannels = window.initializeMyChannels || initializeMyChannels;
+}
+
+// 이미 my-channels.js가 전역 함수(window.initializeMyChannels)를 정의했다면 그대로 사용하고,
+// 없을 때만 폴백을 주입합니다. (재귀 없음)
+if (typeof window.initializeMyChannels !== 'function') {
+  window.initializeMyChannels = initializeMyChannelsFallback;
+}
+
 
   // ========= OAuth 매니저(토큰 팝업) =========
   async function initOAuthManager() {
@@ -452,7 +455,6 @@ function closeModal(modalId) {
       extractChannelId: typeof window.extractChannelId,
       openAnalyzeModal: typeof window.openAnalyzeModal,
       initializeMyChannels: typeof window.initializeMyChannels,
-      initializeTextSplitter: typeof window.initializeTextSplitter
     };
     console.log('진단 리포트:', info);
     return info;
