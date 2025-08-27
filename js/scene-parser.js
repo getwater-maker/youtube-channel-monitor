@@ -61,6 +61,147 @@
     console.log('[Toast]', type||'info', msg);
   };
   
+  // 공용 헬퍼: 액션바(.section-actions) 안전 획득
+function getActionsEl() {
+  const sec = document.getElementById('section-scene-parser');
+  return sec ? sec.querySelector('.section-header .section-actions') : null;
+}
+
+// 파일명 생성 유틸
+function getUploadMonthDay() {
+  const el = document.getElementById('scene-date');
+  let d;
+  try {
+    d = (el && el.value) ? new Date(el.value) : new Date();
+    if (Number.isNaN(d.getTime())) d = new Date();
+  } catch { d = new Date(); }
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${mm}-${dd}`;
+}
+function getNowHMS() {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${hh}:${mi}:${ss}`;
+}
+function getFirstSentenceForFilename(sceneText) {
+  // 첫 줄의 비어있지 않은 문장
+  let first = (String(sceneText||'').split(/\r?\n/).find(l => l.trim().length>0) || 'untitled').trim();
+  // 파일명 불가 문자 제거 및 공백 정리
+  first = first.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+  if (first.length > 10) first = first.slice(0, 10) + '...';
+  return first || 'untitled';
+}
+
+
+
+  
+// ===== IndexedDB (최근 31일 대본/프롬프트 저장) =====
+const SP_DB_NAME = 'sceneParserDB';
+const SP_DB_STORE = 'drafts';
+const SP_DB_VER = 1;
+const SP_RETENTION_DAYS = 31;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SP_DB_NAME, SP_DB_VER);
+    req.onupgradeneeded = (e) => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(SP_DB_STORE)) {
+        const store = db.createObjectStore(SP_DB_STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('ts', 'ts', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveDraftToDB(sceneText, promptText) {
+  const db = await openDB();
+  const tx = db.transaction(SP_DB_STORE, 'readwrite');
+  const store = tx.objectStore(SP_DB_STORE);
+  const now = Date.now();
+  const rec = {
+    ts: now,
+    date: new Date(now).toISOString().slice(0,19).replace('T',' '), // YYYY-MM-DD HH:MM:SS
+    sceneText: String(sceneText||''),
+    promptText: String(promptText||''),
+    version: 1
+  };
+  store.add(rec);
+  await tx.complete?.() || new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  db.close();
+  await purgeOldDrafts();
+  return rec;
+}
+
+async function purgeOldDrafts() {
+  const db = await openDB();
+  const tx = db.transaction(SP_DB_STORE, 'readwrite');
+  const store = tx.objectStore(SP_DB_STORE);
+  const idx = store.index('ts');
+  const cutoff = Date.now() - SP_RETENTION_DAYS * 86400000;
+  const range = IDBKeyRange.upperBound(cutoff);
+  const toDelete = [];
+  idx.openCursor(range).onsuccess = (e) => {
+    const cursor = e.target.result;
+    if (cursor) { toDelete.push(cursor.primaryKey); cursor.continue(); }
+  };
+  await new Promise((res) => { tx.oncomplete = res; tx.onerror = res; });
+  if (toDelete.length) {
+    const tx2 = (await openDB()).transaction(SP_DB_STORE, 'readwrite');
+    const st2 = tx2.objectStore(SP_DB_STORE);
+    toDelete.forEach(k => st2.delete(k));
+    await new Promise((res) => { tx2.oncomplete = res; tx2.onerror = res; });
+  }
+  db.close?.();
+}
+
+async function getRecentDrafts(limit=31) {
+  const db = await openDB();
+  const tx = db.transaction(SP_DB_STORE, 'readonly');
+  const store = tx.objectStore(SP_DB_STORE);
+  const idx = store.index('ts');
+  const items = [];
+  idx.openCursor(null, 'prev').onsuccess = (e) => {
+    const cur = e.target.result;
+    if (cur && items.length < limit) { items.push(cur.value); cur.continue(); }
+  };
+  await new Promise((res) => { tx.oncomplete = res; tx.onerror = res; });
+  db.close?.();
+  return items;
+}
+
+async function getDraftById(id) {
+  const db = await openDB();
+  const tx = db.transaction(SP_DB_STORE, 'readonly');
+  const store = tx.objectStore(SP_DB_STORE);
+  const val = await new Promise((res) => {
+    const r = store.get(Number(id));
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => res(null);
+  });
+  db.close?.();
+  return val;
+}
+  
+  // ▼▼▼ 여기 추가 (getDraftById 아래) ▼▼▼
+async function deleteDraftById(id) {
+  if (!id) return false;
+  const db = await openDB();
+  const tx = db.transaction(SP_DB_STORE, 'readwrite');
+  const st = tx.objectStore(SP_DB_STORE);
+  st.delete(Number(id));
+  await new Promise((res) => { tx.oncomplete = res; tx.onerror = res; });
+  db.close?.();
+  return true;
+}
+// ▲▲▲ 여기까지 추가 ▲▲▲
+
+  
   function buildRemoveRegex() {
   if (!Array.isArray(SP_REMOVE_WORDS) || !SP_REMOVE_WORDS.length) return null;
   const parts = SP_REMOVE_WORDS
@@ -489,7 +630,7 @@ removeInput.style.fontSize = '12px';
 const removeBtn = document.createElement('button');
 removeBtn.id = 'sp-remove-btn';
 removeBtn.type = 'button';
-removeBtn.className = 'btn btn-danger';
+removeBtn.className = 'btn btn-danger sp-remove-btn';
 removeBtn.textContent = '제거';
 
 removeWrap.appendChild(removeInput);
@@ -498,7 +639,7 @@ removeWrap.appendChild(removeBtn);
 const restoreBtn = document.createElement('button');
 restoreBtn.id = 'sp-remove-reset';
 restoreBtn.type = 'button';
-restoreBtn.className = 'btn btn-secondary';
+restoreBtn.className = 'btn btn-secondary sp-remove-btn';
 restoreBtn.textContent = '복구';
 removeWrap.appendChild(restoreBtn);
 
@@ -899,113 +1040,280 @@ if (protagonist) {
     dateInput.value = `${d.getFullYear()}-${mm}-${dd}`;
     dateInput.dispatchEvent(new Event('change'));
   }
-  function restoreDateUI() {
-    const sec = document.getElementById('section-scene-parser');
-    if (!sec) return;
-    const actions = sec.querySelector('.section-header .section-actions');
-    const date = sec.querySelector('#scene-date');
-    if (!actions || !date) return;
 
-    const old = actions.querySelector('.sp-date-wrap'); if (old) old.remove();
+function restoreDateUI() {
+  // actions 안전 획득
+  const actions = getActionsEl();
+  const sec = document.getElementById('section-scene-parser');
+  const date = sec ? sec.querySelector('#scene-date') : null;
 
-    const label = document.createElement('div');
-    label.textContent = '업로드 날짜';
-    Object.assign(label.style,{ fontWeight:'600', marginRight:'8px', color:'var(--text,#e4e6ea)' });
+  // 아직 헤더/액션바가 없으면 1프레임 뒤 재시도 (최대 10회)
+  if (!actions || !date) {
+    (restoreDateUI._retry = (restoreDateUI._retry || 0) + 1);
+    if (restoreDateUI._retry <= 10) {
+      setTimeout(restoreDateUI, 50);
+    } else {
+      console.warn('[scene-parser] .section-actions not ready');
+    }
+    return;
+  }
+  restoreDateUI._retry = 0; // 초기화
 
-    const wrap = document.createElement('div');
-    wrap.className = 'sp-date-wrap';
-    Object.assign(wrap.style,{ display:'inline-flex', alignItems:'center', gap:'6px', marginRight:'8px' });
+  // 기존 날짜 UI 제거/재구성
+  const oldWrap = actions.querySelector('.sp-date-wrap'); if (oldWrap) oldWrap.remove();
+  const oldLabel = Array.from(actions.children).find(el => el.textContent === '업로드 날짜');
+  if (oldLabel) oldLabel.remove();
 
-    date.type = 'date';
-    if (!date.value) date.value = today();
-    Object.assign(date.style,{
-      height:'40px', padding:'8px 12px',
-      border:'2px solid var(--border,#2a3443)', borderRadius:'8px',
-      background:'var(--panel,#1e2329)', color:'var(--text,#e4e6ea)', fontWeight:'600'
+  const label = document.createElement('div');
+  label.textContent = '업로드 날짜';
+  Object.assign(label.style,{ fontWeight:'600', marginRight:'8px', color:'var(--text,#e4e6ea)' });
+
+  const wrap = document.createElement('div');
+  wrap.className = 'sp-date-wrap';
+  Object.assign(wrap.style,{ display:'inline-flex', alignItems:'center', gap:'6px', marginRight:'8px' });
+
+  date.type = 'date';
+  if (!date.value) date.value = today();
+  Object.assign(date.style,{
+    height:'40px', padding:'8px 12px',
+    border:'2px solid var(--border,#2a3443)', borderRadius:'8px',
+    background:'var(--panel,#1e2329)', color:'var(--text,#e4e6ea)', fontWeight:'600'
+  });
+
+  const col = document.createElement('div');
+  Object.assign(col.style,{ display:'flex', flexDirection:'column', gap:'2px' });
+
+  const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t;
+    Object.assign(b.style,{
+      width:'30px', height:'20px', padding:'0',
+      border:'1px solid var(--border,#2a3443)', borderRadius:'4px',
+      background:'var(--glass-bg,rgba(255,255,255,.05))',
+      color:'var(--text,#e4e6ea)', fontSize:'10px',
+      display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'
+    }); return b; };
+  const up=mk('▲'), dn=mk('▼');
+  up.addEventListener('click',()=>changeDate(date,1));
+  dn.addEventListener('click',()=>changeDate(date,-1));
+  col.appendChild(up); col.appendChild(dn);
+
+  wrap.appendChild(date); wrap.appendChild(col);
+  actions.insertBefore(label, actions.firstChild||null);
+  actions.insertBefore(wrap, label.nextSibling);
+
+  // === 대본 저장/불러오기/삭제 UI ===
+  if (!actions.querySelector('.sp-draft-wrap')) {
+    const draftWrap = document.createElement('div');
+    draftWrap.className = 'sp-draft-wrap';
+    Object.assign(draftWrap.style, { display:'inline-flex', alignItems:'center', gap:'6px', marginLeft:'8px' });
+
+    // 저장 버튼
+    const btnDraftSave = document.createElement('button');
+    btnDraftSave.id = 'sp-draft-save';
+    btnDraftSave.textContent = '대본 저장';
+    Object.assign(btnDraftSave.style, {
+      padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'8px',
+      background:'#2d6cdf', color:'#fff', fontWeight:'700', cursor:'pointer'
     });
 
-    const col = document.createElement('div');
-    Object.assign(col.style,{ display:'flex', flexDirection:'column', gap:'2px' });
+    // 최근 저장 목록
+    const sel = document.createElement('select');
+    sel.id = 'sp-draft-select';
+    Object.assign(sel.style, {
+      height:'36px', padding:'0 8px', border:'1px solid var(--border)', borderRadius:'8px',
+      background:'var(--panel)', color:'var(--text)'
+    });
+    const opt0 = document.createElement('option');
+    opt0.value = ''; opt0.textContent = '최근 저장 불러오기';
+    sel.appendChild(opt0);
 
-    const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t;
-      Object.assign(b.style,{
-        width:'30px', height:'20px', padding:'0',
-        border:'1px solid var(--border,#2a3443)', borderRadius:'4px',
-        background:'var(--glass-bg,rgba(255,255,255,.05))',
-        color:'var(--text,#e4e6ea)', fontSize:'10px',
-        display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'
-      }); return b; };
-    const up=mk('▲'), dn=mk('▼');
-    up.addEventListener('click',()=>changeDate(date,1));
-    dn.addEventListener('click',()=>changeDate(date,-1));
-    col.appendChild(up); col.appendChild(dn);
+    // 불러오기 버튼
+    const btnDraftLoad = document.createElement('button');
+    btnDraftLoad.id = 'sp-draft-load';
+    btnDraftLoad.textContent = '불러오기';
+    Object.assign(btnDraftLoad.style, {
+      padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'8px',
+      background:'var(--glass-bg)', color:'var(--text)', fontWeight:'700', cursor:'pointer'
+    });
 
-    wrap.appendChild(date); wrap.appendChild(col);
-    actions.insertBefore(label, actions.firstChild||null);
-    actions.insertBefore(wrap, label.nextSibling);
-  }
+    // 삭제 버튼 (신규)
+    const btnDraftDelete = document.createElement('button');
+    btnDraftDelete.id = 'sp-draft-delete';
+    btnDraftDelete.textContent = '삭제';
+    Object.assign(btnDraftDelete.style, {
+      padding:'8px 12px', border:'1px solid var(--border)', borderRadius:'8px',
+      background:'#c4302b', color:'#fff', fontWeight:'700', cursor:'pointer'
+    });
 
-  /* ===== 초기화 ===== */
-  function initializeSceneParser() {
-    if (window._sceneParserInitialized) return;
-    window._sceneParserInitialized = true;
+    draftWrap.appendChild(btnDraftSave);
+    draftWrap.appendChild(sel);
+    draftWrap.appendChild(btnDraftLoad);
+    draftWrap.appendChild(btnDraftDelete);
+    actions.appendChild(draftWrap);
 
-    ensureLayoutStyles();
-    rebuildSceneLayout();
-    restoreDateUI();
-
-    const sceneInput  = $('#scene-input');
-    const promptInput = $('#prompt-input');
-    const btnSave     = $('#scene-save');
-    const btnClear    = $('#scene-clear');
-
-    const recomputeAll = () => { renderCards(); renderPromptTable(); };
-
-    if (sceneInput) {
-      sceneInput.addEventListener('input', debounce(recomputeAll, 120));
-      sceneInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
-    }
-    if (promptInput) {
-      promptInput.addEventListener('input', debounce(recomputeAll, 120));
-      promptInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
-    }
-
-    // 저장: 우측 입력창 → JSON
-    if (btnSave) {
-      btnSave.addEventListener('click', () => {
-        const promptClean = sanitizeLines($('#prompt-input')?.value || '');
-        const blocks = parseSceneBlocks(promptClean);
-        const rows = blocks
-          .map(({label, body}, i) => {
-            const prompt = extractPromptFromBlock(body).trim();
-            if (!prompt) return null;
-            const m = (label||'').match(/(\d{1,3})/);
-            const id = pad3(m ? parseInt(m[1],10) : (i+1));
-            return { id, prompt, suggested_filenames: [`${id}.jpg`, `${id}.png`] };
-          })
-          .filter(Boolean);
-
-        if (!rows.length) { showToast('저장할 프롬프트가 없습니다.', 'warning'); return; }
-
-        const payload = { version:1, exported_at: today(), count: rows.length, items: rows };
-        downloadFile(`${today()}_image-prompts.json`, JSON.stringify(payload, null, 2));
-        showToast('이미지 프롬프트(JSON) 저장 완료', 'success');
+    // 목록 채우기
+    (async () => {
+      const drafts = await getRecentDrafts();
+      drafts.forEach(d => {
+        const o = document.createElement('option');
+        o.value = d.id;
+        const sLen = (d.sceneText||'').length, pLen = (d.promptText||'').length;
+        o.textContent = `${d.date} · 대본 ${sLen.toLocaleString()}자 / 프롬프트 ${pLen.toLocaleString()}자`;
+        sel.appendChild(o);
       });
-    }
+    })();
 
-    if (btnClear) {
-      btnClear.addEventListener('click', () => {
-        if (sceneInput)  sceneInput.value  = '';
-        if (promptInput) promptInput.value = '';
-        recomputeAll();
-      });
-    }
+    // 저장
+    btnDraftSave.addEventListener('click', async () => {
+      const sceneText  = document.getElementById('scene-input')?.value || '';
+      const promptText = document.getElementById('prompt-input')?.value || '';
+      if (!sceneText && !promptText) { showToast('저장할 내용이 없습니다.', 'warning'); return; }
+      try {
+        const rec = await saveDraftToDB(sceneText, promptText);
+        const opt = document.createElement('option');
+        opt.value = rec.id;
+        opt.textContent = `${rec.date} · 대본 ${sceneText.length.toLocaleString()}자 / 프롬프트 ${promptText.length.toLocaleString()}자`;
+        sel.insertBefore(opt, sel.options[1] || null);
+        sel.value = rec.id;
+        showToast('대본/프롬프트를 저장했어요 (최근 31일 보관)', 'success');
+      } catch (e) {
+        console.error(e);
+        showToast('저장 중 오류가 발생했습니다.', 'error');
+      }
+    });
 
-    // 초기 렌더
-    recomputeAll();
+    // 불러오기
+    btnDraftLoad.addEventListener('click', async () => {
+      const id = sel.value;
+      if (!id) { showToast('불러올 항목을 선택해주세요.', 'warning'); return; }
+      const rec = await getDraftById(id);
+      if (!rec) { showToast('해당 항목을 찾을 수 없습니다.', 'error'); return; }
+      const sceneInput = document.getElementById('scene-input');
+      const promptInput = document.getElementById('prompt-input');
+      if (sceneInput)  sceneInput.value  = rec.sceneText || '';
+      if (promptInput) promptInput.value = rec.promptText || '';
+      try { renderCards(); renderPromptTable(); } catch(e) {}
+      showToast('불러오기 완료', 'success');
+    });
+
+    // 삭제 (신규)
+    btnDraftDelete.addEventListener('click', async () => {
+      const id = sel.value;
+      if (!id) { showToast('삭제할 항목을 선택해주세요.', 'warning'); return; }
+      const ok = confirm('선택한 저장 항목을 삭제할까요?');
+      if (!ok) return;
+      try {
+        const done = await deleteDraftById(id); // ← 이 함수가 파일 상단 IndexedDB 유틸에 추가되어 있어야 합니다.
+        if (done) {
+          const toRemove = Array.from(sel.options).find(o => o.value === String(id));
+          if (toRemove) sel.removeChild(toRemove);
+          sel.value = '';
+          showToast('저장 항목을 삭제했습니다.', 'success');
+        } else {
+          showToast('삭제에 실패했습니다.', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('삭제 중 오류가 발생했습니다.', 'error');
+      }
+    });
   }
+}
+
+
+
+
+
+
 
   function debounce(fn, ms){ let t=null; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), ms); }; }
+
+/* ===== 초기화 ===== */
+function initializeSceneParser() {
+  if (window._sceneParserInitialized) return;
+  window._sceneParserInitialized = true;
+
+  // 레이아웃/UI 기본 구성
+  ensureLayoutStyles();
+  rebuildSceneLayout();
+  restoreDateUI();
+
+  const sceneInput  = $('#scene-input');
+  const promptInput = $('#prompt-input');
+  const btnSave     = $('#scene-save');
+  const btnClear    = $('#scene-clear');
+
+  const recomputeAll = () => { try { renderCards(); renderPromptTable(); } catch(e){ console.error(e); } };
+
+  // 입력 이벤트 바인딩
+  if (sceneInput) {
+    sceneInput.addEventListener('input', debounce(recomputeAll, 120));
+    sceneInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
+  }
+  if (promptInput) {
+    promptInput.addEventListener('input', debounce(recomputeAll, 120));
+    promptInput.addEventListener('paste', () => setTimeout(recomputeAll, 0));
+  }
+
+  // 저장: 우측 입력창 → JSON  (파일명: [MM-DD] ／ [HH:MM:SS] 대본첫문장(최대10자...))
+  if (btnSave) {
+  btnSave.addEventListener('click', () => {
+    const promptRaw   = $('#prompt-input')?.value || '';
+    const promptClean = sanitizeLines(normalizeForSceneBlocks(promptRaw));
+    const blocks      = parseSceneBlocks(promptClean);
+
+    let rows = blocks
+      .map(({ label, body }, i) => {
+        const prompt = extractPromptFromBlock(body).trim();
+        if (!prompt) return null;
+        const m  = (label || '').match(/(\d{1,3})/);
+        const id = pad3(m ? parseInt(m[1], 10) : (i + 1));
+        return { id, prompt, suggested_filenames: [`${id}.jpg`, `${id}.png`] };
+      })
+      .filter(Boolean);
+
+    // 제거 단어 반영
+    const reRemove = buildRemoveRegex();
+    if (reRemove) {
+      rows = rows.map(r => ({
+        ...r,
+        prompt: r.prompt.replace(reRemove, '').replace(/\s{2,}/g, ' ').trim()
+      }));
+    }
+
+    if (!rows.length) {
+      showToast('저장할 프롬프트가 없습니다.', 'warning');
+      return;
+    }
+
+    // ✅ 여기서 payload 만들기
+    const payload = { version: 1, exported_at: today(), count: rows.length, items: rows };
+
+    // 파일명 규칙
+    const sceneTextForName = document.getElementById('scene-input')?.value || '';
+    const mmdd  = getUploadMonthDay();
+    const hms   = getNowHMS();
+    const first = getFirstSentenceForFilename(sceneTextForName);
+    const filename = `[${mmdd}] ／ [${hms}] ${first}.json`;
+
+    downloadFile(filename, JSON.stringify(payload, null, 2));
+    showToast(`이미지 프롬프트 저장 완료 (${filename})`, 'success');
+  });
+}
+
+
+  // 지우기
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      if (sceneInput)  sceneInput.value  = '';
+      if (promptInput) promptInput.value = '';
+      recomputeAll();
+    });
+  }
+
+  // 첫 렌더
+  recomputeAll();
+}
+
 
   window.initializeSceneParser = initializeSceneParser;
 
