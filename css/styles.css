@@ -536,3 +536,58 @@ body {
 /* 기타 버튼 */
 .btn-info { background: #17a2b8; color: white; border-color: #17a2b8; flex-shrink: 0; }
 .btn-info:hover { background: #138496; border-color: #117a8b; }
+
+/* 섹션 내부 테이블 기본 정리 */
+#section-scene-parser .col-scene { width: 140px; white-space: nowrap; }
+#section-scene-parser .col-prompt { 
+  width: auto; 
+  max-width: 400px; /* 최대 너비 제한 */
+}
+
+/* 프롬프트 텍스트 한 줄 말줄임표 처리 */
+#section-scene-parser .prompt-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+/* 섹션 내부 테이블 기본 정리 */
+#section-scene-parser .col-scene { 
+  width: 120px; 
+  white-space: nowrap; 
+  padding: 8px 12px !important;
+}
+#section-scene-parser .col-prompt { 
+  width: auto; 
+  max-width: 300px;
+  padding: 8px 12px !important;
+}
+
+/* 테이블 셀 간격 최소화 */
+#section-scene-parser table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+
+#section-scene-parser td, #section-scene-parser th {
+  padding: 8px 12px !important;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 프롬프트 텍스트 한 줄 말줄임표 처리 */
+#section-scene-parser .prompt-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+/* 복사 버튼 열 너비 고정 */
+#section-scene-parser .col-copy {
+  width: 80px !important;
+  text-align: center;
+}
