@@ -201,49 +201,56 @@ function closeModal(modalId) {
       on(openBtn, 'click', () => window.openApiModal());
     }
 
-    const saveBtn = $('#api-save');
-    if (saveBtn && saveBtn.dataset.bound !== '1') {
-      saveBtn.dataset.bound = '1';
-      on(saveBtn, 'click', () => {
-        const keys = $$('.api-inp').map((inp) => (inp.value || '').trim()).filter(Boolean);
-        window.setApiKeys(keys);
-        toast('API 키가 저장되었습니다.', 'success');
-      });
-    }
+	const saveBtn = $('#api-save');
+	if (saveBtn && saveBtn.dataset.bound !== '1') {
+	  saveBtn.dataset.bound = '1';
+	  on(saveBtn, 'click', () => {
+		// 입력칸에서 키 수집 + 저장
+		const keys = $$('.api-inp').map(inp => (inp.value || '').trim()).filter(Boolean);
+		window.setApiKeys(keys);
+		// 안내
+		const cnt = (keys || []).length;
+		toast(cnt ? `API 키 ${cnt}개 저장되었습니다.` : 'API 키를 모두 비웠습니다.', 'success');
+		// ✅ 저장 후 모달 닫기
+		if (typeof window.closeModal === 'function') window.closeModal('modal-api');
+	  });
+	}
 
-    const testBtn = $('#api-test');
-if (testBtn && testBtn.dataset.bound !== '1') {
-  testBtn.dataset.bound = '1';
-  on(testBtn, 'click', async () => {
-    const resultEl = $('#api-test-result');
-    try {
-      if (resultEl) resultEl.textContent = '테스트 중...';
 
-      // 1) 입력창에 쓴 값 우선 사용 (저장하지 않아도 테스트 가능)
-      let liveKeys = $$('.api-inp').map(inp => (inp.value || '').trim()).filter(Boolean);
-      // 2) 없으면 저장된 키 사용
-      if (!liveKeys.length) liveKeys = window.getApiKeys();
+	const testBtn = $('#api-test');
+	if (testBtn && testBtn.dataset.bound !== '1') {
+	  testBtn.dataset.bound = '1';
+	  on(testBtn, 'click', async () => {
+		const resultEl = $('#api-test-result');
+		try {
+		  if (resultEl) resultEl.textContent = '테스트 중...';
 
-      if (!liveKeys.length) {
-        if (resultEl) resultEl.textContent = '입력/저장된 API 키가 없습니다.';
-        toast('먼저 키를 입력하거나 저장해 주세요.', 'warning');
-        return;
-      }
+		  // 1) 입력칸의 값을 우선 사용(저장 안 해도 테스트 가능)
+		  let keys = $$('.api-inp').map(inp => (inp.value || '').trim()).filter(Boolean);
+		  // 2) 없다면 저장된 키 사용
+		  if (!keys.length) keys = window.getApiKeys();
 
-      const key = liveKeys[0];
-      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=test&key=${encodeURIComponent(key)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		  if (!keys.length) {
+			if (resultEl) resultEl.textContent = '입력/저장된 API 키가 없습니다.';
+			toast('먼저 키를 입력하거나 저장해 주세요.', 'warning');
+			return;
+		  }
 
-      if (resultEl) resultEl.textContent = '성공! 키가 유효합니다.';
-      toast('API 키 유효성 테스트 성공', 'success');
-    } catch (e) {
-      console.error(e);
-      if (resultEl) resultEl.textContent = '실패: 키가 올바르지 않거나 네트워크 오류가 있습니다.';
-      toast('API 테스트 실패', 'error');
-    }
-  });
-}
+		  const key = keys[0];
+		  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=test&key=${encodeURIComponent(key)}`;
+		  const res = await fetch(url);
+		  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+		  if (resultEl) resultEl.textContent = '성공! 키가 유효합니다.';
+		  toast('API 키 유효성 테스트 성공', 'success');
+		} catch (e) {
+		  console.error(e);
+		  if (resultEl) resultEl.textContent = '실패: 키가 올바르지 않거나 네트워크 오류가 있습니다.';
+		  toast('API 테스트 실패', 'error');
+		}
+	  });
+	}
+
 
 
     const exportBtn = $('#api-export');
