@@ -201,6 +201,9 @@ function wireCopyToggle(btn, getText) {
     t = t.replace(/\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi,     (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
     t = t.replace(/\*\*\s*장면\s*(\d{1,3})\s*:\s*\*\*/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
 
+    // ### [장면n] 패턴 추가 지원
+    t = t.replace(/###\s*\[\s*장면\s*(\d{1,3})\s*\][^\n]*/gi, (_, n) => `[장면 ${pad3(parseInt(n,10))}]`);
+
     // "## 1장." 같은 챕터 라인은 제거(빈 줄 유지)
     const lines = t.replace(/\r\n/g,'\n').split('\n');
     const out = [];
@@ -221,6 +224,7 @@ function wireCopyToggle(btn, getText) {
     let cur=null, started=false;
     const blocks=[];
     for (const ln of lines) {
+      // 헤더 패턴을 먼저 확인
       const m = ln.match(headerRe);
       if (m) {
         started = true;
@@ -228,15 +232,18 @@ function wireCopyToggle(btn, getText) {
         cur = { label:`장면 ${pad3(parseInt(m[1],10))}`, body:[] };
         const suffix = ln.slice(ln.indexOf(m[0])+m[0].length).trim();
         if (suffix) cur.body.push(suffix);
-      } else if (started) {
-        cur.body.push(ln);
+      } else if (started && cur) {
+        // 제목 다음의 빈 줄을 무시하고, 실제 내용이 시작되는 줄부터 본문으로 추가
+        if (ln.trim().length > 0 || cur.body.length > 0) {
+          cur.body.push(ln);
+        }
       }
     }
     if (cur) blocks.push(cur);
     if (!blocks.length && (t || '').trim()) {
       blocks.push({ label:'-', body: t.split('\n') });
     }
-    return blocks.map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() }));
+    return blocks.map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() })).filter(b => b.body.length > 0);
   }
 
   // 작은따옴표(') 제외 — 인용부호: " ” `
@@ -256,16 +263,23 @@ function wireCopyToggle(btn, getText) {
   }
   function extractPromptFromBlock(blockText) {
     let src = String(blockText || '').trim();
-    src = src.replace(/^\*{1,3}\s*/, '').trim();
-    const labelIdx = src.search(/이미지\s*프(?:롬|름)프트\s*:/i);
-    if (labelIdx >= 0) {
-      const tail = src.slice(labelIdx).replace(/^[^:]*:/, '').trim();
-      const quotedAfter = getQuotedSegments(tail, 0);
-      if (quotedAfter.length) return quotedAfter[0].content.trim();
+    
+    // **[장면 n]** 패턴 제거
+    src = src.replace(/^\*\*\[장면[^\]]*\]\*\*\s*/i, '').trim();
+    
+    // Korean drama still photo로 시작하는 부분 찾기
+    const koreanDramaMatch = src.match(/Korean drama still photo[^]*?(?=\n\n|\n(?=\*\*\[장면|\*\*[^[])|\n(?=##)|$)/i);
+    if (koreanDramaMatch) {
+      return koreanDramaMatch[0].trim();
+    }
+    
+    // 콜론 뒤의 내용 추출
+    const colonIdx = src.search(/:\s*/);
+    if (colonIdx >= 0) {
+      const tail = src.slice(colonIdx + 1).trim();
       return tail;
     }
-    const quoted = getQuotedSegments(src, 0);
-    if (quoted.length) return quoted.sort((a,b)=>b.len-a.len)[0].content.trim();
+    
     return src;
   }
 
@@ -306,6 +320,7 @@ function wireCopyToggle(btn, getText) {
     const clipped = clipTextBeforeImagePrompt(scriptRaw||'');
     const cleanedNoHdr = sanitizeLines(clipped);
     const cleaned = normalizeForSceneBlocks(cleanedNoHdr);
+	const noQuotes = cleaned.replace(/["“”]/g, '');
     const start = startIndexForCards(cleaned);
     let rest = cleaned.slice(start);
 
@@ -457,7 +472,7 @@ function wireCopyToggle(btn, getText) {
     const lines = text.split('\n');
 
     let start = -1;
-    const headingRe = /^\s*#{2,3}\s*👤?\s*주인공\s*이미지\s*프롬프트\s*:?\s*$/i;
+    const headingRe = /^\s*#{2,3}\s*.*주인공.*프롬프트.*$/i;
     for (let i = 0; i < lines.length; i++) {
       if (headingRe.test(lines[i])) { start = i + 1; break; }
     }
@@ -468,13 +483,15 @@ function wireCopyToggle(btn, getText) {
       if (/^\s*#{2,3}\s+/.test(lines[i])) { end = i; break; }
     }
 
-    const body = lines.slice(start, end)
+   const body = lines.slice(start, end)
       .filter(ln => !/^\s*#{2,3}\s+/.test(ln))
       .map(ln => ln.replace(/^\*\*(.+?)\*\*$/g, '$1'))
       .join('\n')
       .trim();
 
-    return body;
+    // "Korean drama still photo of..." 부분만 추출
+    const cleanPrompt = body.replace(/^[^:]*:\s*/, '').trim();
+    return cleanPrompt;
   }
 
   /* ===== 섹션(🎬 …) 토큰 추출 =====
@@ -553,7 +570,7 @@ function wireCopyToggle(btn, getText) {
     }
 
     const promptRaw = ($('#prompt-input')?.value || '');
-    const promptClean = sanitizeLines(promptRaw);
+    const promptClean = sanitizeLines(normalizeForSceneBlocks(promptRaw));
     const blocks = parseSceneBlocks(promptClean);
 
     const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
