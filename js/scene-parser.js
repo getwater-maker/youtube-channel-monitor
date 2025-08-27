@@ -29,6 +29,8 @@
   const CARD_LIMIT     = 10000;
   const INPUT_H        = 360;  // 두 입력창 동일 높이
   const CARD_H         = 220;
+  let SP_REMOVE_WORDS = []; 
+
 
   /* ===== 유틸 ===== */
   const $  = (sel, root=document) => root.querySelector(sel);
@@ -58,6 +60,17 @@
     try { if (typeof window.toast === 'function') return window.toast(msg, type||'info'); } catch(_) {}
     console.log('[Toast]', type||'info', msg);
   };
+  
+  function buildRemoveRegex() {
+  if (!Array.isArray(SP_REMOVE_WORDS) || !SP_REMOVE_WORDS.length) return null;
+  const parts = SP_REMOVE_WORDS
+    .map(w => String(w||'').trim())
+    .filter(Boolean)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 정규식 이스케이프
+  if (!parts.length) return null;
+  return new RegExp(parts.join('|'), 'gi'); // 대소문자 무시, 전체 치환
+}
+
 
   /* ===== 복사 버튼 ===== */
 function ensureCopyStyles() {
@@ -448,10 +461,58 @@ function wireCopyToggle(btn, getText) {
     /* 우 — 이미지 프롬프트 섹션 (기존 구조 유지) */
     const right = document.createElement('div'); right.className = 'sp-section';
     const rightTitle = document.createElement('div'); rightTitle.className = 'sp-section-title';
-    rightTitle.textContent = '이미지 프롬프트';
-    const rightInputWrap = document.createElement('div'); rightInputWrap.className = 'sp-input-wrap';
-    const lblPrompt = document.createElement('label'); lblPrompt.setAttribute('for','prompt-input'); lblPrompt.textContent = '이미지 프롬프트 입력창';
-    const promptInput = document.createElement('textarea'); promptInput.id='prompt-input';
+    // 기존: rightTitle.textContent = '이미지 프롬프트';
+// 교체:
+const titleSpan = document.createElement('span');
+titleSpan.textContent = '이미지 프롬프트';
+rightTitle.style.display = 'flex';
+rightTitle.style.alignItems = 'center';
+rightTitle.style.gap = '12px';
+rightTitle.appendChild(titleSpan);
+
+// (추가) 제거 단어 입력창 + 버튼
+const removeWrap = document.createElement('div');
+removeWrap.style.display = 'inline-flex';
+removeWrap.style.gap = '8px';
+removeWrap.style.alignItems = 'center';
+
+const removeInput = document.createElement('input');
+removeInput.id = 'sp-remove-word';
+removeInput.placeholder = '삭제할 단어';
+removeInput.style.padding = '6px 10px';
+removeInput.style.border = '2px solid var(--border)';
+removeInput.style.borderRadius = '6px';
+removeInput.style.background = 'var(--card)';
+removeInput.style.color = 'var(--text)';
+removeInput.style.fontSize = '12px';
+
+const removeBtn = document.createElement('button');
+removeBtn.id = 'sp-remove-btn';
+removeBtn.type = 'button';
+removeBtn.className = 'btn btn-danger';
+removeBtn.textContent = '제거';
+
+removeWrap.appendChild(removeInput);
+removeWrap.appendChild(removeBtn);
+
+const restoreBtn = document.createElement('button');
+restoreBtn.id = 'sp-remove-reset';
+restoreBtn.type = 'button';
+restoreBtn.className = 'btn btn-secondary';
+restoreBtn.textContent = '복구';
+removeWrap.appendChild(restoreBtn);
+
+rightTitle.appendChild(removeWrap);
+
+// 이후 원래 코드 이어서...
+const rightInputWrap = document.createElement('div'); 
+rightInputWrap.className = 'sp-input-wrap';
+const lblPrompt = document.createElement('label');
+lblPrompt.setAttribute('for','prompt-input');
+lblPrompt.textContent = '이미지 프롬프트 입력창';
+const promptInput = document.createElement('textarea');
+promptInput.id='prompt-input';
+
     promptInput.placeholder = '예: [장면 001]\n이미지 프롬프트: "..."';
     rightInputWrap.appendChild(lblPrompt);
     rightInputWrap.appendChild(promptInput);
@@ -466,10 +527,42 @@ function wireCopyToggle(btn, getText) {
     two.appendChild(left);
     two.appendChild(right);
 
-    // 교체
-    oldContent.innerHTML = '';
-    oldContent.appendChild(two);
+// 교체
+oldContent.innerHTML = '';
+oldContent.appendChild(two);
+
+// 제거/복구 입력 바인딩 (이 위치에 한 번만!)
+const btn = document.getElementById('sp-remove-btn');
+const inp = document.getElementById('sp-remove-word');
+const resetBtn = document.getElementById('sp-remove-reset');
+
+if (btn && inp) {
+  const applyRemove = () => {
+    const word = (inp.value || '').trim();
+    if (word && !SP_REMOVE_WORDS.includes(word)) {
+      SP_REMOVE_WORDS.push(word);   // ← 누적
+    }
+    inp.value = '';                 // 입력창 비우기
+    renderPromptTable();            // 즉시 반영
+  };
+  btn.addEventListener('click', applyRemove);
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyRemove(); }
+  });
+}
+
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    SP_REMOVE_WORDS = [];           // 전체 복구
+    if (inp) inp.value = '';
+    renderPromptTable();
+  });
+}
+// ← 여기까지 바인딩 블록
+
+
   }
+
 
   /* ===== 주인공 프롬프트 추출 ===== */
   // "### 👤 주인공 이미지 프롬프트:" 제목 다음 ~ 다음 제목("##" 또는 "###") 전까지를 추출
@@ -579,46 +672,75 @@ function wireCopyToggle(btn, getText) {
     const promptClean = sanitizeLines(normalizeForSceneBlocks(promptRaw));
     const blocks = parseSceneBlocks(promptClean);
 
-    const rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
+    let rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
                        .filter(r => (r.prompt||'').trim().length);
+
+// === 제거 단어 반영 ===
+// === 제거 단어 반영 ===
+const reRemove = buildRemoveRegex();
+if (reRemove) {
+  rows = rows.map(r => ({
+    ...r,
+    prompt: (r.prompt || '')
+      .replace(reRemove, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  }));
+}
+
+
 
     const rowsMap = new Map(rows.map(r => [r.label, r.prompt]));
     const frag = document.createDocumentFragment();
 
     // 0) 헤더 바로 아래 "주인공" 행 (있을 때만)
-    const protagonist = extractProtagonistPrompt(promptRaw);
-    if (protagonist) {
-      const trPro = document.createElement('tr');
+    let protagonist = extractProtagonistPrompt(promptRaw);
 
-      const tdScene = document.createElement('td');
-      tdScene.className = 'col-scene';
-      tdScene.style.whiteSpace = 'nowrap';
-      tdScene.style.padding = '12px';
-      tdScene.style.borderBottom = '1px solid var(--border)';
-      tdScene.textContent = '주인공';
+const rePro = buildRemoveRegex();
+if (rePro) {
+  protagonist = (protagonist || '')
+    .replace(rePro, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
-      const tdPrompt = document.createElement('td');
-      tdPrompt.className = 'col-prompt';
-      tdPrompt.style.padding = '12px';
-      tdPrompt.style.borderBottom = '1px solid var(--border)';
-      const divText = document.createElement('div');
-      divText.className = 'prompt-text';
-      divText.textContent = protagonist;
-      tdPrompt.appendChild(divText);
 
-      const tdCopy = document.createElement('td');
-      tdCopy.style.padding = '12px';
-      tdCopy.style.borderBottom = '1px solid var(--border)';
-      const btn = document.createElement('button');
-      btn.textContent = '복사';
-      wireCopyToggle(btn, () => protagonist);
-      tdCopy.appendChild(btn);
+if (protagonist) {
+  const trPro = document.createElement('tr');
 
-      trPro.appendChild(tdScene);
-      trPro.appendChild(tdPrompt);
-      trPro.appendChild(tdCopy);
-      frag.appendChild(trPro);
-    }
+  const tdScene = document.createElement('td');
+  tdScene.className = 'col-scene';
+  tdScene.style.whiteSpace = 'nowrap';
+  tdScene.style.padding = '12px';
+  tdScene.style.borderBottom = '1px solid var(--border)';
+  tdScene.textContent = '주인공';
+
+  const tdPrompt = document.createElement('td');
+  tdPrompt.className = 'col-prompt';
+  tdPrompt.style.padding = '12px';
+  tdPrompt.style.borderBottom = '1px solid var(--border)';
+  const divText = document.createElement('div');
+  divText.className = 'prompt-text';
+  divText.textContent = protagonist;
+  tdPrompt.appendChild(divText);
+
+  const tdCopy = document.createElement('td');
+  tdCopy.style.padding = '12px';
+  tdCopy.style.borderBottom = '1px solid var(--border)';
+  const btn = document.createElement('button');
+  btn.textContent = '복사';
+  // 현재 값 고정해서 복사하려면 아래 두 줄처럼 해도 됩니다.
+  const proForCopy = protagonist;
+  wireCopyToggle(btn, () => proForCopy);
+
+  tdCopy.appendChild(btn);
+
+  trPro.appendChild(tdScene);
+  trPro.appendChild(tdPrompt);
+  trPro.appendChild(tdCopy);
+  frag.appendChild(trPro);
+}
+
 
     // 1) 섹션/장면 토큰을 원문 순서대로 병합
     const sectionTokens = findSectionTokens(promptRaw);
