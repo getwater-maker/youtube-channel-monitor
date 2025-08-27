@@ -72,15 +72,16 @@ function openDB() {
   return new Promise((resolve, reject) => {
     if (window.db) return resolve(window.db);
 
-    const req = indexedDB.open('myChannelDB', 4);
+    const req = indexedDB.open('myChannelDB', 5);
 
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
       window.db = db;
 
-      if (!db.objectStoreNames.contains('my_channels')) {
-        db.createObjectStore('my_channels', { keyPath: 'id' });
-      }
+      if (!db.objectStoreNames.contains('settings')) {
+		db.createObjectStore('settings', { keyPath: 'key' });
+	  }
+
       if (!db.objectStoreNames.contains('insights')) {
         db.createObjectStore('insights', { keyPath: 'channelId' });
       }

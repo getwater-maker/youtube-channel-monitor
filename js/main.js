@@ -140,22 +140,35 @@ function closeModal(modalId) {
 
   // ========= API 키 모달 =========
   function setApiKeys(keys) {
-    try {
-      localStorage.setItem('youtube_api_keys', JSON.stringify(keys || []));
-      window.apiKeys = keys || [];
-    } catch (e) {
-      console.warn('API 키 저장 실패', e);
-    }
+  try {
+    const arr = (keys || []).filter(Boolean);
+    window.apiKeys = arr;
+    // 표준 키 + 레거시 키 모두에 저장 (호환성 유지)
+    localStorage.setItem('youtube_api_keys', JSON.stringify(arr));
+    localStorage.setItem('youtubeApiKeys', JSON.stringify(arr));
+  } catch (e) {
+    console.warn('API 키 저장 실패', e);
   }
+}
+
   function getApiKeys() {
-    try {
-      const v = JSON.parse(localStorage.getItem('youtube_api_keys') || '[]');
-      window.apiKeys = v;
-      return v;
-    } catch {
-      return [];
+  try {
+    // 표준 키 → 없으면 레거시 키 → 표준 키로 동기화
+    let v = JSON.parse(localStorage.getItem('youtube_api_keys') || '[]');
+    if (!Array.isArray(v) || v.length === 0) {
+      const legacy = JSON.parse(localStorage.getItem('youtubeApiKeys') || '[]');
+      if (Array.isArray(legacy) && legacy.length) {
+        v = legacy;
+        localStorage.setItem('youtube_api_keys', JSON.stringify(v)); // 표준화
+      }
     }
+    window.apiKeys = v;
+    return v;
+  } catch {
+    return [];
   }
+}
+
   window.setApiKeys = window.setApiKeys || setApiKeys;
   window.getApiKeys = window.getApiKeys || getApiKeys;
 
@@ -199,32 +212,39 @@ function closeModal(modalId) {
     }
 
     const testBtn = $('#api-test');
-    if (testBtn && testBtn.dataset.bound !== '1') {
-      testBtn.dataset.bound = '1';
-      on(testBtn, 'click', async () => {
-        const resultEl = $('#api-test-result');
-        try {
-          if (resultEl) resultEl.textContent = '테스트 중...';
-          const keys = window.getApiKeys();
-          if (!keys.length) {
-            if (resultEl) resultEl.textContent = '저장된 API 키가 없습니다.';
-            return;
-          }
-          const key = keys[0];
-          const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=test&key=${encodeURIComponent(
-            key
-          )}`;
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          if (resultEl) resultEl.textContent = '성공! 간단한 요청이 정상 응답했습니다.';
-          toast('API 키 유효성 테스트 성공', 'success');
-        } catch (e) {
-          console.error(e);
-          if (resultEl) resultEl.textContent = '실패: 키가 올바르지 않거나 네트워크 오류가 있습니다.';
-          toast('API 테스트 실패', 'error');
-        }
-      });
+if (testBtn && testBtn.dataset.bound !== '1') {
+  testBtn.dataset.bound = '1';
+  on(testBtn, 'click', async () => {
+    const resultEl = $('#api-test-result');
+    try {
+      if (resultEl) resultEl.textContent = '테스트 중...';
+
+      // 1) 입력창에 쓴 값 우선 사용 (저장하지 않아도 테스트 가능)
+      let liveKeys = $$('.api-inp').map(inp => (inp.value || '').trim()).filter(Boolean);
+      // 2) 없으면 저장된 키 사용
+      if (!liveKeys.length) liveKeys = window.getApiKeys();
+
+      if (!liveKeys.length) {
+        if (resultEl) resultEl.textContent = '입력/저장된 API 키가 없습니다.';
+        toast('먼저 키를 입력하거나 저장해 주세요.', 'warning');
+        return;
+      }
+
+      const key = liveKeys[0];
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=test&key=${encodeURIComponent(key)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      if (resultEl) resultEl.textContent = '성공! 키가 유효합니다.';
+      toast('API 키 유효성 테스트 성공', 'success');
+    } catch (e) {
+      console.error(e);
+      if (resultEl) resultEl.textContent = '실패: 키가 올바르지 않거나 네트워크 오류가 있습니다.';
+      toast('API 테스트 실패', 'error');
     }
+  });
+}
+
 
     const exportBtn = $('#api-export');
     if (exportBtn && exportBtn.dataset.bound !== '1') {

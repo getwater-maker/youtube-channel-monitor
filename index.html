@@ -11,6 +11,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <!-- [추가 시작: Google API/GIS] -->
+<script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- [추가 끝: Google API/GIS] -->
+
 </head>
 
 <body class="dark">
@@ -29,7 +34,8 @@
         <button id="btn-scene-parser" class="btn btn-secondary nav-section">🖼️ 씬 프롬프트</button>
         <button id="btn-analyze" class="btn btn-primary">📊 채널 분석</button>
         <button id="btn-toggle-theme" class="btn btn-secondary">라이트 모드</button>
-        <button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
+		<button id="btn-api" class="btn btn-secondary">🔑 API 키</button>
+        <button id="btn-oauth-settings" class="btn btn-secondary">🔐 OAuth 설정</button>
       </nav>
     </header>
 
@@ -224,6 +230,27 @@
       <div id="api-test-result"></div>
     </div>
   </div>
+
+<!-- OAuth 클라이언트 ID 모달 -->
+<div id="modal-oauth" class="modal">
+  <div class="modal-content">
+    <span class="close" data-close="modal-oauth">&times;</span>
+    <h3>🔐 Google OAuth 클라이언트 ID</h3>
+    <p class="modal-description">
+      Google Cloud Console에서 발급한 <b>웹 애플리케이션</b>용 Client ID를 입력하세요.<br>
+      이 값은 <b>이 PC의 IndexedDB</b>에 저장됩니다. (파일로 저장되지 않음)
+    </p>
+
+    <div class="input-group">
+      <input id="oauth-client-id-input" type="text"
+             placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
+    </div>
+
+    <div class="modal-actions">
+      <button id="oauth-client-id-save" class="btn btn-primary">💾 저장</button>
+    </div>
+  </div>
+</div>
 
   <!-- 채널 추가 모달 -->
   <div id="modal-add" class="modal">
