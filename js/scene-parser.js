@@ -60,25 +60,110 @@
   };
 
   /* ===== 복사 버튼 ===== */
-  function ensureCopyStyles() {
-    if (document.getElementById('sp-copy-style')) return;
-    const st = document.createElement('style');
-    st.id = 'sp-copy-style';
-    st.textContent = `
-      .sp-btn-copy { padding:6px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid transparent; }
-      .sp-btn-red   { background:#c4302b; border-color:#c4302b; color:#fff; }
-      .sp-btn-green { background:#16a34a; border-color:#16a34a; color:#fff; }
-    `;
-    document.head.appendChild(st);
+function ensureCopyStyles() {
+  if (document.getElementById('sp-copy-style')) return;
+  const st = document.createElement('style');
+  st.id = 'sp-copy-style';
+  st.textContent = `
+    .sp-btn-copy { padding:6px 12px; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid transparent; }
+    .sp-btn-red   { background:#c4302b; border-color:#c4302b; color:#fff; }
+    .sp-btn-green { background:#16a34a; border-color:#16a34a; color:#fff; }
+  
+  /* 요약 프리뷰 칩 (한 줄 줄임표) */
+      .sp-preview-chip{
+        display:inline-block; max-width:380px; margin-right:8px; padding:6px 10px;
+        border-radius:8px; border:1px dashed var(--border); color:var(--text);
+        font-size:12px; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        background:var(--glass-bg);
+      }
+      @media (max-width: 768px){ .sp-preview-chip{ max-width:240px; } }
+
+  `;
+  document.head.appendChild(st);
+}
+
+function wireCopyToggle(btn, getText) {
+  // 스타일(버튼/칩) 보장
+  ensureCopyStyles();
+  btn.classList.add('sp-btn-copy', 'sp-btn-red');
+
+  // 1) 전체 텍스트 확보
+  let fullText = '';
+  try {
+    fullText = typeof getText === 'function' ? (getText() || '') : '';
+  } catch { fullText = ''; }
+
+  // 2) 버튼이 들어있는 셀(또는 부모) 기준으로
+  //    이미 화면에 길게 렌더된 프롬프트를 "요약"으로 바꾸고, 전체는 숨김/보관
+  const cell = btn.closest('td, .cell, .sp-cell') || btn.parentNode;
+  if (cell) {
+    // (a) 길게 노출된 후보 요소 찾기
+    const longTextEl =
+      cell.querySelector('[data-sp-role="prompt-full"]') ||
+      Array.from(cell.childNodes).find(n => {
+        // 텍스트노드 또는 텍스트 덩어리 div/p 등
+        if (n.nodeType === 3) return String(n.textContent || '').trim().length > 40;
+        if (n.nodeType === 1) {
+          const t = String(n.textContent || '').trim();
+          // 버튼/칩/아이콘이 아닌 일반 텍스트 블록만
+          const tag = n.tagName;
+          const isTextBlock = /^(DIV|P|SPAN)$/.test(tag);
+          const isControl   = n.classList?.contains('sp-btn-copy') || n === btn;
+          return !isControl && isTextBlock && t.length > 40;
+        }
+        return false;
+      });
+
+    // (b) longTextEl이 있으면 그 내용을 전체 텍스트로 사용
+    if (longTextEl) {
+      const content = String(longTextEl.textContent || '').trim();
+      if (content.length > 0) {
+        fullText = content;
+      }
+      // 화면에서는 요약(줄임표)만 보이게 처리
+      //  - 기존 요소는 숨기고(접근성 위해 title 부여)
+      //  - 대신 칩 형태의 요약 프리뷰를 버튼 앞에 추가
+      longTextEl.style.display = 'none';
+      longTextEl.setAttribute('aria-hidden', 'true');
+      longTextEl.title = content;
+
+      const shortText = content.length > 60 ? (content.slice(0, 60) + ' ...') : content;
+      const chip = document.createElement('span');
+      chip.className = 'sp-preview-chip';
+      chip.textContent = shortText;
+      chip.title = content; // 마우스 오버 시 전체 미리보기
+      if (!btn.previousElementSibling || !btn.previousElementSibling.classList?.contains('sp-preview-chip')) {
+        cell.insertBefore(chip, btn);
+      }
+    } else {
+      // longTextEl이 없으면 버튼 앞에 요약 칩만 생성
+      const shortText = fullText.length > 60 ? (fullText.slice(0, 60) + ' ...') : fullText;
+      if (shortText) {
+        const chip = document.createElement('span');
+        chip.className = 'sp-preview-chip';
+        chip.textContent = shortText;
+        chip.title = fullText;
+        if (!btn.previousElementSibling || !btn.previousElementSibling.classList?.contains('sp-preview-chip')) {
+          cell.insertBefore(chip, btn);
+        }
+      }
+    }
   }
-  function wireCopyToggle(btn, getText) {
-    ensureCopyStyles();
-    btn.classList.add('sp-btn-copy','sp-btn-red');
-    btn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(typeof getText==='function' ? (getText()||'') : ''); } catch {}
-      btn.classList.toggle('sp-btn-red'); btn.classList.toggle('sp-btn-green');
-    });
-  }
+
+  // 3) 버튼 라벨/툴팁 고정 (화면엔 ‘복사’만 보이도록)
+  btn.textContent = '복사';
+  btn.title = '전체 프롬프트 복사';
+
+  // 4) 클릭 시 전체 텍스트 복사
+  btn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(fullText || ''); } catch {}
+    btn.classList.toggle('sp-btn-red');
+    btn.classList.toggle('sp-btn-green');
+  });
+}
+
+
+
 
   /* ===== 정리/보조 ===== */
   function sanitizeLines(text) {
@@ -342,7 +427,7 @@
     /* 우 — 이미지 프롬프트 섹션 (기존 구조 유지) */
     const right = document.createElement('div'); right.className = 'sp-section';
     const rightTitle = document.createElement('div'); rightTitle.className = 'sp-section-title';
-    rightTitle.textContent = '이미지 프롬프트 섹션';
+    rightTitle.textContent = '이미지 프롬프트';
     const rightInputWrap = document.createElement('div'); rightInputWrap.className = 'sp-input-wrap';
     const lblPrompt = document.createElement('label'); lblPrompt.setAttribute('for','prompt-input'); lblPrompt.textContent = '이미지 프롬프트 입력창';
     const promptInput = document.createElement('textarea'); promptInput.id='prompt-input';
@@ -460,9 +545,9 @@
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th class="col-scene"  style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:220px;">장면</th>
-          <th class="col-prompt" style="text-align:left; padding:12px; border-bottom:1px solid var(--border);">이미지 프롬프트</th>
-          <th style="text-align:left; padding:12px; border-bottom:1px solid var(--border); width:110px;">복사</th>
+          <th class="col-scene"  style="text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); width:120px;">장면</th>
+          <th class="col-prompt" style="text-align:left; padding:8px 12px; border-bottom:1px solid var(--border);">이미지 프롬프트</th>
+          <th class="col-copy" style="text-align:center; padding:8px 12px; border-bottom:1px solid var(--border); width:80px;">복사</th>
         </tr>
       `;
     }
