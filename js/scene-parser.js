@@ -316,23 +316,29 @@ function wireCopyToggle(btn, getText) {
     }
     return { head: str.slice(0, cut), tail: str.slice(cut) };
   }
-  function splitCardsUnlimitedFromScript(scriptRaw) {
-    const clipped = clipTextBeforeImagePrompt(scriptRaw||'');
-    const cleanedNoHdr = sanitizeLines(clipped);
-    const cleaned = normalizeForSceneBlocks(cleanedNoHdr);
-	const noQuotes = cleaned.replace(/["“”]/g, '');
-    const start = startIndexForCards(cleaned);
-    let rest = cleaned.slice(start);
+  
+	function splitCardsUnlimitedFromScript(scriptRaw) {
+	  const clipped      = clipTextBeforeImagePrompt(scriptRaw || '');
+	  const cleanedNoHdr = sanitizeLines(clipped);
+	  const cleaned      = normalizeForSceneBlocks(cleanedNoHdr);
 
-    const chunks = [];
-    while (rest && rest.trim().length) {
-      const { head, tail } = cutAtSentenceBoundary(rest, CARD_LIMIT);
-      chunks.push(head.trim());
-      rest = tail;
-      if (!rest || !rest.trim()) break;
-    }
-    return chunks;
-  }
+	  // ① 따옴표 제거 (ASCII " 와 유니코드 “ ” 등)
+	  const src = cleaned.replace(/["\u201C\u201D\u201E\u201F\u00AB\u00BB]/g, '');
+
+	  // ② 분할 기준과 슬라이스는 반드시 제거된 문자열(src)을 사용
+	  const start = startIndexForCards(src);
+	  let rest    = src.slice(start);
+
+	  const chunks = [];
+	  while (rest && rest.trim().length) {
+		const { head, tail } = cutAtSentenceBoundary(rest, CARD_LIMIT);
+		chunks.push(head.trim());
+		rest = tail;
+		if (!rest || !rest.trim()) break;
+	  }
+	  return chunks;
+	}
+
 
   /* ===== 레이아웃: 2 섹션(좌/우) ===== */
   function ensureLayoutStyles() {
