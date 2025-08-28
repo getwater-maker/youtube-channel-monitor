@@ -373,7 +373,7 @@ function wireCopyToggle(btn, getText) {
   function parseSceneBlocks(text) {
     const t = normalizeForSceneBlocks(text||'');
     const lines = t.replace(/\r\n/g,'\n').split('\n');
-    const headerRe = /\[\s*장면\s*(\d{1,3})\s*\]/i;
+    const headerRe = /\[\s*장면\s*(\d{1,3})\s*(?::[^\]]*)?\]/i;
 
     let cur=null, started=false;
     const blocks=[];
@@ -471,27 +471,31 @@ function wireCopyToggle(btn, getText) {
     return { head: str.slice(0, cut), tail: str.slice(cut) };
   }
   
-	function splitCardsUnlimitedFromScript(scriptRaw) {
-	  const clipped      = clipTextBeforeImagePrompt(scriptRaw || '');
-	  const cleanedNoHdr = sanitizeLines(clipped);
-	  const cleaned      = normalizeForSceneBlocks(cleanedNoHdr);
+// 카드 분할(대본 섹션): 문장 경계 기준으로 1만자 단위 자르기
+function splitCardsUnlimitedFromScript(scriptRaw) {
+  const clipped = clipTextBeforeImagePrompt(scriptRaw || '');
 
-	  // ① 따옴표 제거 (ASCII " 와 유니코드 “ ” 등)
-	  const src = cleaned.replace(/["\u201C\u201D\u201E\u201F\u00AB\u00BB]/g, '');
+  // 장면 표기를 표준화 → 라인 정리 순으로 처리
+  const normalized = normalizeForSceneBlocks(clipped);
+  const cleaned    = sanitizeLines(normalized);
 
-	  // ② 분할 기준과 슬라이스는 반드시 제거된 문자열(src)을 사용
-	  const start = startIndexForCards(src);
-	  let rest    = src.slice(start);
+  // 따옴표(" “ ” « » 등)만 제거 — 작은따옴표(')는 그대로 두기
+  const src = cleaned.replace(/["\u201C\u201D\u201E\u201F\u00AB\u00BB]/g, '');
 
-	  const chunks = [];
-	  while (rest && rest.trim().length) {
-		const { head, tail } = cutAtSentenceBoundary(rest, CARD_LIMIT);
-		chunks.push(head.trim());
-		rest = tail;
-		if (!rest || !rest.trim()) break;
-	  }
-	  return chunks;
-	}
+  // 시작 위치(예: "초반 45초 훅" 또는 [장면 01]부터) 계산
+  let rest = src.slice(startIndexForCards(src));
+
+  // 문장 경계 기준으로 10,000자 이하가 되도록 잘라 카드 배열 생성
+  const chunks = [];
+  while (rest && rest.trim().length) {
+    const { head, tail } = cutAtSentenceBoundary(rest, CARD_LIMIT); // CARD_LIMIT = 10000
+    chunks.push(head.trim());
+    rest = tail;
+  }
+  return chunks;
+}
+
+
 
 
   /* ===== 레이아웃: 2 섹션(좌/우) ===== */
@@ -785,7 +789,7 @@ if (resetBtn) {
     const reBold = /\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi;
     while ((m = reBold.exec(text)) !== null) push(m[1], m.index);
 
-    const reBr = /\[\s*장면\s*(\d{1,3})\s*\]/gi;
+    const reBr = /\[\s*장면\s*(\d{1,3})\s*(?::[^\]]*)?\]/gi;
     while ((m = reBr.exec(text)) !== null) push(m[1], m.index);
 
     // 인덱스 순서대로 정렬
