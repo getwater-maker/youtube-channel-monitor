@@ -132,8 +132,12 @@ async function saveDraftToDB(sceneText, promptText) {
     version: 1
   };
   store.add(rec);
-  await tx.complete?.() || new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-  db.close();
+await new Promise((res, rej) => {
+  tx.oncomplete = res;
+  tx.onerror = () => rej(tx.error);
+});
+db.close();
+
   await purgeOldDrafts();
   return rec;
 }
@@ -370,35 +374,42 @@ function wireCopyToggle(btn, getText) {
   }
 
   /* ===== 씬 블록 / 프롬프트 추출 ===== */
-  function parseSceneBlocks(text) {
-    const t = normalizeForSceneBlocks(text||'');
-    const lines = t.replace(/\r\n/g,'\n').split('\n');
-    const headerRe = /\[\s*장면\s*(\d{1,3})\s*(?::[^\]]*)?\]/i;
+function parseSceneBlocks(text) {
+  const t = normalizeForSceneBlocks(text||'');
+  const lines = t.replace(/\r\n/g,'\n').split('\n');
 
-    let cur=null, started=false;
-    const blocks=[];
-    for (const ln of lines) {
-      // 헤더 패턴을 먼저 확인
-      const m = ln.match(headerRe);
-      if (m) {
-        started = true;
-        if (cur) blocks.push(cur);
-        cur = { label:`장면 ${pad3(parseInt(m[1],10))}`, body:[] };
-        const suffix = ln.slice(ln.indexOf(m[0])+m[0].length).trim();
-        if (suffix) cur.body.push(suffix);
-      } else if (started && cur) {
-        // 제목 다음의 빈 줄을 무시하고, 실제 내용이 시작되는 줄부터 본문으로 추가
-        if (ln.trim().length > 0 || cur.body.length > 0) {
-          cur.body.push(ln);
-        }
+  // 🔧 FIX: ']' 또는 ':' 둘 다 허용
+  const headerRe = /\[\s*장면\s*(\d{1,3})\s*(?:\]|:)/i;
+
+  let cur=null, started=false;
+  const blocks=[];
+  for (const ln of lines) {
+    const m = ln.match(headerRe);
+    if (m) {
+      started = true;
+      if (cur) blocks.push(cur);
+      cur = { label:`장면 ${pad3(parseInt(m[1],10))}`, body:[] };
+      const suffix = ln.slice(ln.indexOf(m[0])+m[0].length).trim();
+      if (suffix) cur.body.push(suffix);
+    } else if (started && cur) {
+      // 제목 다음 빈 줄 1개까진 스킵, 이후 본문
+      if (ln.trim().length > 0 || cur.body.length > 0) {
+        cur.body.push(ln);
       }
     }
-    if (cur) blocks.push(cur);
-    if (!blocks.length && (t || '').trim()) {
-      blocks.push({ label:'-', body: t.split('\n') });
-    }
-    return blocks.map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() })).filter(b => b.body.length > 0);
   }
+  if (cur) blocks.push(cur);
+
+  // ❌ REMOVE: 아래 fallback은 '전체' 같은 가짜 행을 만들 수 있어 삭제
+  // if (!blocks.length && (t || '').trim()) {
+  //   blocks.push({ label:'-', body: t.split('\n') });
+  // }
+
+  return blocks
+    .map(b => ({ label:b.label, body:(Array.isArray(b.body)?b.body.join('\n'):b.body).trim() }))
+    .filter(b => b.body.length > 0);
+}
+
 
   // 작은따옴표(') 제외 — 인용부호: " ” `
   function getQuotedSegments(text, startIndex = 0) {
@@ -436,6 +447,46 @@ function wireCopyToggle(btn, getText) {
     
     return src;
   }
+
+/* === NEW: Markdown-style scene prompts parser (추가) ===
+   "### 장면 n: ..." 다음에 오는 단락을 프롬프트로 추출합니다.
+   라벨은 "장면 001"처럼 3자리 패딩으로 만듭니다.
+*/
+function parseMarkdownScenePrompts(fullText) {
+  const pad3 = n => String(n).padStart(3,'0');
+  const t = (fullText || '').replace(/\r\n/g, '\n');
+
+  // 라인 시작의 "### 장면 n:" 또는 "### 장면 n -", "### 장면 n—" 허용
+  const headerRe = /^###\s*장면\s*(\d{1,3})\s*(?::|[-–—])?.*$/gmi;
+
+  const results = [];
+  let m;
+  while ((m = headerRe.exec(t)) !== null) {
+    const num = parseInt(m[1], 10);
+
+    // 이 헤더 라인의 끝 다음부터 본문 시작
+    const lineEnd = t.indexOf('\n', m.index);
+    const start = lineEnd === -1 ? t.length : lineEnd + 1;
+
+    // 🔧 경계 후보: 다음 "### 장면", 아무 "###", 다음 "##", 수평선(---)
+    const rest = t.slice(start);
+    const nextSceneRel = rest.search(/^###\s*장면\s*\d{1,3}/mi);
+    const nextH3Rel    = rest.search(/^###\s/m);         // 👈 추가
+    const nextH2Rel    = rest.search(/^##\s/m);
+    const nextHrRel    = rest.search(/^\s*---+\s*$/m);
+
+    let end = t.length;
+    [nextSceneRel, nextH3Rel, nextH2Rel, nextHrRel].forEach(rel => {
+      if (rel >= 0) end = Math.min(end, start + rel);
+    });
+
+    const body = t.slice(start, end).trim();
+    if (body) results.push({ label: `장면 ${pad3(num)}`, prompt: body });
+  }
+  return results;
+}
+
+
 
   /* ===== 카드 분할 ===== */
   function startIndexForCards(cleanedText) {
@@ -711,32 +762,55 @@ if (resetBtn) {
 
   /* ===== 주인공 프롬프트 추출 ===== */
   // "### 👤 주인공 이미지 프롬프트:" 제목 다음 ~ 다음 제목("##" 또는 "###") 전까지를 추출
-  function extractProtagonistPrompt(full) {
-    const text = String(full || '').replace(/\r\n/g, '\n');
-    const lines = text.split('\n');
+/* ===== 주인공 프롬프트 추출 (개선판) ===== */
+// "##/### … 주인공 … 프롬프트" 제목 다음 ~ 다음 제목("##" 또는 "###") 직전까지 추출.
+// 첫 줄이 "**이름 … - 주인공**" / "이름 … - 주인공" / "… 주인공" 이면 해당 줄은 제거.
+/* ===== 주인공 프롬프트 추출 (강화판) ===== */
+// "##/### … 주인공 … 프롬프트" 제목 다음 ~ 다음 제목("##" 또는 "###") 직전까지.
+// 맨 첫 줄에 "**… - 주인공**" / "… 주인공" 같은 라벨이 있으면 삭제.
+function extractProtagonistPrompt(full) {
+  const text = String(full || '').replace(/\r\n/g, '\n');
+  const lines = text.split('\n');
 
-    let start = -1;
-    const headingRe = /^\s*#{2,3}\s*.*주인공.*프롬프트.*$/i;
-    for (let i = 0; i < lines.length; i++) {
-      if (headingRe.test(lines[i])) { start = i + 1; break; }
-    }
-    if (start === -1) return '';
-
-    let end = lines.length;
-    for (let i = start; i < lines.length; i++) {
-      if (/^\s*#{2,3}\s+/.test(lines[i])) { end = i; break; }
-    }
-
-   const body = lines.slice(start, end)
-      .filter(ln => !/^\s*#{2,3}\s+/.test(ln))
-      .map(ln => ln.replace(/^\*\*(.+?)\*\*$/g, '$1'))
-      .join('\n')
-      .trim();
-
-    // "Korean drama still photo of..." 부분만 추출
-    const cleanPrompt = body.replace(/^[^:]*:\s*/, '').trim();
-    return cleanPrompt;
+  // 제목(##/###) 찾기
+  let start = -1;
+  const headingRe = /^\s*#{2,3}\s*.*주인공.*프롬프트.*$/i;
+  for (let i = 0; i < lines.length; i++) {
+    if (headingRe.test(lines[i])) { start = i + 1; break; }
   }
+  if (start === -1) return '';
+
+  // 다음 제목(##/###) 전까지
+  let end = lines.length;
+  for (let i = start; i < lines.length; i++) {
+    if (/^\s*#{2,3}\s+/.test(lines[i])) { end = i; break; }
+  }
+
+  // 본문 정리
+  let bodyLines = lines.slice(start, end)
+    .map(ln => ln.replace(/^\*\*(.+?)\*\*$/g, '$1'))   // **굵게** 풀기
+    .filter(ln => !/^\s*---+\s*$/.test(ln))           // 수평선 제거
+    .map(ln => ln.trim());
+
+  // 라벨 줄이면 제거 (여러 줄 연속 라벨도 방어)
+  while (bodyLines.length && bodyLines[0]) {
+    const first = bodyLines[0];
+    const isLabel =
+      /(?:-\s*)?주인공\s*$/i.test(first)              // "… - 주인공" / "… 주인공"
+      || /^\s*\*{0,2}.*주인공.*\*{0,2}\s*$/.test(first) && !/프롬프트/i.test(first);
+    if (isLabel) bodyLines.shift();
+    else break;
+  }
+
+  let body = bodyLines.join('\n').trim();
+
+  // "라벨: 내용" 패턴 호환
+  body = body.replace(/^[^:]{1,80}:\s*/, '').trim();
+
+  return body;
+}
+
+
 
   /* ===== 섹션(🎬 …) 토큰 추출 =====
      - 패턴 A: "##/### (🎬) 훅 장면 이미지 프롬프트:" 또는 "##/### (🎬) 1장 장면별 이미지 프롬프트:" 등
@@ -780,22 +854,30 @@ if (resetBtn) {
   }
 
   /* ===== 원문에서 장면 헤더(**장면 n** / [장면 n]) 위치 찾기 ===== */
-  function findSceneTokens(full) {
-    const text = String(full || '');
-    const tokens = [];
-    const push = (n, idx) => tokens.push({ type:'scene', index: idx, label:`장면 ${pad3(parseInt(n,10))}` });
+function findSceneTokens(full) {
+  const text = String(full || '');
+  const tokens = [];
+  const push = (n, idx) => tokens.push({ type:'scene', index: idx, label:`장면 ${pad3(parseInt(n,10))}` });
 
-    let m;
-    const reBold = /\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi;
-    while ((m = reBold.exec(text)) !== null) push(m[1], m.index);
+  let m;
 
-    const reBr = /\[\s*장면\s*(\d{1,3})\s*(?::[^\]]*)?\]/gi;
-    while ((m = reBr.exec(text)) !== null) push(m[1], m.index);
+  // **장면 n**
+  const reBold = /\*\*\s*장면\s*(\d{1,3})\s*\*\*/gi;
+  while ((m = reBold.exec(text)) !== null) push(m[1], m.index);
 
-    // 인덱스 순서대로 정렬
-    tokens.sort((a,b)=>a.index-b.index);
-    return tokens;
-  }
+  // [장면 n] / [장면 n: …]
+  const reBr = /\[\s*장면\s*(\d{1,3})\s*(?::[^\]]*)?\]/gi;
+  while ((m = reBr.exec(text)) !== null) push(m[1], m.index);
+
+  // 👇 추가: ### 장면 n: / ### 장면 n - / ### 장면 n
+  const reH3 = /^###\s*장면\s*(\d{1,3})\s*(?::|[-–—])?.*$/gmi;
+  while ((m = reH3.exec(text)) !== null) push(m[1], m.index);
+
+  tokens.sort((a,b)=>a.index-b.index);
+  
+  return tokens;
+}
+
 
   /* ===== 표 렌더링 ===== */
   function renderPromptTable() {
@@ -813,33 +895,55 @@ if (resetBtn) {
       `;
     }
 
-    const promptRaw = ($('#prompt-input')?.value || '');
-    const promptClean = sanitizeLines(normalizeForSceneBlocks(promptRaw));
-    const blocks = parseSceneBlocks(promptClean);
+// 1) 원문 확보 & 1차 정리
+const promptRaw   = ($('#prompt-input')?.value || '');
+const promptClean = sanitizeLines(normalizeForSceneBlocks(promptRaw));
 
-    let rows = blocks.map(({label, body}) => ({ label, prompt: extractPromptFromBlock(body) }))
-                       .filter(r => (r.prompt||'').trim().length);
+// 2) Markdown 규칙 (### 장면 n: …)
+const mdRows = parseMarkdownScenePrompts(promptRaw); // [{label, prompt}]
 
-// === 제거 단어 반영 ===
-// === 제거 단어 반영 ===
+// 3) 기존 규칙 ([장면 nnn] 블록 + 본문에서 프롬프트 추출)
+const classicBlocks = parseSceneBlocks(promptClean); // [{label, body}]
+const classicRows = classicBlocks.map(({ label, body }) => ({
+  label,
+  prompt: extractPromptFromBlock(body)
+}));
+
+// 4) 병합 — 같은 장면이면 Markdown(### 장면 …) 우선
+const sceneNum = (label) => {
+  const m = label.match(/장면\s*(\d{1,3})/);
+  return m ? parseInt(m[1], 10) : 0;
+};
+const merged = new Map();
+classicRows.forEach(r => merged.set(sceneNum(r.label), r));
+mdRows.forEach(r      => merged.set(sceneNum(r.label), r)); // 덮어쓰기 → MD 우선
+
+let rows = Array.from(merged.values())
+  .filter(r => (r.prompt||'').trim().length)
+  .sort((a,b) => sceneNum(a.label) - sceneNum(b.label));
+
+// 5) 제거 단어 반영
 const reRemove = buildRemoveRegex();
 if (reRemove) {
   rows = rows.map(r => ({
     ...r,
-    prompt: (r.prompt || '')
-      .replace(reRemove, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim()
+    prompt: (r.prompt || '').replace(reRemove, '').replace(/\s{2,}/g, ' ').trim()
   }));
 }
 
+// 6) map으로 접근성 높이기 (아래 토큰 병합 로직에서 사용)
+const rowsMap = new Map(rows.map(r => [r.label, r.prompt]));
 
-
-    const rowsMap = new Map(rows.map(r => [r.label, r.prompt]));
     const frag = document.createDocumentFragment();
 
     // 0) 헤더 바로 아래 "주인공" 행 (있을 때만)
     let protagonist = extractProtagonistPrompt(promptRaw);
+	// v2.1 하드 스트립: 본문 맨 앞 라벨 줄(…주인공) 강제 제거
+protagonist = (protagonist || '')
+  .replace(/^\s*(?:\*\*)?([^\n]*?\b주인공\b).*?\*?\*?\s*\n+/, '') // 줄바꿈 있는 케이스
+  .replace(/^\s*(?:\*\*)?[^\n]*?\b주인공\b.*?\*?\*?\s*(?=\S)/, '') // 같은 줄에 이어지는 케이스
+  .trim();
+
 
 const rePro = buildRemoveRegex();
 if (rePro) {
@@ -903,6 +1007,7 @@ if (protagonist) {
     }
 
     const tokens = [...sectionTokens, ...sceneTokens].sort((a,b)=>a.index-b.index);
+	let appendedAnyScene = false; // 👈 장면 행을 실제로 추가했는지 추적
     const addedScenes = new Set();
 
     // 2) 토큰 순회하며 섹션은 "제목 / 프롬프트 n개"(복사버튼 X), 장면은 기존처럼 표시
@@ -967,6 +1072,8 @@ if (protagonist) {
         tr.appendChild(tdPrompt);
         tr.appendChild(tdCopy);
         frag.appendChild(tr);
+		appendedAnyScene = true;
+
 
         addedScenes.add(tk.label);
       }
@@ -974,6 +1081,44 @@ if (protagonist) {
 
     // 3) 내용 출력
     tbody.innerHTML = '';
+	// ▼▼ 폴백: 토큰이 하나도 없었지만 rows는 있는 경우 → rows로 직접 렌더
+if (!appendedAnyScene && rows && rows.length) {
+  rows.forEach(({ label, prompt }) => {
+    const tr = document.createElement('tr');
+
+    const tdScene = document.createElement('td');
+    tdScene.className = 'col-scene';
+    tdScene.style.whiteSpace = 'nowrap';
+    tdScene.style.padding = '12px';
+    tdScene.style.borderBottom = '1px solid var(--border)';
+    tdScene.textContent = label;
+
+    const tdPrompt = document.createElement('td');
+    tdPrompt.className = 'col-prompt';
+    tdPrompt.style.padding = '12px';
+    tdPrompt.style.borderBottom = '1px solid var(--border)';
+    const divText = document.createElement('div');
+    divText.className = 'prompt-text';
+    divText.textContent = prompt || '';
+    tdPrompt.appendChild(divText);
+
+    const tdCopy = document.createElement('td');
+    tdCopy.style.padding = '12px';
+    tdCopy.style.borderBottom = '1px solid var(--border)';
+    const btn = document.createElement('button');
+    btn.textContent = '복사';
+    wireCopyToggle(btn, () => prompt || '');
+    tdCopy.appendChild(btn);
+
+    tr.appendChild(tdScene);
+    tr.appendChild(tdPrompt);
+    tr.appendChild(tdCopy);
+    frag.appendChild(tr);
+  });
+}
+// ▲▲ 폴백 끝
+
+	
     if (frag.childNodes.length) {
       tbody.appendChild(frag);
     } else {
