@@ -591,3 +591,8 @@ body {
   width: 80px !important;
   text-align: center;
 }
+
+/* styles.css */
+.btn.btn-secondary { background: var(--panel); border:1px solid var(--border); color: var(--text); }
+
+.sp-remove-btn { padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; height:32px; line-height:1.2; }
