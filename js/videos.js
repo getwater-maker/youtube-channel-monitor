@@ -34,7 +34,6 @@ async function yt(endpoint, params){
   return r.json();
 }
 
-// 간단 동시성 제한
 async function runLimited(tasks, limit=5){
   const out = []; let i=0; const workers = new Array(Math.min(limit, tasks.length)).fill(0).map(async ()=>{
     while(i < tasks.length){ const my = i++; out[my] = await tasks[my](); }
@@ -56,16 +55,8 @@ function withinPeriod(dateStr){
   return true;
 }
 
-/* 업로드 → videoIds (search 방식 사용) */
 async function fetchLatestVideoIds(ch, max=25){
-  // uploadsPlaylistId 방식이 일부 채널에서 404 오류를 발생시켜 더 안정적인 search 방식으로 통일합니다.
-  const j = await yt('search', {
-    part:'id',
-    channelId: ch.id,
-    type:'video',
-    order:'date',
-    maxResults: Math.min(max, 50)
-  });
+  const j = await yt('search', { part:'id', channelId: ch.id, type:'video', order:'date', maxResults: Math.min(max,50) });
   const ids = [];
   (j.items||[]).forEach(it=> it.id?.videoId && ids.push(it.id.videoId));
   return ids;
@@ -80,7 +71,6 @@ async function fetchVideosDetails(ids){
   return sets.flat();
 }
 
-/* 필터/정렬 */
 function filterRankFromRaw(videos){
   return videos
     .filter(v=>{
@@ -96,10 +86,8 @@ function filterRankFromRaw(videos){
     );
 }
 
-/* 스냅샷 캐시 읽기/쓰기 */
 async function loadSnapshot(){
-  const snap = await kvGet('videos:snapshot'); // {ts, items:[{...}]}
-  return snap?.items || [];
+  return (await kvGet('videos:snapshot')) || null;
 }
 async function saveSnapshot(items){
   await kvSet('videos:snapshot', { ts: Date.now(), items });
@@ -146,27 +134,85 @@ function applyFiltersAndRender(root){
 }
 
 function copyText(t){ return navigator.clipboard.writeText(String(t||'')); }
+
 async function copyImageBlob(blob){
   if (window.ClipboardItem){
-    try{ await navigator.clipboard.write([ new ClipboardItem({ [blob.type]: blob }) ]); return true; }catch{}
+    try{
+      await navigator.clipboard.write([ new ClipboardItem({ [blob.type]: blob }) ]);
+      return true;
+    } catch(e) {
+      console.error('Clipboard API Error:', e);
+      return false;
+    }
   }
   return false;
 }
+
+// Blob을 PNG Blob으로 변환하는 캔버스 헬퍼 함수
+function convertBlobToPngBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((pngBlob) => {
+        URL.revokeObjectURL(url); // 메모리 정리
+        if (pngBlob) {
+          resolve(pngBlob);
+        } else {
+          reject(new Error('Canvas to Blob conversion failed'));
+        }
+      }, 'image/png');
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url); // 메모리 정리
+      reject(new Error('Image loading for conversion failed'));
+    };
+    img.src = url;
+  });
+}
+
+
+// 썸네일 복사 로직 (JPG->PNG 변환 포함)
 async function copyThumbnailImage(videoId){
   const urls = [
     `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
     `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
     `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-    `https://i.ytimg.com/vi/${videoId}/default.jpg`,
   ];
   for (const u of urls){
     try{
-      const r = await fetch(u); if (!r.ok) continue;
-      const ok = await copyImageBlob(await r.blob());
-      if (ok){ window.toast?.('썸네일 이미지가 복사되었어요', 'success'); return; }
-    }catch{}
+      const response = await fetch(u);
+      if (!response.ok) continue;
+
+      const sourceBlob = await response.blob();
+      let blobToCopy = sourceBlob;
+
+      // JPEG 이미지일 경우, 클립보드 호환성을 위해 PNG로 변환합니다.
+      if (sourceBlob.type === 'image/jpeg') {
+        try {
+          blobToCopy = await convertBlobToPngBlob(sourceBlob);
+        } catch (convErr) {
+          console.warn('JPG to PNG conversion failed, trying with original JPG', convErr);
+        }
+      }
+      
+      const ok = await copyImageBlob(blobToCopy);
+      if (ok){
+        window.toast?.('썸네일 이미지가 복사되었어요', 'success');
+        return; // 성공 시 함수 종료
+      }
+    } catch(e) {
+      console.error(`Thumbnail processing failed for URL: ${u}`, e);
+    }
   }
-  await copyText(urls[0]); window.toast?.('이미지 복사가 안 되어 URL을 복사했어요', 'warning');
+  // 모든 시도가 실패했을 경우에만 URL을 복사합니다.
+  await copyText(`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`);
+  window.toast?.('이미지 복사가 안 되어 URL을 복사했어요', 'warning');
 }
 
 function renderList(root){
@@ -224,7 +270,6 @@ function renderList(root){
     grid.appendChild(card);
   });
 
-  // pagination
   let pg = root.querySelector('#pg'); if (!pg){ pg = el(`<div id="pg" class="pagination"></div>`); root.appendChild(pg); }
   pg.innerHTML='';
   const total = Math.ceil(state.filtered.length / CONFIG.perPage) || 1;
@@ -242,15 +287,12 @@ async function buildRawItems(){
   const channels = await channelsAll();
   if (!channels.length) return [];
 
-  // 채널별 최신 videoId 모으기
   const idTasks = channels.map(ch=> async()=> ({ ch, ids: await fetchLatestVideoIds(ch, 25) }));
   const idSets  = await runLimited(idTasks, 5);
   const allIds  = [...new Set(idSets.flatMap(s=>s.ids))];
 
-  // 상세 조회
   const details = await fetchVideosDetails(allIds);
 
-  // 베이스 아이템
   const chMap = new Map(channels.map(c=>[c.id, c]));
   const items = details.map(v=>{
     const ch = chMap.get(v.snippet?.channelId);
@@ -282,9 +324,9 @@ async function reload(root, { force=false } = {}){
     const badge = root.querySelector('#sync-badge'); if (badge) badge.style.display='inline-flex';
     const items = await buildRawItems();
     state.cached = items;
-    await saveSnapshot(items);      // 최신 스냅샷 저장
-    applyFiltersAndRender(root);    // 즉시 갱신
-    window.toast?.(`영상 ${state.filtered.length}개`, 'success');
+    await saveSnapshot(items);
+    applyFiltersAndRender(root);
+    window.toast?.(`영상 ${state.cached.length}개 로드 완료`, 'success');
   }catch(e){
     console.error(e);
     if (force) window.toast?.(e.message, 'error', 2800);
@@ -300,32 +342,41 @@ export async function initVideos({ mount }){
   root.innerHTML = '';
   renderToolbar(root);
 
-  // ① 캐시 즉시 표시
-  const snap = await kvGet('videos:snapshot'); // {ts, items:[{...}]}
-  state.cached = snap?.items || [];
-  applyFiltersAndRender(root); // 빈 캐시여도 구조가 나오므로 UX 안정
+  const snap = await loadSnapshot();
+  if (snap?.items) {
+    state.cached = snap.items;
+  }
+  applyFiltersAndRender(root);
 
-  // ②-1. 캐시가 충분히 최신이면(1시간 이내) 백그라운드 갱신 생략 (쿼터 절약)
   const ONE_HOUR = 60 * 60 * 1000;
   if (snap?.ts && (Date.now() - snap.ts < ONE_HOUR)) {
     console.log('[Videos] 캐시가 최신이므로 갱신을 건너뜁니다.');
     return;
   }
 
-  // ②-2. 캐시가 없거나 오래됐으면 백그라운드에서 최신으로 갱신
   reload(root);
 }
 
-/* 앱 시작 시 미리 캐시 만들어두기 (최초 클릭 속도 개선) */
 export async function warmUpVideosCache(){
   if (state._busy) return;
-  const has = await loadSnapshot();
-  if (has.length) return; // 이미 캐시 존재 → 생략
-  // 캐시만 조용히 구축
+  const snap = await loadSnapshot();
+  if (snap?.items?.length) return;
+  
   try{
     state._busy = true;
     const items = await buildRawItems();
     await saveSnapshot(items);
   }catch(e){ /* ignore */ }
   finally{ state._busy = false; }
-}
+}```
+
+### **수정 후 기대 효과**
+
+이제 '썸네일' 버튼을 클릭하면 다음과 같이 작동합니다.
+
+1.  YouTube로부터 썸네일 이미지(주로 JPG)를 가져옵니다.
+2.  가져온 이미지가 JPG인 경우, 내부적으로 보이지 않는 `<canvas>`를 이용해 **PNG 포맷으로 변환**합니다.
+3.  변환된 PNG 이미지를 사용자의 클립보드에 직접 복사합니다.
+4.  이제 포토샵이나 다른 프로그램에 붙여넣기(`Ctrl+V` 또는 `Cmd+V`)를 하면, 투명도 정보가 포함된 깨끗한 썸네일 이미지가 바로 붙여넣어질 것입니다.
+
+**강력 새로고침(`Ctrl`+`Shift`+`R` 또는 `Cmd`+`Shift`+`R`)**을 통해 변경사항을 적용하신 후 테스트해 보세요.
