@@ -1,5 +1,6 @@
 // js/main.js
-import { initDB }       from './indexedStore.js';
+import { initDB, kvGet, kvSet } from './indexedStore.js';
+import { verifyApiKey } from './youtube.js';
 import { initChannel }  from './channel.js';
 import { initVideos, warmUpVideosCache } from './videos.js';
 import { initScript }   from './script.js';
@@ -24,6 +25,70 @@ import { initScript }   from './script.js';
   };
 })();
 
+/* API Key 관리 모달 */
+function showApiKeyModal() {
+  document.getElementById('api-key-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'api-key-modal';
+  overlay.className = 'sp-modal-overlay';
+
+  overlay.innerHTML = `
+    <div class="sp-modal" style="max-width: 500px;">
+      <div class="sp-modal-head">
+        <div class="sp-modal-title">YouTube API Key 설정</div>
+        <button class="sp-modal-close">&times;</button>
+      </div>
+      <div class="sp-modal-body">
+        <p class="muted" style="font-size:14px; margin:0 0 12px;">YouTube Data API v3 사용을 위한 API 키를 입력하세요.</p>
+        <input id="modal-apiKey-input" type="text" placeholder="AIzaSy..."/>
+        <div id="api-key-result" class="api-key-result"></div>
+      </div>
+      <div class="sp-modal-footer">
+        <button id="modal-btn-verify" class="btn btn-outline">유효성 검사</button>
+        <button id="modal-btn-save" class="btn btn-primary">저장</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#modal-apiKey-input');
+  const resultDiv = overlay.querySelector('#api-key-result');
+  const verifyBtn = overlay.querySelector('#modal-btn-verify');
+  const saveBtn = overlay.querySelector('#modal-btn-save');
+
+  const closeModal = () => overlay.remove();
+  overlay.querySelector('.sp-modal-close').onclick = closeModal;
+  overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
+
+  kvGet('apiKey').then(key => { if(key) input.value = key; });
+
+  verifyBtn.onclick = async () => {
+    const key = input.value.trim();
+    if (!key) {
+      resultDiv.textContent = 'API 키를 입력해주세요.';
+      resultDiv.className = 'api-key-result error';
+      return;
+    }
+    resultDiv.textContent = '확인 중...';
+    resultDiv.className = 'api-key-result';
+    const isValid = await verifyApiKey(key);
+    if (isValid) {
+      resultDiv.textContent = '✅ 유효한 키입니다.';
+      resultDiv.className = 'api-key-result success';
+    } else {
+      resultDiv.textContent = '❌ 유효하지 않거나 할당량이 초과된 키입니다.';
+      resultDiv.className = 'api-key-result error';
+    }
+  };
+
+  saveBtn.onclick = async () => {
+    await kvSet('apiKey', input.value.trim());
+    window.toast('API 키를 저장했습니다.', 'success');
+    closeModal();
+  };
+}
+
+
 /* Tabs */
 function bindTabs(){
   const btns = Array.from(document.querySelectorAll('.yt-tab-btn'));
@@ -40,7 +105,7 @@ function bindTabs(){
 
   async function openTab(name){
     btns.forEach(b=> b.classList.toggle('yt-active', b.dataset.tab===name));
-    Object.entries(tabs).forEach(([k,el])=> el.classList.toggle('yt-active', k===name));
+    Object.entries(tabs).forEach(([k,el])=> el && el.classList.toggle('yt-active', k===name));
     if (name==='channel' && !inited.channel){ await safeInit(()=>initChannel({ mount:'#yt-tab-channel' })); inited.channel=true; }
     if (name==='videos'  && !inited.videos ){ await safeInit(()=>initVideos({ mount:'#yt-tab-videos' }));   inited.videos=true; }
     if (name==='script'  && !inited.script ){ await safeInit(()=>initScript({ mount:'#yt-tab-script' }));   inited.script=true; }
@@ -51,18 +116,18 @@ function bindTabs(){
     b.addEventListener('click', ()=> openTab(b.dataset.tab));
   });
 
-  openTab('channel'); // 시작 탭
+  openTab('channel');
   window.openTab = openTab;
-}
+} // <-- [수정] 여기에 빠져있던 닫는 중괄호를 추가했습니다.
 
 /* Bootstrap */
 async function bootstrap(){
   try { await initDB(); } catch(e){ console.warn('[DB] init fail:', e); }
   bindTabs();
+  
+  document.getElementById('btn-api-modal').onclick = showApiKeyModal;
 
-  // ▶ 사용자가 '영상분석' 누르기 전에, 조용히 캐시를 따뜻하게 만듭니다.
   try { await warmUpVideosCache(); } catch(e){ /* ignore */ }
-
   window.toast('로드 완료', 'success', 900);
 }
 window.addEventListener('DOMContentLoaded', bootstrap);

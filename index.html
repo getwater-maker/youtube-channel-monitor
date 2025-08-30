@@ -4,14 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YouTube Helper</title>
+  <link rel="icon" type="ico" href="css/favicon.ico" />
   <link rel="stylesheet" href="css/style.css" />
-  <link rel="icon" type="image/x-icon" href="css/favicon.ico" />
 </head>
 <body>
   <div id="yt-app">
     <div class="yt-header">
       <div class="yt-title">YouTube Helper</div>
-      <div class="yt-path">index.html · js/* · css/style.css</div>
+      <!-- [수정] 헤더 우측 영역 -->
+      <div class="header-actions">
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Google Cloud Console</a>
+        <button id="btn-api-modal" class="btn btn-sm btn-primary">API Key 입력</button>
+      </div>
     </div>
 
     <nav class="yt-nav">
@@ -20,36 +24,9 @@
       <button class="yt-tab-btn" data-tab="script">대본작업</button>
     </nav>
 
-    <section id="yt-tab-channel" class="yt-tab yt-active">
-      <!-- JS가 UI를 그립니다 -->
-    </section>
-
-    <section id="yt-tab-videos" class="yt-tab">
-      <!-- JS가 UI를 그립니다 -->
-    </section>
-
-    <section id="yt-tab-script" class="yt-tab">
-      <!-- JS가 UI를 그립니다 -->
-      <div class="section">
-        <div class="section-header">
-          <div class="section-title">대본 작업</div>
-          <div class="section-actions">
-            <input id="scene-date" type="date" />
-            <button id="scene-save" class="btn btn-primary">JSON 내려받기</button>
-            <button id="scene-clear" class="btn btn-outline">지우기</button>
-          </div>
-        </div>
-        <div class="scene-parser-content">
-          <div id="sp-two-sections"><!-- script.js가 레이아웃을 재구성 --></div>
-          <div class="table-wrap">
-            <table>
-              <thead></thead>
-              <tbody id="scene-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
+    <section id="yt-tab-channel" class="yt-tab yt-active"></section>
+    <section id="yt-tab-videos" class="yt-tab"></section>
+    <section id="yt-tab-script" class="yt-tab"></section>
   </div>
 
   <script type="module" src="js/main.js"></script>
