@@ -236,8 +236,9 @@ input:focus,textarea:focus,select:focus{border-color:var(--brand);box-shadow:0 0
   text-align: right;
 }
 
-.loading-state, .empty-state.error {
-  grid-column: 1 / -1;
+/* 수정된 코드 */
+.loading-state, .empty-state, .empty-state.error {
+  grid-column: 1 / -1; /* 이 속성이 핵심입니다. */
   text-align: center;
   padding: 48px 16px;
   color: var(--muted);
@@ -259,9 +260,9 @@ input:focus,textarea:focus,select:focus{border-color:var(--brand);box-shadow:0 0
   border-bottom-right-radius: var(--radius);
 }
 
-/* [수정] 채널 카드 크기 조정 (한 줄에 3개 배치) */
+/* [수정] 채널 카드 크기 조정 (25% 축소) */
 .channel-grid {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
 }
 
 /* [수정] 헤더 레이아웃 */

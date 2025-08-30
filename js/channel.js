@@ -2,6 +2,12 @@
 import { kvGet, kvSet, channelsAll, channelsPut, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
 
+// [추가] 채널 탭 상태 관리
+const state = {
+  page: 1,
+  perPage: 8,
+};
+
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
 function h(str){ return (str??'').replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
 
@@ -116,6 +122,71 @@ async function showSearchModal(renderRegisteredCallback) {
   overlay.querySelector('#modal-btn-prev').onclick = () => prevToken && searchInModal(prevToken);
 }
 
+// [추가] 페이지네이션 렌더링 함수
+function renderPagination(root, totalItems) {
+  const totalPages = Math.ceil(totalItems / state.perPage);
+  const existingPagination = root.querySelector('.pagination');
+  if (existingPagination) existingPagination.remove();
+
+  if (totalPages <= 1) return;
+
+  let paginationHtml = `<nav class="pagination">`;
+  for (let i = 1; i <= totalPages; i++) {
+    paginationHtml += `<button class="btn ${i === state.page ? 'active' : ''}" data-page="${i}">${i}</button>`;
+  }
+  paginationHtml += `</nav>`;
+  
+  const paginationEl = el(paginationHtml);
+
+  paginationEl.querySelectorAll('.btn[data-page]').forEach(btn => {
+    btn.onclick = async () => {
+      state.page = Number(btn.dataset.page);
+      await renderRegistered();
+    };
+  });
+
+  root.appendChild(paginationEl);
+}
+
+let sectionEl; // 섹션 엘리먼트를 저장할 변수
+
+async function renderRegistered(){
+  if (!sectionEl) return;
+  const list = await channelsAll();
+  const wrap = document.getElementById('registered');
+  wrap.innerHTML = '';
+  
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state">등록된 채널이 없습니다. \'채널 추가\' 버튼을 눌러 채널을 추가하세요.</div>';
+    renderPagination(sectionEl, 0);
+    return;
+  }
+
+  list.sort((a,b) => b.subscriberCount - a.subscriberCount);
+  
+  const start = (state.page - 1) * state.perPage;
+  const end = start + state.perPage;
+  const paginatedItems = list.slice(start, end);
+
+  paginatedItems.forEach(c => {
+    const card = createChannelCard(c, true);
+    card.querySelector('.btn-remove').onclick = async () => {
+      if (confirm(`'${c.title}' 채널을 정말 삭제하시겠습니까?`)) { 
+        await channelsRemove(c.id);
+        const totalItems = (await channelsAll()).length;
+        const totalPages = Math.ceil(totalItems / state.perPage);
+        if (state.page > totalPages && totalPages > 0) {
+            state.page = totalPages;
+        }
+        await renderRegistered(); 
+      }
+    };
+    wrap.appendChild(card);
+  });
+  
+  renderPagination(sectionEl, list.length);
+}
+
 export async function initChannel({ mount }){
   const root = document.querySelector(mount);
   root.innerHTML = `
@@ -132,26 +203,14 @@ export async function initChannel({ mount }){
     </div>
   `;
 
-  document.getElementById('btn-show-search-modal').onclick = () => showSearchModal();
+  sectionEl = root.querySelector('.section');
 
-  async function renderRegistered(){
-    const list = await channelsAll();
-    const wrap = document.getElementById('registered');
-    wrap.innerHTML = '';
-    if (!list.length) {
-      wrap.innerHTML = '<div class="empty-state">등록된 채널이 없습니다. \'채널 추가\' 버튼을 눌러 채널을 추가하세요.</div>';
-      return;
-    }
-    list.sort((a,b) => b.subscriberCount - a.subscriberCount).forEach(c => {
-      const card = createChannelCard(c, true);
-      card.querySelector('.btn-remove').onclick = async () => {
-        if (confirm(`'${c.title}' 채널을 정말 삭제하시겠습니까?`)) { await channelsRemove(c.id); renderRegistered(); }
-      };
-      wrap.appendChild(card);
-    });
-  }
+  document.getElementById('btn-show-search-modal').onclick = () => showSearchModal();
   
-  document.addEventListener('channelsUpdated', renderRegistered);
+  document.addEventListener('channelsUpdated', () => {
+    state.page = 1;
+    renderRegistered();
+  });
   
   document.getElementById('btn-export').onclick = async ()=>{
     const list = await channelsAll();
