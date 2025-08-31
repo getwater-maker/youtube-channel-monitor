@@ -295,3 +295,28 @@ input:focus,textarea:focus,select:focus{border-color:var(--brand);box-shadow:0 0
   color: #fecaca;
   background-color: rgba(239, 68, 68, .2);
 }
+
+/* [수정] 작업 완료된 비디오 카드 스타일 (음영 효과 강화) */
+.video-card.is-done {
+  /* opacity: 0.65; /* 전체를 흐리게 하는 대신 썸네일에 집중 */
+  border-color: var(--ok); 
+}
+
+.video-card.is-done .thumb-wrap::after {
+  content: '✔';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* 썸네일 음영 처리 */
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  backdrop-filter: blur(1px);
+  border-radius: inherit; /* 부모 요소의 둥근 모서리를 따르도록 */
+}
