@@ -4,6 +4,7 @@ import { verifyApiKey } from './youtube.js';
 import { initChannel }  from './channel.js';
 import { initVideos } from './videos.js';
 import { initScript }   from './script.js';
+import { initTTS }      from './tts.js'; // [추가] tts.js 임포트
 import { initStudy }    from './study.js';
 import { initMyChannel } from './my-channel.js';
 
@@ -27,7 +28,6 @@ import { initMyChannel } from './my-channel.js';
   };
 })();
 
-// [추가] 화면 중앙에 표시되는 커스텀 확인 팝업 (confirm 대체)
 window.showConfirmModal = function(message) {
   return new Promise((resolve) => {
     document.getElementById('custom-confirm-modal')?.remove();
@@ -61,7 +61,6 @@ window.showConfirmModal = function(message) {
   });
 };
 
-
 /* API Key 및 Client ID 관리 모달 */
 function showApiKeyModal() {
   document.getElementById('api-key-modal')?.remove();
@@ -69,6 +68,7 @@ function showApiKeyModal() {
   overlay.id = 'api-key-modal';
   overlay.className = 'sp-modal-overlay';
 
+  // [수정] Text-to-Speech API 키 입력칸 추가
   overlay.innerHTML = `
     <div class="sp-modal" style="max-width: 500px;">
       <div class="sp-modal-head">
@@ -89,9 +89,12 @@ function showApiKeyModal() {
         <p class="muted" style="font-size:12px; margin-top:-4px; margin-bottom:8px;">'내 채널' 탭 사용에 필요합니다.</p>
         <input id="modal-clientId-input" type="text" placeholder="YOUR_CLIENT_ID.apps.googleusercontent.com"/>
 
+        <label for="modal-ttsKey-input" style="font-weight:bold; font-size:14px; display:block; margin-top:16px; margin-bottom:6px;">Cloud Text-to-Speech API 키</label>
+        <p class="muted" style="font-size:12px; margin-top:-4px; margin-bottom:8px;">'음성합성' 탭 사용에 필요합니다.</p>
+        <input id="modal-ttsKey-input" type="text" placeholder="AIzaSy..."/>
       </div>
       <div class="sp-modal-footer">
-        <button id="modal-btn-verify" class="btn btn-outline">API 키 유효성 검사</button>
+        <button id="modal-btn-verify" class="btn btn-outline">YouTube API 키 유효성 검사</button>
         <button id="modal-btn-save" class="btn btn-primary">저장</button>
       </div>
     </div>
@@ -100,6 +103,7 @@ function showApiKeyModal() {
 
   const apiKeyInput = overlay.querySelector('#modal-apiKey-input');
   const clientIdInput = overlay.querySelector('#modal-clientId-input');
+  const ttsKeyInput = overlay.querySelector('#modal-ttsKey-input'); // [추가] TTS 키 입력 필드
   const resultDiv = overlay.querySelector('#api-key-result');
   const verifyBtn = overlay.querySelector('#modal-btn-verify');
   const saveBtn = overlay.querySelector('#modal-btn-save');
@@ -110,6 +114,7 @@ function showApiKeyModal() {
 
   kvGet('apiKey').then(key => { if(key) apiKeyInput.value = key; });
   kvGet('oauthClientId').then(id => { if(id) clientIdInput.value = id; });
+  kvGet('ttsApiKey').then(key => { if(key) ttsKeyInput.value = key; }); // [추가] 저장된 TTS 키 불러오기
 
   verifyBtn.onclick = async () => {
     const key = apiKeyInput.value.trim();
@@ -133,11 +138,11 @@ function showApiKeyModal() {
   saveBtn.onclick = async () => {
     await kvSet('apiKey', apiKeyInput.value.trim());
     await kvSet('oauthClientId', clientIdInput.value.trim());
+    await kvSet('ttsApiKey', ttsKeyInput.value.trim()); // [추가] TTS 키 저장
     window.toast('인증 정보를 저장했습니다.', 'success');
     closeModal();
   };
 }
-
 
 /* Tabs */
 function bindTabs(){
@@ -146,10 +151,11 @@ function bindTabs(){
     channel:    document.getElementById('yt-tab-channel'),
     videos :    document.getElementById('yt-tab-videos'),
     script :    document.getElementById('yt-tab-script'),
+    tts    :    document.getElementById('yt-tab-tts'), // [추가]
     study  :    document.getElementById('yt-tab-study'),
     'my-channel': document.getElementById('yt-tab-my-channel'),
   };
-  const inited = { channel:false, videos:false, script:false, study:false, 'my-channel':false };
+  const inited = { channel:false, videos:false, script:false, tts:false, study:false, 'my-channel':false }; // [추가]
 
   const safeInit = (fn)=> Promise.resolve().then(fn).catch(e=>{
     console.error('init failed', e); window.toast('초기화 중 오류가 발생했습니다.', 'error', 2200);
@@ -161,6 +167,7 @@ function bindTabs(){
     if (name==='channel'    && !inited.channel)    { await safeInit(()=>initChannel({ mount:'#yt-tab-channel' }));       inited.channel=true; }
     if (name==='videos'     && !inited.videos)     { await safeInit(()=>initVideos({ mount:'#yt-tab-videos' }));         inited.videos=true; }
     if (name==='script'     && !inited.script)     { await safeInit(()=>initScript({ mount:'#yt-tab-script' }));         inited.script=true; }
+    if (name==='tts'        && !inited.tts)        { await safeInit(()=>initTTS({ mount:'#yt-tab-tts' }));               inited.tts=true; } // [추가]
     if (name==='study'      && !inited.study)      { await safeInit(()=>initStudy({ mount:'#yt-tab-study' }));           inited.study=true; }
     if (name==='my-channel' && !inited['my-channel']) { await safeInit(()=>initMyChannel({ mount:'#yt-tab-my-channel' })); inited['my-channel']=true; }
   }
