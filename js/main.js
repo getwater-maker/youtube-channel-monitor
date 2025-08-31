@@ -4,8 +4,9 @@ import { verifyApiKey } from './youtube.js';
 import { initChannel }  from './channel.js';
 import { initVideos } from './videos.js';
 import { initScript }   from './script.js';
-import { initTTS }      from './tts.js'; // [추가] tts.js 임포트
+import { initTTS }      from './tts.js';
 import { initStudy }    from './study.js';
+import { initVrew }     from './vrew.js';
 import { initMyChannel } from './my-channel.js';
 
 /* Toast */
@@ -68,7 +69,6 @@ function showApiKeyModal() {
   overlay.id = 'api-key-modal';
   overlay.className = 'sp-modal-overlay';
 
-  // [수정] Text-to-Speech API 키 입력칸 추가
   overlay.innerHTML = `
     <div class="sp-modal" style="max-width: 500px;">
       <div class="sp-modal-head">
@@ -103,7 +103,7 @@ function showApiKeyModal() {
 
   const apiKeyInput = overlay.querySelector('#modal-apiKey-input');
   const clientIdInput = overlay.querySelector('#modal-clientId-input');
-  const ttsKeyInput = overlay.querySelector('#modal-ttsKey-input'); // [추가] TTS 키 입력 필드
+  const ttsKeyInput = overlay.querySelector('#modal-ttsKey-input');
   const resultDiv = overlay.querySelector('#api-key-result');
   const verifyBtn = overlay.querySelector('#modal-btn-verify');
   const saveBtn = overlay.querySelector('#modal-btn-save');
@@ -114,7 +114,7 @@ function showApiKeyModal() {
 
   kvGet('apiKey').then(key => { if(key) apiKeyInput.value = key; });
   kvGet('oauthClientId').then(id => { if(id) clientIdInput.value = id; });
-  kvGet('ttsApiKey').then(key => { if(key) ttsKeyInput.value = key; }); // [추가] 저장된 TTS 키 불러오기
+  kvGet('ttsApiKey').then(key => { if(key) ttsKeyInput.value = key; });
 
   verifyBtn.onclick = async () => {
     const key = apiKeyInput.value.trim();
@@ -138,7 +138,7 @@ function showApiKeyModal() {
   saveBtn.onclick = async () => {
     await kvSet('apiKey', apiKeyInput.value.trim());
     await kvSet('oauthClientId', clientIdInput.value.trim());
-    await kvSet('ttsApiKey', ttsKeyInput.value.trim()); // [추가] TTS 키 저장
+    await kvSet('ttsApiKey', ttsKeyInput.value.trim());
     window.toast('인증 정보를 저장했습니다.', 'success');
     closeModal();
   };
@@ -151,11 +151,12 @@ function bindTabs(){
     channel:    document.getElementById('yt-tab-channel'),
     videos :    document.getElementById('yt-tab-videos'),
     script :    document.getElementById('yt-tab-script'),
-    tts    :    document.getElementById('yt-tab-tts'), // [추가]
+    tts    :    document.getElementById('yt-tab-tts'),
     study  :    document.getElementById('yt-tab-study'),
+    vrew   :    document.getElementById('yt-tab-vrew'),
     'my-channel': document.getElementById('yt-tab-my-channel'),
   };
-  const inited = { channel:false, videos:false, script:false, tts:false, study:false, 'my-channel':false }; // [추가]
+  const inited = { channel:false, videos:false, script:false, tts:false, study:false, vrew:false, 'my-channel':false };
 
   const safeInit = (fn)=> Promise.resolve().then(fn).catch(e=>{
     console.error('init failed', e); window.toast('초기화 중 오류가 발생했습니다.', 'error', 2200);
@@ -167,8 +168,9 @@ function bindTabs(){
     if (name==='channel'    && !inited.channel)    { await safeInit(()=>initChannel({ mount:'#yt-tab-channel' }));       inited.channel=true; }
     if (name==='videos'     && !inited.videos)     { await safeInit(()=>initVideos({ mount:'#yt-tab-videos' }));         inited.videos=true; }
     if (name==='script'     && !inited.script)     { await safeInit(()=>initScript({ mount:'#yt-tab-script' }));         inited.script=true; }
-    if (name==='tts'        && !inited.tts)        { await safeInit(()=>initTTS({ mount:'#yt-tab-tts' }));               inited.tts=true; } // [추가]
+    if (name==='tts'        && !inited.tts)        { await safeInit(()=>initTTS({ mount:'#yt-tab-tts' }));               inited.tts=true; }
     if (name==='study'      && !inited.study)      { await safeInit(()=>initStudy({ mount:'#yt-tab-study' }));           inited.study=true; }
+    if (name==='vrew'       && !inited.vrew)       { await safeInit(()=>initVrew({ mount:'#yt-tab-vrew' }));             inited.vrew=true; }
     if (name==='my-channel' && !inited['my-channel']) { await safeInit(()=>initMyChannel({ mount:'#yt-tab-my-channel' })); inited['my-channel']=true; }
   }
 
