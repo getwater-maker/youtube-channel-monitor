@@ -2,7 +2,7 @@
 import { kvGet, kvSet, channelsAll, channelsPut, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
 
-// [추가] 채널 탭 상태 관리
+// 채널 탭 상태 관리
 const state = {
   page: 1,
   perPage: 8,
@@ -31,7 +31,7 @@ function createChannelCard(ch, isRegistered = false) {
   return el(`<div class="channel-card" data-id="${h(ch.id)}"><div class="card-banner" style="${ch.bannerUrl ? `background-image:url(${ch.bannerUrl})` : ''}"><img class="card-avatar" src="${h(ch.thumbnail)}" alt="${h(ch.title)} 프로필"></div><div class="card-body"><a href="https://www.youtube.com/channel/${h(ch.id)}" target="_blank" rel="noopener" class="card-title-link"><div class="card-title">${h(ch.title)}</div></a><div class="card-stats"><div class="stat-item"><strong>${formatNum(ch.subscriberCount)}</strong><span>구독자</span></div><div class="stat-item"><strong>${formatNum(ch.videoCount)}</strong><span>동영상</span></div><div class="stat-item"><strong>${formatNum(ch.viewCount)}</strong><span>총 조회수</span></div></div><p class="card-description">${h(ch.description)}</p><div class="card-actions">${actionBtn}</div></div></div>`);
 }
 
-async function showSearchModal(renderRegisteredCallback) {
+async function showSearchModal() {
   document.getElementById('channel-search-modal')?.remove();
 
   const overlay = el(`
@@ -122,7 +122,6 @@ async function showSearchModal(renderRegisteredCallback) {
   overlay.querySelector('#modal-btn-prev').onclick = () => prevToken && searchInModal(prevToken);
 }
 
-// [추가] 페이지네이션 렌더링 함수
 function renderPagination(root, totalItems) {
   const totalPages = Math.ceil(totalItems / state.perPage);
   const existingPagination = root.querySelector('.pagination');
@@ -229,7 +228,9 @@ export async function initChannel({ mount }){
       try{
         const text = await f.text();
         const arr = JSON.parse(text);
-        let ok = 0, failed = 0;
+        let ok = 0;
+        const failedChannels = []; // [수정] 실패한 채널 목록을 저장할 배열
+
         await Promise.all(arr.map(async (c) => {
           if (!c?.id) return;
           try {
@@ -237,13 +238,27 @@ export async function initChannel({ mount }){
             await channelsPut(freshData);
             ok++;
           } catch (e) {
-            console.error(`Import failed for channel ID ${c.id}:`, e);
-            failed++;
+            // [수정] 실패 시, 실패 목록에 추가하고 콘솔에 로그 남기기
+            const failedInfo = { id: c.id, title: c.title || 'N/A', error: e.message };
+            failedChannels.push(failedInfo);
+            console.error(`Import failed for channel:`, failedInfo);
           }
         }));
-        window.toast?.(`${ok}개 채널 가져오기 완료 (실패: ${failed}개)`, 'success');
+
+        // [수정] 결과에 따라 다른 메시지 표시
+        const failed = failedChannels.length;
+        if (failed === 0) {
+          window.toast?.(`${ok}개 채널 가져오기 완료`, 'success');
+        } else {
+          window.toast?.(`완료: ${ok}개 성공, ${failed}개 실패 (콘솔 확인)`, 'warning', 2500);
+        }
+        
         renderRegistered();
-      }catch(e){ console.error(e); window.toast?.('JSON 파일을 처리하는 데 실패했습니다.', 'error'); }
+
+      } catch(e) {
+        console.error(e);
+        window.toast?.('JSON 파일을 처리하는 데 실패했습니다.', 'error');
+      }
     };
     inp.click();
   };
