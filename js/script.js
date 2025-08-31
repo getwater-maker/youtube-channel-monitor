@@ -130,48 +130,94 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
    * 4) 별표(*) 전부 제거
    * 추가: '---' 같은 구분선은 빈 줄로 처리
    * ===================================================== */
-  function preprocessScript(rawText) {
-    const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
-    const out = [];
+ 
+ // 기존 preprocessScript(rawText) 전체를 이 버전으로 교체
 
-    for (let i = 0; i < lines.length; i++) {
-      let ln = String(lines[i] ?? '');
+// 기존 preprocessScript(rawText) 전체를 이 버전으로 교체
+function preprocessScript(rawText) {
+  const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+  const out = [];
 
-      // '---' 구분선 → 빈 줄로
-      if (/^\s*-{3,}\s*$/.test(ln)) { out.push(''); continue; }
+  for (let i = 0; i < lines.length; i++) {
+    let ln = lines[i];
 
-      // #으로 시작하며 장면 n 포함 → [장면 nnn]
-      const sceneInHash = /^\s*#+.*장면\s*(\d{1,3})/i.exec(ln);
-      if (sceneInHash) {
-        const n = pad3(parseInt(sceneInHash[1], 10));
-        out.push(`[장면 ${n}]`);
-        // 다음에 나오는 연속 빈 줄은 모두 소비(건너뜀) → [장면] 바로 아래가 본문이 되도록
-        while (/^\s*$/.test(lines[i + 1] ?? '')) i++;
-        continue;
-      }
+if (/^\s*-{3,}\s*$/.test(ln)) {
+  out.push('');
+  continue;
+}
 
-      // # / ## 로 시작하는 일반 헤더 라인 → 삭제 + 개행 1회
-      if (/^\s*#\s+/.test(ln) || /^\s*##\s+/.test(ln)) { out.push(''); continue; }
-
-      // 그 외 라인 그대로
-      out.push(ln);
+    // ### … 장면 n → [장면 nnn]
+    const sceneInHash = /^\s*#+.*장면\s*(\d{1,3})/i.exec(ln);
+    if (sceneInHash) {
+      const n = String(parseInt(sceneInHash[1], 10)).padStart(3, '0');
+      out.push(`[장면 ${n}]`);
+      // 다음 줄이 빈 줄이면 1줄만 유지
+      const next = lines[i + 1] ?? '';
+      if (/^\s*$/.test(next)) out.push('');
+      continue;
     }
 
-    // 별표 제거 (문서 전역)
-    let joined = out.join('\n').replace(/\*/g, '');
+    // #, ## 시작 줄은 내용 삭제 + 줄 당김 1회
+    if (/^\s*#\s+/.test(ln) || /^\s*##\s+/.test(ln)) {
+      out.push('');
+      continue;
+    }
 
-    // 제거어(Script) 적용
-    const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
-    if (remRe) joined = joined.replace(remRe, '').replace(/[ \t]{2,}/g, ' ');
-
-    // [장면 nnn] 바로 뒤에는 정확히 개행 1개만 남기도록 보정 (불필요한 빈 줄 제거)
-    joined = joined.replace(/(\[장면\s+\d{3}\])\n+/g, '$1\n');
-
-    // 연속 빈 줄 정규화 및 선두/후미 공백 제거
-    joined = joined.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
-
-    return joined;
+    // 그 외 라인은 그대로
+    out.push(ln);
   }
+
+  // 별표 제거
+  let joined = out.join('\n').replace(/\*/g, '');
+
+  // 사용자 제거어 목록 적용(있다면)
+  const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
+  if (remRe) joined = joined.replace(remRe, '').replace(/[ \t]{2,}/g, ' ');
+
+  // [장면 nnn] 뒤에는 정확히 개행 1개만 유지
+  joined = joined.replace(/(\[장면\s+\d{3}\])\n+/g, '$1\n');
+
+  // 과도한 빈 줄 정규화
+  joined = joined.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
+
+  // === 핵심: [장면 nnn] 블록 단위로 오름차순 정렬 ===
+  (function sortBySceneBlocks() {
+    const sceneRe = /^\s*\[장면\s+(\d{3})\]\s*$/;
+    const L = joined.split('\n');
+    const blocks = [];
+    let buf = [];
+    let curId = null;
+
+    const push = () => {
+      if (buf.length) {
+        blocks.push({ id: curId, text: buf.join('\n') });
+        buf = [];
+      }
+    };
+
+    for (let i = 0; i < L.length; i++) {
+      const line = L[i];
+      const m = sceneRe.exec(line);
+      if (m) {
+        // 새 장면 시작 → 이전 블록 마감
+        push();
+        curId = parseInt(m[1], 10);
+        buf.push(line);
+      } else {
+        buf.push(line);
+      }
+    }
+    push();
+
+    // 프롤로그(장면 없는 블록)는 앞에 유지, 장면 블록만 정렬
+    const prelude = blocks.filter(b => !Number.isFinite(b.id));
+    const scenes  = blocks.filter(b =>  Number.isFinite(b.id)).sort((a, b) => a.id - b.id);
+    joined = [...prelude, ...scenes].map(b => b.text).join('\n');
+  })();
+
+  return joined;
+}
+
 
   /* =====================================================
    * 이미지 프롬프트 파싱 (챕터/주인공 블록 포함)
