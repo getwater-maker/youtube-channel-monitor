@@ -1,6 +1,6 @@
 // js/indexedStore.js
 const DB_NAME = 'yt_helper_db';
-const DB_VERSION = 3; // 스키마 변경으로 버전 2 -> 3으로 올립니다.
+const DB_VERSION = 4; // 스키마 변경으로 버전 3 -> 4로 올립니다.
 let _db = null;
 
 function openDB(){
@@ -10,10 +10,13 @@ function openDB(){
       const db = req.result;
       if (!db.objectStoreNames.contains('kv'))       db.createObjectStore('kv', { keyPath:'key' });
       if (!db.objectStoreNames.contains('channels')) db.createObjectStore('channels', { keyPath:'id' });
-      // [추가] 대본 초안을 위한 'drafts' 저장소를 추가합니다.
       if (!db.objectStoreNames.contains('drafts')) {
         const store = db.createObjectStore('drafts', { keyPath: 'id', autoIncrement: true });
-        store.createIndex('by_updatedAt', 'updatedAt'); // 수정일 기준으로 정렬하기 위한 인덱스
+        store.createIndex('by_updatedAt', 'updatedAt');
+      }
+      // [추가] 썸공부 이력을 위한 'studyHistory' 저장소를 추가합니다.
+      if (!db.objectStoreNames.contains('studyHistory')) {
+        db.createObjectStore('studyHistory', { keyPath: 'id', autoIncrement: true });
       }
     };
     req.onsuccess = ()=> {
@@ -50,7 +53,6 @@ export async function kvGet(key){
   const req = tx.objectStore('kv').get(key);
   return new Promise(ok=>{
     req.onsuccess = ()=> ok(req.result?.value ?? null);
-    // [수정] => 를 = 로 변경하여 문법 오류를 수정했습니다.
     req.onerror   = ()=> ok(null);
   });
 }
@@ -93,7 +95,7 @@ export async function channelsRemove(id){
   return new Promise(ok=> tx.oncomplete = ok);
 }
 
-/* -------- [추가] Drafts (Script Editor) -------- */
+/* -------- Drafts (Script Editor) -------- */
 export async function draftsGetAll(){
   if (!_db) return [];
   const tx = _db.transaction('drafts','readonly');
@@ -124,4 +126,27 @@ export async function draftsRemove(id){
   const tx = _db.transaction('drafts','readwrite');
   tx.objectStore('drafts').delete(id);
   return new Promise(ok=> tx.oncomplete = ()=>ok(true));
+}
+
+/* -------- Study History -------- */
+export async function studyHistoryGetAll(){
+  if (!_db) return [];
+  const tx = _db.transaction('studyHistory','readonly');
+  const store = tx.objectStore('studyHistory');
+  const req = store.getAll();
+  return new Promise(ok=>{
+    req.onsuccess = ()=> ok(req.result || []);
+    req.onerror   = ()=> ok([]);
+  });
+}
+
+export async function studyHistoryAdd(historyItem){
+  if (!_db) return null;
+  const tx = _db.transaction('studyHistory','readwrite');
+  const store = tx.objectStore('studyHistory');
+  const req = store.add(historyItem);
+  return new Promise((ok, rej) => {
+    tx.oncomplete = () => ok(req.result);
+    tx.onerror = () => rej(tx.error);
+  });
 }

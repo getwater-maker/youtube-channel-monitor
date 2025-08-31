@@ -4,6 +4,8 @@ import { verifyApiKey } from './youtube.js';
 import { initChannel }  from './channel.js';
 import { initVideos, warmUpVideosCache } from './videos.js';
 import { initScript }   from './script.js';
+import { initStudy }    from './study.js'; // [추가]
+
 
 /* Toast */
 (function(){
@@ -96,8 +98,9 @@ function bindTabs(){
     channel: document.getElementById('yt-tab-channel'),
     videos : document.getElementById('yt-tab-videos'),
     script : document.getElementById('yt-tab-script'),
+    study  : document.getElementById('yt-tab-study'), // [추가]
   };
-  const inited = { channel:false, videos:false, script:false };
+  const inited = { channel:false, videos:false, script:false, study:false }; // [추가]
 
   const safeInit = (fn)=> Promise.resolve().then(fn).catch(e=>{
     console.error('init failed', e); window.toast('초기화 중 오류가 발생했습니다.', 'error', 2200);
@@ -109,6 +112,7 @@ function bindTabs(){
     if (name==='channel' && !inited.channel){ await safeInit(()=>initChannel({ mount:'#yt-tab-channel' })); inited.channel=true; }
     if (name==='videos'  && !inited.videos ){ await safeInit(()=>initVideos({ mount:'#yt-tab-videos' }));   inited.videos=true; }
     if (name==='script'  && !inited.script ){ await safeInit(()=>initScript({ mount:'#yt-tab-script' }));   inited.script=true; }
+    if (name==='study'   && !inited.study  ){ await safeInit(()=>initStudy({ mount:'#yt-tab-study' }));    inited.study=true; } // [추가]
   }
 
   btns.forEach(b=>{
@@ -118,7 +122,7 @@ function bindTabs(){
 
   openTab('channel');
   window.openTab = openTab;
-} // <-- [수정] 여기에 빠져있던 닫는 중괄호를 추가했습니다.
+}
 
 /* Bootstrap */
 async function bootstrap(){

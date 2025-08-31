@@ -6,12 +6,13 @@
   <title>YouTube Helper</title>
   <link rel="icon" type="ico" href="css/favicon.ico" />
   <link rel="stylesheet" href="css/style.css" />
+  <!-- [추가] 차트 라이브러리(Chart.js) 추가 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div id="yt-app">
     <div class="yt-header">
       <div class="yt-title">YouTube Helper</div>
-      <!-- [수정] 헤더 우측 영역 -->
       <div class="header-actions">
         <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="btn btn-sm btn-outline">Google Cloud Console</a>
         <button id="btn-api-modal" class="btn btn-sm btn-primary">API Key 입력</button>
@@ -22,11 +23,15 @@
       <button class="yt-tab-btn yt-active" data-tab="channel">채널관리</button>
       <button class="yt-tab-btn" data-tab="videos">영상분석</button>
       <button class="yt-tab-btn" data-tab="script">대본작업</button>
+      <!-- [추가] '썸공부' 탭 버튼 -->
+      <button class="yt-tab-btn" data-tab="study">썸공부</button>
     </nav>
 
     <section id="yt-tab-channel" class="yt-tab yt-active"></section>
     <section id="yt-tab-videos" class="yt-tab"></section>
     <section id="yt-tab-script" class="yt-tab"></section>
+    <!-- [추가] '썸공부' 탭 콘텐츠 영역 -->
+    <section id="yt-tab-study" class="yt-tab"></section>
   </div>
 
   <script type="module" src="js/main.js"></script>
