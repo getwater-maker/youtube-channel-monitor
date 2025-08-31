@@ -48,11 +48,19 @@ function withinPeriod(dateStr){
   const days = {'1w':7, '2w':14, '1m':30}[CONFIG.period] || 9999;
   return (now - d) / (1000*60*60*24) <= days;
 }
+
+// [수정] 특정 채널의 플레이리스트를 찾지 못해도 전체 프로세스가 중단되지 않도록 예외 처리
 async function fetchLatestVideoIds(ch, max=25){
   if (!ch.uploadsPlaylistId) return [];
-  const j = await ytApi('playlistItems', { part:'contentDetails', playlistId:ch.uploadsPlaylistId, maxResults:max });
-  return j.items?.map(it=>it.contentDetails.videoId) || [];
+  try {
+    const j = await ytApi('playlistItems', { part:'contentDetails', playlistId:ch.uploadsPlaylistId, maxResults:max });
+    return j.items?.map(it=>it.contentDetails.videoId) || [];
+  } catch (e) {
+    console.warn(`'${ch.title}' 채널(${ch.id})의 영상 목록을 가져오는 데 실패했습니다. 채널이 삭제되었거나 비공개일 수 있습니다.`, e.message);
+    return []; // 오류 발생 시 빈 배열을 반환하여 다른 채널 분석을 계속 진행
+  }
 }
+
 async function fetchVideosDetails(ids){
   const out = [];
   for(let i=0; i < ids.length; i+=50){
@@ -193,7 +201,6 @@ function renderList(root){
   
   const grid = el('<div class="video-grid"></div>');
   items.forEach(v=>{
-    // [수정] 완료 상태에 따라 버튼 텍스트와 클래스를 동적으로 변경
     const doneButtonText = v.isDone ? '완료취소' : '작업완료';
     const doneButtonClass = v.isDone ? 'btn-outline' : 'btn-success';
 
@@ -236,7 +243,6 @@ function renderList(root){
       copyText(infoText);
     };
     
-    // [수정] 작업 완료/취소 토글 기능 구현
     card.querySelector('.btn-toggle-done').onclick = () => {
       if (state.doneIds.has(v.id)) {
         state.doneIds.delete(v.id);
