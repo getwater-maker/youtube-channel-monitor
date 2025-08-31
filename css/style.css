@@ -452,3 +452,28 @@ table.styled-table th {
 table.styled-table tbody tr:hover {
   background-color: var(--panel);
 }
+
+/* [추가] 분석 탭 스타일 */
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.summary-card {
+  background: var(--card-2);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.summary-card strong {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.summary-card span {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+}
