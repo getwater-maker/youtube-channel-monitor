@@ -1,9 +1,12 @@
 // js/channelAnalysis.js
 // 채널 전용 분석 섹션
-// - 최신영상: 최근 1개월 이내, 업로드 최신순(내림차순)  ← (요청 반영)
+// - 최신영상: 최근 1개월 이내, 업로드 최신순(내림차순)
 // - 돌연변이: 롱폼(>=181초)만, 돌연변이 지수 내림차순
-// - 채널전체: 모든 영상, 조회수 내림차순, 20개 단위 로드(더 불러오기)
-// - 영상카드: 영상분석과 동일 버튼(썸네일복사, 정보복사, 작업완료)
+// - 채널전체: 모든 영상, 조회수 내림차순, 50개 단위 로드(더 불러오기)
+// - 영상카드: 썸네일 복사, 정보 복사, 작업완료 토글
+// - ✅ 페이지네이션(등록 채널과 동일 UX)
+// - ✅ 키워드 → 검색창(한 줄, 카드 1장 폭) → 영상카드 순서 고정
+// - ✅ channel.js 호환을 위한 renderChannelAnalysis export + window 바인딩 제공
 
 import { channelsAll, kvGet, kvSet } from './indexedStore.js';
 import { ytApi } from './youtube.js';
@@ -12,15 +15,24 @@ const LONGFORM_SEC = 181;
 
 const state = {
   channel: null,
-  // 기본 모드/정렬
   mode: 'mutant',         // 'latest' | 'mutant' | 'all'
-  sortBy: 'mutant_desc',  // latest: publishedAt_desc (자동 전환), mutant: mutant_desc, all: views_desc
-  // 데이터
-  items: [],              // 현재 화면에 표시 중인 비디오들(모드 전환 시 재계산)
-  pageToken: '',          // 채널전체에서 playlistItems pageToken
+  sortBy: 'mutant_desc',  // latest: publishedAt_desc, mutant: mutant_desc, all: views_desc
+
+  items: [],              // 현재 화면에 표시 가능한 모든 비디오(필터링 이전)
+  pageToken: '',          // '채널전체'에서 playlistItems pageToken
   loading: false,
-  // 작업완료 체크
+
+  // UI
+  page: 1,
+  perPage: 8,
+  searchQuery: '',
+
+  // 작업완료
   doneIds: new Set(),
+
+  // 내부 캐시
+  _lastItemsForRender: [],
+  _lastShowLoadMore: false,
 };
 
 // ───────────────────────── 유틸 ─────────────────────────
@@ -43,7 +55,7 @@ function within1Month(dateStr){
   return (now - d) / (1000*60*60*24) <= 31;
 }
 
-// 썸네일 복사
+// 클립보드/썸네일 도구
 async function copyImageBlob(blob){
   try { await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]); window.toast?.('썸네일 복사 완료','success', 900); }
   catch(e){ console.error(e); window.toast?.('썸네일 복사 실패','error'); }
@@ -73,7 +85,7 @@ async function loadDoneIds() { const ids = await kvGet('videos:done_ids') || [];
 async function saveDoneIds() { await kvSet('videos:done_ids', Array.from(state.doneIds)); }
 
 // ───────────────────────── API 헬퍼 ─────────────────────────
-async function fetchLatestVideoIdsFromUploads(uploadsPlaylistId, max=25, pageToken=''){
+async function fetchLatestVideoIdsFromUploads(uploadsPlaylistId, max=50, pageToken=''){
   const j = await ytApi('playlistItems', { part:'contentDetails', playlistId:uploadsPlaylistId, maxResults:max, ...(pageToken?{pageToken}:{}) });
   const ids = j.items?.map(it=>it.contentDetails.videoId) || [];
   return { ids, nextPageToken: j.nextPageToken || '' };
@@ -90,7 +102,6 @@ async function fetchVideosDetails(ids){
 
 // ───────────────────────── 렌더 ─────────────────────────
 function renderHeader(root, ch, latestLongformDate){
-  // 채널 카드처럼 보이는 헤더 (배너 위에 좌하단 채널명, 우하단 통계)
   const header = el(`
     <div class="section" style="padding:0; overflow:hidden; position:relative; margin-bottom:16px;">
       <div style="width:100%; aspect-ratio: 6/1; ${ch.bannerUrl?`background-image:url(${ch.bannerUrl}); background-size:cover; background-position:center;`:'background:var(--card);'}"></div>
@@ -112,11 +123,12 @@ function renderHeader(root, ch, latestLongformDate){
 }
 
 function videoCard(v){
-  const doneButtonText = state.doneIds.has(v.id) ? '완료취소' : '작업완료';
-  const doneButtonClass = state.doneIds.has(v.id) ? 'btn-outline' : 'btn-success';
+  const done = state.doneIds.has(v.id);
+  const doneButtonText = done ? '완료취소' : '작업완료';
+  const doneButtonClass = done ? 'btn-outline' : 'btn-success';
 
   const card = el(`
-    <div class="video-card ${state.doneIds.has(v.id) ? 'is-done' : ''}">
+    <div class="video-card ${done ? 'is-done' : ''}">
       <div class="thumb-wrap">
         <a href="https://youtu.be/${h(v.id)}" target="_blank" rel="noopener">
           <img class="thumb" src="https://i.ytimg.com/vi/${h(v.id)}/mqdefault.jpg" alt="${h(v.title)}">
@@ -168,7 +180,7 @@ function videoCard(v){
 
 function renderToolbar(root){
   const tb = el(`
-    <div class="toolbar">
+    <div id="ca-toolbar" class="toolbar">
       <div class="group">
         <button id="btn-latest" class="chip">최신영상</button>
         <button id="btn-mutant" class="chip active">돌연변이</button>
@@ -181,7 +193,6 @@ function renderToolbar(root){
   `);
   root.appendChild(tb);
 
-  // 버튼 핸들러
   tb.querySelector('#btn-latest').onclick = ()=> switchMode('latest');
   tb.querySelector('#btn-mutant').onclick = ()=> switchMode('mutant');
   tb.querySelector('#btn-all').onclick    = ()=> switchMode('all');
@@ -195,16 +206,95 @@ function markActiveButton(tb){
   else tb.querySelector('#btn-all')?.classList.add('active');
 }
 
+// ✅ 등록된 채널과 동일 UX의 페이지네이션
+function renderPaginationForVideos(root, totalItems){
+  const totalPages = Math.ceil(totalItems / state.perPage);
+  const existing = root.querySelector('.pagination');
+  if (existing) existing.remove();
+  if (totalPages <= 1) return;
+
+  const makeBtn = (label, page, disabled=false, active=false)=>{
+    const b = el(`<button class="btn ${active ? 'active' : ''}">${label}</button>`);
+    if (disabled) b.disabled = true;
+    b.onclick = async ()=>{
+      state.page = page;
+      renderList(root, state._lastItemsForRender, state._lastShowLoadMore);
+      root.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    };
+    return b;
+  };
+  const nav = el('<nav class="pagination"></nav>');
+
+  // 이전
+  nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
+
+  // 숫자 5개 윈도우
+  const windowSize = 5;
+  let start = Math.max(1, state.page - Math.floor(windowSize/2));
+  let end = Math.min(totalPages, start + windowSize - 1);
+  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
+  for (let i=start; i<=end; i++){
+    nav.appendChild(makeBtn(String(i), i, false, i===state.page));
+  }
+
+  // 이후
+  nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page + 1), state.page === totalPages));
+
+  root.appendChild(nav);
+}
+
+// ✅ 검색창(키워드와 카드 사이, 한 줄·카드 1장 폭)
+function renderSearchBox(){
+  const mount = document.getElementById('ca-search-wrap');
+  if (!mount) return;
+
+  let box = document.getElementById('ca-search');
+  if (!box){
+    box = el(`
+      <div id="ca-search" style="margin:10px 0;">
+        <div class="search-row" style="display:flex; gap:8px; width:min(100%, 360px);">
+          <input id="ca-search-input" type="search" placeholder="제목으로 검색..."
+                 style="flex:1; height:36px; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text);" />
+          <button id="ca-search-clear" class="btn btn-outline btn-sm" style="height:36px;">지우기</button>
+        </div>
+      </div>
+    `);
+    mount.replaceChildren(box);
+
+    box.querySelector('#ca-search-input').addEventListener('input', (e)=>{
+      state.searchQuery = (e.target.value||'').trim().toLowerCase();
+      applySearchAndRender();
+    });
+    box.querySelector('#ca-search-clear').onclick = ()=>{
+      state.searchQuery = '';
+      box.querySelector('#ca-search-input').value = '';
+      applySearchAndRender();
+    };
+  }
+}
+
 function renderList(root, items, showLoadMore=false){
   root.innerHTML = '';
   if (!items || items.length===0){
     root.innerHTML = `<div class="empty-state">표시할 영상이 없습니다.</div>`;
     return;
   }
+  // 페이지 단위로 자르기
+  state._lastItemsForRender = items;
+  state._lastShowLoadMore = showLoadMore;
+
+  const total = items.length;
+  const start = (state.page - 1) * state.perPage;
+  const slice = items.slice(start, start + state.perPage);
+
   const grid = el('<div class="video-grid"></div>');
-  items.forEach(v => grid.appendChild(videoCard(v)));
+  slice.forEach(v => grid.appendChild(videoCard(v)));
   root.appendChild(grid);
 
+  // 페이지네이션
+  renderPaginationForVideos(root, total);
+
+  // (옵션) 채널전체 모드에서 아직 더 로드할 페이지가 남아있는 경우
   if (showLoadMore){
     const more = el(`<div style="display:flex; justify-content:center; margin-top:16px;"><button id="btn-load-more" class="btn btn-primary">더 불러오기</button></div>`);
     more.querySelector('#btn-load-more').onclick = ()=> loadMoreAll(root);
@@ -212,236 +302,208 @@ function renderList(root, items, showLoadMore=false){
   }
 }
 
+function renderKeywordsContainer(items){
+  const wrap = document.getElementById('ca-keywords');
+  if (!wrap) return null;
+  wrap.innerHTML = '';
+
+  const wordCounts = new Map();
+  const stop = new Set(['shorts', '그리고', '있는', '것은', '이유', '방법', '영상', '공개', '구독', '좋아요']);
+
+  items.forEach(v=>{
+    const words = (v.title||'')
+      .replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 1 && !stop.has(w) && !/^\d+$/.test(w));
+    words.forEach(w => wordCounts.set(w, (wordCounts.get(w) || 0) + 1));
+  });
+
+  const sorted = [...wordCounts.entries()].sort((a,b)=> b[1]-a[1]).slice(0, 30);
+  if (sorted.length === 0){
+    wrap.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`;
+    return wrap;
+  }
+  const box = el('<div class="keywords"></div>');
+  sorted.forEach(([word, count])=>{
+    box.appendChild(el(`<span class="kw">${h(word)} <strong>${count}</strong></span>`));
+  });
+  wrap.appendChild(box);
+  return wrap;
+}
+
 // ───────────────────────── 모드 전환/로딩 ─────────────────────────
 async function switchMode(mode){
   if (state.loading) return;
   state.mode = mode;
+  state.page = 1;
 
   const host = document.querySelector('#ca-list');
-  const keywords = document.querySelector('#ca-keywords');
   const tb = document.querySelector('#ca-toolbar');
-
   markActiveButton(tb);
 
-  // 모드 별 로딩
   if (mode === 'latest') {
-    state.sortBy = 'publishedAt_desc'; // ← 최신영상은 업로드 최신순 (요청 반영)
+    state.sortBy = 'publishedAt_desc';
     await loadLatest(host);
   } else if (mode === 'mutant') {
     state.sortBy = 'mutant_desc';
     await loadMutant(host);
   } else {
     state.sortBy = 'views_desc';
-    state.items = [];  // 채널전체는 accumulate
+    state.items = [];
     state.pageToken = '';
     await loadAllFirst(host);
   }
 
-  // 키워드 분석(간단한 워드카운트)
-  renderKeywords(keywords, state.items);
+  // 순서 고정: 키워드 → 검색창 → 리스트
+  renderKeywordsContainer(state.items);
+  renderSearchBox();
+  applySearchAndRender();
+}
+
+function applySearchAndRender(){
+  const host = document.querySelector('#ca-list');
+  const base = state.items || [];
+  const filtered = state.searchQuery
+    ? base.filter(v => (v.title||'').toLowerCase().includes(state.searchQuery))
+    : base;
+  state.page = 1;
+  const showMore = state.mode === 'all' && !!state.pageToken;
+  renderList(host, filtered, showMore);
+}
+
+// ───────────────────────── 데이터 적재(모드별) ─────────────────────────
+function normalizeVideo(raw, channel){
+  const secs = secFromISO(raw.contentDetails?.duration);
+  const views = Number(raw.statistics?.viewCount || 0);
+  const title = raw.snippet?.title || '';
+  const publishedAt = raw.snippet?.publishedAt || '';
+  const longform = secs >= LONGFORM_SEC;
+  const subs = Number(channel.subscriberCount || 0);
+  const mutant = subs > 0 ? (views / subs) * 10 : 0;
+  return {
+    id: raw.id,
+    title,
+    publishedAt,
+    views,
+    secs,
+    longform,
+    mutant,
+    channel: {
+      id: channel.id,
+      name: channel.title,
+      subs: subs,
+      thumb: channel.thumbnail
+    }
+  };
 }
 
 function sortItems(items){
-  const s = state.sortBy;
-  return [...items].sort((a,b)=>{
-    if (s === 'publishedAt_desc') return new Date(b.publishedAt) - new Date(a.publishedAt);
-    if (s === 'mutant_desc') return b.mutant - a.mutant;
-    return b.views - a.views; // views_desc
+  return items.slice().sort((a,b)=>{
+    if (state.sortBy === 'publishedAt_desc') return new Date(b.publishedAt) - new Date(a.publishedAt);
+    if (state.sortBy === 'mutant_desc') return b.mutant - a.mutant;
+    if (state.sortBy === 'views_desc') return b.views - a.views;
+    return 0;
   });
 }
 
-function renderKeywords(container, videos){
-  const wordCounts = new Map();
-  const stop = new Set(['shorts','그리고','있는','것은','이유','방법','영상','공개','구독','좋아요']);
-  videos.forEach(v=>{
-    String(v.title).replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
-      .toLowerCase().split(/\s+/)
-      .filter(w=>w.length>1 && !stop.has(w) && !/^\d+$/.test(w))
-      .forEach(w=>wordCounts.set(w, (wordCounts.get(w)||0)+1));
-  });
-  const sorted = [...wordCounts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,30);
-  container.innerHTML = '';
-  if (sorted.length===0){ container.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`; return; }
-  const wrap = el(`<div class="keywords"></div>`);
-  sorted.forEach(([w,c])=> wrap.appendChild(el(`<span class="kw">${h(w)} <strong>${c}</strong></span>`)));
-  container.appendChild(wrap);
-}
-
-// 최신영상(최근 1개월, 업로드 최신순)
 async function loadLatest(host){
   const ch = state.channel;
-  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 재생목록이 없습니다.</div>`; return; }
-
-  state.loading = true;
-  document.getElementById('sync-badge').style.display='inline-flex';
+  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
   host.innerHTML = `<div class="loading-state">최신 영상을 불러오는 중...</div>`;
 
-  try {
-    // 최근 업로드 50개 정도만 가져와도 1개월 범위는 충분한 경우가 많음
-    const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50);
-    const details = await fetchVideosDetails(ids);
+  const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50);
+  const details = await fetchVideosDetails(ids);
+  const items = details.map(v => normalizeVideo(v, ch))
+    .filter(v => within1Month(v.publishedAt))
+    .sort((a,b)=> new Date(b.publishedAt) - new Date(a.publishedAt));
 
-    const items = details.map(v=>{
-      const views = num(v.statistics?.viewCount);
-      const subs  = num(ch.subscriberCount);
-      const secs  = secFromISO(v.contentDetails?.duration);
-      return {
-        id: v.id,
-        title: v.snippet?.title || '',
-        publishedAt: v.snippet?.publishedAt || '',
-        views, secs,
-        channel: { id:ch.id, name:ch.title, subs, thumb:ch.thumbnail },
-        mutant: subs>0 ? views/subs : 0,
-      };
-    }).filter(v=> within1Month(v.publishedAt)); // 1개월 이내만
-
-    state.items = sortItems(items); // publishedAt_desc
-    renderList(host, state.items, false);
-  } catch(e){
-    console.error(e);
-    host.innerHTML = `<div class="empty-state error">불러오기 실패: ${h(e.message)}</div>`;
-  } finally {
-    state.loading = false;
-    document.getElementById('sync-badge').style.display='none';
-  }
+  state.items = items;
 }
 
-// 돌연변이(롱폼, 지수 내림차순)
 async function loadMutant(host){
   const ch = state.channel;
-  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 재생목록이 없습니다.</div>`; return; }
+  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
+  host.innerHTML = `<div class="loading-state">돌연변이 영상을 분석 중...</div>`;
 
-  state.loading = true;
-  document.getElementById('sync-badge').style.display='inline-flex';
-  host.innerHTML = `<div class="loading-state">돌연변이 영상을 불러오는 중...</div>`;
+  const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50);
+  const details = await fetchVideosDetails(ids);
+  const items = details.map(v => normalizeVideo(v, ch))
+    .filter(v => v.longform)
+    .sort((a,b)=> b.mutant - a.mutant);
 
-  try {
-    const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50); // 최근 50개로 충분히 상위 지수 확인
-    const details = await fetchVideosDetails(ids);
-
-    const items = details.map(v=>{
-      const views = num(v.statistics?.viewCount);
-      const subs  = num(ch.subscriberCount);
-      const secs  = secFromISO(v.contentDetails?.duration);
-      return {
-        id: v.id,
-        title: v.snippet?.title || '',
-        publishedAt: v.snippet?.publishedAt || '',
-        views, secs,
-        channel: { id:ch.id, name:ch.title, subs, thumb:ch.thumbnail },
-        mutant: subs>0 ? views/subs : 0,
-      };
-    }).filter(v=> v.secs >= LONGFORM_SEC)
-      .sort((a,b)=> b.mutant - a.mutant);
-
-    state.items = items;
-    renderList(host, state.items, false);
-  } catch(e){
-    console.error(e);
-    host.innerHTML = `<div class="empty-state error">불러오기 실패: ${h(e.message)}</div>`;
-  } finally {
-    state.loading = false;
-    document.getElementById('sync-badge').style.display='none';
-  }
+  state.items = items;
 }
 
-// 채널전체(조회수 내림차순, 20개 단위 로드)
 async function loadAllFirst(host){
-  await loadMoreAll(host, true);
-}
-async function loadMoreAll(host, first=false){
   const ch = state.channel;
-  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 재생목록이 없습니다.</div>`; return; }
-  if (state.loading) return;
+  if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
+  host.innerHTML = `<div class="loading-state">전체 영상을 불러오는 중...</div>`;
 
+  const first = await ytApi('playlistItems', { part:'contentDetails', playlistId:ch.uploadsPlaylistId, maxResults:50 });
+  state.pageToken = first.nextPageToken || '';
+  const ids = (first.items||[]).map(it=>it.contentDetails?.videoId).filter(Boolean);
+  const details = await fetchVideosDetails(ids);
+  state.items = sortItems(details.map(v => normalizeVideo(v, ch)));
+}
+
+async function loadMoreAll(host){
+  if (!state.pageToken || state.loading) return;
   state.loading = true;
-  document.getElementById('sync-badge').style.display='inline-flex';
-  if (first) host.innerHTML = `<div class="loading-state">영상을 불러오는 중...</div>`;
-
-  try {
-    const { ids, nextPageToken } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 20, state.pageToken);
-    state.pageToken = nextPageToken;
-
+  try{
+    const ch = state.channel;
+    const j = await ytApi('playlistItems', { part:'contentDetails', playlistId:ch.uploadsPlaylistId, maxResults:50, pageToken:state.pageToken });
+    state.pageToken = j.nextPageToken || '';
+    const ids = (j.items||[]).map(it=>it.contentDetails?.videoId).filter(Boolean);
     const details = await fetchVideosDetails(ids);
-    const newItems = details.map(v=>{
-      const views = num(v.statistics?.viewCount);
-      const subs  = num(ch.subscriberCount);
-      const secs  = secFromISO(v.contentDetails?.duration);
-      return {
-        id: v.id,
-        title: v.snippet?.title || '',
-        publishedAt: v.snippet?.publishedAt || '',
-        views, secs,
-        channel: { id:ch.id, name:ch.title, subs, thumb:ch.thumbnail },
-        mutant: subs>0 ? views/subs : 0,
-      };
-    });
-
-    state.items = sortItems([...state.items, ...newItems]); // views_desc
-    renderList(host, state.items, Boolean(state.pageToken));
-  } catch(e){
-    console.error(e);
-    host.innerHTML = `<div class="empty-state error">불러오기 실패: ${h(e.message)}</div>`;
-  } finally {
+    const more = details.map(v => normalizeVideo(v, ch));
+    state.items = sortItems(state.items.concat(more));
+    applySearchAndRender();
+  }finally{
     state.loading = false;
-    document.getElementById('sync-badge').style.display='none';
   }
 }
 
-// ───────────────────────── 외부 진입 ─────────────────────────
-export async function renderChannelAnalysis({ mount, channel }){
+// ───────────────────────── 엔트리 ─────────────────────────
+export async function openChannelAnalysis({ mount, channelId }){
   await loadDoneIds();
 
-  // channel이 충분치 않으면 등록 목록에서 보정
-  if (!channel) {
-    const all = await channelsAll();
-    channel = all?.[0] || null;
-  }
-  if (!channel) {
-    document.querySelector(mount).innerHTML = `<div class="empty-state error">분석할 채널을 찾을 수 없습니다.</div>`;
+  const root = document.querySelector(mount);
+  if (!root) throw new Error('channelAnalysis mount element not found');
+
+  // 순서 고정: 키워드 → 검색 → 리스트
+  root.innerHTML = `
+    <div id="ca-root">
+      <div id="ca-header"></div>
+      <div id="ca-toolbar-wrap"></div>
+      <div id="ca-keywords" class="section" style="margin-top:10px;"></div>
+      <div id="ca-search-wrap" style="margin:10px 0;"></div>
+      <div id="ca-list" class="section" style="margin-top:10px;"></div>
+    </div>
+  `;
+
+  const all = await channelsAll();
+  const ch = all.find(c => c.id === channelId);
+  if (!ch){
+    document.querySelector('#ca-list').innerHTML = `<div class="empty-state">채널 정보를 찾을 수 없습니다.</div>`;
     return;
   }
-  state.channel = channel;
+  state.channel = ch;
 
-  // 가장 최근 롱폼 업로드일 계산(배너 표시용)
-  let latestLongformDate = '';
-  try {
-    const { ids } = await fetchLatestVideoIdsFromUploads(channel.uploadsPlaylistId, 25);
-    const details = await fetchVideosDetails(ids);
-    const longform = details
-      .map(v=>({ publishedAt:v.snippet?.publishedAt, secs: secFromISO(v.contentDetails?.duration) }))
-      .filter(v=> v.secs >= LONGFORM_SEC)
-      .sort((a,b)=> new Date(b.publishedAt) - new Date(a.publishedAt));
-    latestLongformDate = longform[0]?.publishedAt ? new Date(longform[0].publishedAt).toLocaleDateString('ko-KR') : '';
-  } catch(e){ /* 배너용 보조 정보 실패는 무시 */ }
-
-  // 루트 마크업
-  const root = document.querySelector(mount);
-  root.innerHTML = '';
-  renderHeader(root, channel, latestLongformDate);
-
-  // 툴바
-  const tbWrap = el(`<div id="ca-toolbar"></div>`);
-  root.appendChild(tbWrap);
-  const tb = renderToolbar(tbWrap);
-
-  // 키워드 섹션
-  const kw = el(`
-    <div class="section" style="margin-top: 18px;">
-      <div class="section-header" style="padding-bottom:0;">
-        <div class="section-title">키워드 분석</div>
-      </div>
-      <div id="ca-keywords"><div class="empty-state" style="padding:16px;">필터 조건에 맞는 영상이 없습니다.</div></div>
-    </div>
-  `);
-  root.appendChild(kw);
-
-  // 리스트 섹션
-  const list = el(`<div id="ca-list" style="margin-top: 18px;"></div>`);
-  root.appendChild(list);
-
-  // 기본 진입은 ‘돌연변이’
-  markActiveButton(tb);
-  await loadMutant(list);
-  renderKeywords(document.querySelector('#ca-keywords'), state.items);
+  renderHeader(document.querySelector('#ca-header'), ch, null);
+  renderToolbar(document.querySelector('#ca-toolbar-wrap'));
+  await switchMode('mutant'); // 기본 모드
 }
+
+// --- 호환을 위한 export (channel.js가 기대하는 이름) ---
+export async function renderChannelAnalysis(opts) {
+  const { mount } = opts || {};
+  const channelId = opts?.channelId || opts?.channel?.id || opts?.id || opts?.channelID;
+  return openChannelAnalysis({ mount, channelId });
+}
+
+// 전역 바인딩 (동적 import 후 mod가 예상과 다를 경우 대비)
+window.renderChannelAnalysis = renderChannelAnalysis;
+
+// default alias (선택적 사용)
+export { openChannelAnalysis as default };

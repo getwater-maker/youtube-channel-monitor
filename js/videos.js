@@ -1,4 +1,10 @@
 // js/videos.js
+// 영상분석 탭
+// - 채널 캐시를 기반으로 최신/돌연변이 모드 분석
+// - 필터(조회수/기간/정렬), 페이지네이션, 키워드 분석
+// - 제목 다운로드, 썸네일 복사, 정보 복사, 작업완료 토글
+// - ✅ 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
+
 import { kvGet, kvSet, channelsAll, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
 
@@ -10,13 +16,14 @@ const CONFIG = {
 };
 
 const state = {
-  mode: 'mutant',      // 'latest' | 'mutant'
-  sortBy: 'mutant_desc', // 'views_desc' | 'mutant_desc' | 'publishedAt_desc' | 'subs_desc'
+  mode: 'mutant',           // 'latest' | 'mutant'
+  sortBy: 'mutant_desc',    // 'views_desc' | 'mutant_desc' | 'publishedAt_desc' | 'subs_desc'
   page: 1,
   filtered: [],
   cached: [],
   doneIds: new Set(),
   _busy: false,
+  searchQuery: '',
 };
 
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
@@ -100,6 +107,30 @@ async function fetchVideosDetails(ids){
   return out;
 }
 
+function normalizeVideo(raw, ch){
+  const secs = secFromISO(raw.contentDetails?.duration);
+  const views = Number(raw.statistics?.viewCount || 0);
+  const title = raw.snippet?.title || '';
+  const publishedAt = raw.snippet?.publishedAt || '';
+  const subs = Number(ch.subscriberCount || 0);
+  const mutant = subs > 0 ? (views / subs) * 10 : 0;
+  return {
+    id: raw.id,
+    title,
+    publishedAt,
+    views,
+    secs,
+    channel: {
+      id: ch.id,
+      name: ch.title,
+      subs,
+      thumb: ch.thumbnail
+    },
+    mutant,
+    isDone: false,
+  };
+}
+
 function filterRankFromRaw(videos){
   const filtered = videos.filter(v=>{
     if (v.secs < CONFIG.longformSec) return false;
@@ -127,39 +158,66 @@ async function loadDoneIds() { const ids = await kvGet('videos:done_ids') || [];
 async function saveDoneIds() { await kvSet('videos:done_ids', Array.from(state.doneIds)); }
 
 function analyzeAndRenderKeywords(videos) {
-    const container = document.getElementById('keywords-analysis-container');
-    if (!container) return;
+  const container = document.getElementById('keywords-analysis-container');
+  if (!container) return;
 
-    const wordCounts = new Map();
-    const stopWords = new Set(['shorts', '그리고', '있는', '것은', '이유', '방법', '영상', '공개', '구독', '좋아요']);
+  const wordCounts = new Map();
+  const stopWords = new Set(['shorts', '그리고', '있는', '것은', '이유', '방법', '영상', '공개', '구독', '좋아요']);
 
-    videos.forEach(video => {
-        const words = video.title
-            .replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
-            .toLowerCase()
-            .split(/\s+/)
-            .filter(word => word.length > 1 && !stopWords.has(word) && !/^\d+$/.test(word));
+  videos.forEach(video => {
+    const words = (video.title||'')
+      .replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 1 && !stopWords.has(word) && !/^\d+$/.test(word));
+    words.forEach(word => wordCounts.set(word, (wordCounts.get(word) || 0) + 1));
+  });
 
-        words.forEach(word => {
-            wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
-        });
-    });
-
-    const sortedKeywords = [...wordCounts.entries()].sort((a, b) => b[1] - a[1]);
-    
-    container.innerHTML = '';
-    if (sortedKeywords.length === 0) {
-        container.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`;
-        return;
-    }
-    
+  const sortedKeywords = [...wordCounts.entries()].sort((a, b) => b[1] - a[1]);
+  container.innerHTML = '';
+  if (sortedKeywords.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`;
+  } else {
     const topKeywords = sortedKeywords.slice(0, 30);
     const keywordsEl = el(`<div class="keywords"></div>`);
     topKeywords.forEach(([word, count]) => {
-        const kw = el(`<span class="kw">${h(word)} <strong>${count}</strong></span>`);
-        keywordsEl.appendChild(kw);
+      const kw = el(`<span class="kw">${h(word)} <strong>${count}</strong></span>`);
+      keywordsEl.appendChild(kw);
     });
     container.appendChild(keywordsEl);
+  }
+
+  // ✅ 키워드 섹션 바로 아래에 검색창(카드 1장 폭, 한 줄) 보장
+  ensureSearchBarBelowKeywords();
+}
+
+function ensureSearchBarBelowKeywords(){
+  const keywords = document.getElementById('keywords-analysis-container');
+  if (!keywords) return;
+  let box = document.getElementById('videos-search-container');
+  if (!box){
+    box = document.createElement('div');
+    box.id = 'videos-search-container';
+    box.style.margin = '10px 0';
+    // 카드 한 장 폭(최대 360px), 한 줄로 입력 + 지우기 버튼
+    box.innerHTML = `
+      <div class="search-row" style="display:flex; gap:8px; width:min(100%, 360px);">
+        <input id="video-search-input" type="search" placeholder="제목으로 검색..."
+               style="flex:1; height:36px; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text);" />
+        <button id="video-search-clear" class="btn btn-outline btn-sm" style="height:36px;">지우기</button>
+      </div>
+    `;
+    keywords.insertAdjacentElement('afterend', box);
+    box.querySelector('#video-search-input').addEventListener('input', (e)=>{
+      state.searchQuery = (e.target.value||'').trim().toLowerCase();
+      applyFiltersAndRender(document.getElementById('videos-list'));
+    });
+    box.querySelector('#video-search-clear').onclick = ()=>{
+      state.searchQuery = '';
+      box.querySelector('#video-search-input').value = '';
+      applyFiltersAndRender(document.getElementById('videos-list'));
+    };
+  }
 }
 
 function renderAndBindToolbar(toolbarContainer, contentContainer) {
@@ -240,7 +298,13 @@ function renderEmptyState(container) { container.innerHTML = `<div class="empty-
 
 function applyFiltersAndRender(root){
   if (!root) return;
-  state.filtered = filterRankFromRaw(state.cached);
+  // 1) 기준 필터
+  const base = filterRankFromRaw(state.cached);
+  // 2) 검색어 필터
+  state.filtered = state.searchQuery
+    ? base.filter(v => (v.title||'').toLowerCase().includes(state.searchQuery))
+    : base;
+
   renderList(root);
   analyzeAndRenderKeywords(state.filtered);
 }
@@ -250,28 +314,65 @@ async function copyImageBlob(blob){ try { await navigator.clipboard.write([new C
 function convertBlobToPngBlob(blob) { return new Promise((ok,rej)=>{ const i=new Image(); const c=document.createElement('canvas'); const x=c.getContext('2d'); i.onload=()=>{ c.width=i.width; c.height=i.height; x.drawImage(i,0,0); c.toBlob(ok,'image/png'); }; i.onerror=rej; i.src=URL.createObjectURL(blob); }); }
 async function copyThumbnailImage(videoId){ const r = await fetch(`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`); const blob = await r.blob(); if (!blob.type.startsWith('image/')) throw new Error('not an image'); const pngBlob = await convertBlobToPngBlob(blob); copyImageBlob(pngBlob); }
 
+function renderPagination(root, totalItems){
+  const totalPages = Math.ceil(totalItems / CONFIG.perPage);
+  const existing = root.querySelector('.pagination');
+  if (existing) existing.remove();
+  if (totalPages <= 1) return;
+
+  const makeBtn = (label, page, disabled=false, active=false)=>{
+    const b = el(`<button class="btn ${active ? 'active' : ''}">${label}</button>`);
+    if (disabled) b.disabled = true;
+    b.onclick = ()=>{
+      state.page = page;
+      renderList(root);
+      root.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    };
+    return b;
+  };
+  const nav = el('<nav class="pagination"></nav>');
+
+  // 이전
+  nav.appendChild(makeBtn('이전', Math.max(1, state.page-1), state.page===1));
+
+  // 숫자 5개 윈도우
+  const windowSize = 5;
+  let start = Math.max(1, state.page - Math.floor(windowSize / 2));
+  let end = Math.min(totalPages, start + windowSize - 1);
+  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
+  for (let i = start; i <= end; i++) {
+    nav.appendChild(makeBtn(String(i), i, false, i === state.page));
+  }
+
+  // 이후
+  nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page+1), state.page===totalPages));
+
+  root.appendChild(nav);
+}
+
 function renderList(root){
-  root.innerHTML = '';
+  const listWrap = root;
+  listWrap.innerHTML = '';
 
   if (state.filtered.length === 0) {
     if (state.cached.length > 0) {
-        root.innerHTML = `<div class="empty-state">조건에 맞는 영상이 없습니다. 필터 설정을 변경해보세요.</div>`;
+      listWrap.innerHTML = `<div class="empty-state">조건에 맞는 영상이 없습니다. 필터 설정을 변경해보세요.</div>`;
     }
     return;
   }
-  
+
   const total = state.filtered.length;
-  const pages = Math.ceil(total / CONFIG.perPage);
   const start = (state.page-1) * CONFIG.perPage;
   const items = state.filtered.slice(start, start + CONFIG.perPage);
-  
+
   const grid = el('<div class="video-grid"></div>');
   items.forEach(v=>{
-    const doneButtonText = v.isDone ? '완료취소' : '작업완료';
-    const doneButtonClass = v.isDone ? 'btn-outline' : 'btn-success';
+    const done = state.doneIds.has(v.id);
+    const doneButtonText = done ? '완료취소' : '작업완료';
+    const doneButtonClass = done ? 'btn-outline' : 'btn-success';
 
     const card = el(`
-      <div class="video-card">
+      <div class="video-card ${done ? 'is-done' : ''}">
         <div class="thumb-wrap">
           <a href="https://youtu.be/${h(v.id)}" target="_blank" rel="noopener">
             <img class="thumb" src="https://i.ytimg.com/vi/${h(v.id)}/mqdefault.jpg" alt="${h(v.title)}">
@@ -290,7 +391,7 @@ function renderList(root){
             <div class="v-meta-top">
               <span class="mutant-indicator">지수: ${v.mutant.toFixed(1)}</span>
               <span>조회수 ${num(v.views).toLocaleString()}회</span>
-              <span class="muted">${new Date(v.publishedAt).toLocaleDateString()}</span>
+              <span class="muted">${new Date(v.publishedAt).toLocaleDateString('ko-KR')}</span>
             </div>
           </div>
         </div>
@@ -301,175 +402,99 @@ function renderList(root){
         </div>
       </div>
     `);
-    
-    card.classList.toggle('is-done', v.isDone);
-    
-    card.querySelector('.btn-copy-info').onclick = () => {
-      const infoText = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString()}`;
-      copyText(infoText);
+
+    card.querySelector('.btn-copy-thumb').onclick = ()=> copyThumbnailImage(v.id);
+    card.querySelector('.btn-copy-info').onclick = ()=>{
+      const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`;
+      copyText(info);
     };
-    
-    card.querySelector('.btn-toggle-done').onclick = () => {
-      if (state.doneIds.has(v.id)) {
-        state.doneIds.delete(v.id);
-        v.isDone = false;
-      } else {
-        state.doneIds.add(v.id);
-        v.isDone = true;
-      }
-      saveDoneIds();
-      applyFiltersAndRender(root);
+    card.querySelector('.btn-toggle-done').onclick = async ()=>{
+      if (state.doneIds.has(v.id)) state.doneIds.delete(v.id); else state.doneIds.add(v.id);
+      await saveDoneIds();
+      renderList(root);
     };
 
-    card.querySelector('.btn-copy-thumb').onclick = ()=>copyThumbnailImage(v.id);
     grid.appendChild(card);
   });
-  root.appendChild(grid);
+  listWrap.appendChild(grid);
 
-if (pages > 1) {
-  const nav = el('<nav class="pagination"></nav>');
-
-  const makeBtn = (label, page, disabled = false, active = false) => {
-    const b = el(`<button class="btn ${active ? 'active' : ''}">${label}</button>`);
-    if (disabled) b.disabled = true;
-    b.onclick = () => { state.page = page; renderList(root); };
-    return b;
-  };
-
-  // 이전
-  nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
-
-  // 가운데 숫자 5개 윈도우
-  const windowSize = 5;
-  let start = Math.max(1, state.page - Math.floor(windowSize / 2));
-  let end = Math.min(pages, start + windowSize - 1);
-  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
-
-  for (let i = start; i <= end; i++) {
-    nav.appendChild(makeBtn(String(i), i, false, i === state.page));
-  }
-
-  // 이후
-  nav.appendChild(makeBtn('이후', Math.min(pages, state.page + 1), state.page === pages));
-
-  root.appendChild(nav);
+  // 페이지네이션
+  renderPagination(root, total);
 }
 
-}
-
-async function buildRawItems(){
-  const channels = await channelsAll();
-  const chMap = new Map(channels.map(c=>[c.id, c]));
-  
-  const idTasks = channels.map(c=> ()=>fetchLatestVideoIds(c));
-  const videoIdChunks = await runLimited(idTasks);
-  const allVideoIds = [...new Set(videoIdChunks.flat())];
-  
-  if (allVideoIds.length === 0) return [];
-
-  const allVideos = await fetchVideosDetails(allVideoIds);
-  
-  return allVideos.map(v=>{
-    const ch = chMap.get(v.snippet.channelId);
-    if (!ch) return null;
-    const views = num(v.statistics.viewCount);
-    const subs = num(ch.subscriberCount);
-    return {
-      id: v.id,
-      title: v.snippet.title,
-      publishedAt: v.snippet.publishedAt,
-      views,
-      secs: secFromISO(v.contentDetails?.duration),
-      channel: { id:ch.id, name:ch.title, subs, thumb:ch.thumbnail },
-      mutant: subs > 1000 ? views/subs : 0,
-      isDone: state.doneIds.has(v.id),
-    };
-  }).filter(Boolean);
-}
-
-async function reload(container, { force=false } = {}){
-  if (!container) {
-    console.error("Reload target container is not found.");
-    return;
-  }
-  if (state._busy) {
-    window.toast('이미 데이터를 불러오고 있습니다.');
-    return;
-  }
-
+// 데이터 로딩
+async function reload(root, { force=false } = {}){
+  if (state._busy) return;
   state._busy = true;
-  const syncBadge = document.getElementById('sync-badge');
-  if (syncBadge) syncBadge.style.display = 'inline-flex';
-  renderLoadingState(container);
 
-  try {
-    await loadDoneIds();
-    const fromCache = await loadSnapshot();
-    if (fromCache && !force) {
-      state.cached = fromCache.map(v => ({...v, isDone: state.doneIds.has(v.id)}));
-    } else {
-      const items = await buildRawItems();
-      await saveSnapshot(items);
-      state.cached = items;
-      if (items.length > 0) {
-        window.toast('최신 영상 정보를 업데이트 했습니다.', 'success');
+  const syncBadge = document.getElementById('sync-badge');
+  syncBadge && (syncBadge.style.display = 'inline-flex');
+
+  try{
+    if (force || !(await loadSnapshot())){
+      const channels = await channelsAll();
+      if (!channels || channels.length === 0) {
+        renderEmptyState(root);
+        return;
       }
-    }
-    applyFiltersAndRender(container);
-  } catch (e) {
-    console.error('reload failed', e);
-    
-    if (e.message && e.message.includes('(403)')) {
-      const resetTime = getQuotaResetTimeKST();
-      const errorMessage = `
-        일일 API 사용량(쿼터)을 모두 소진한 것으로 보입니다.<br>
-        <strong>한국 시간 기준으로 내일 ${resetTime} 이후</strong>에 다시 시도해주세요.
-      `;
-      
-      window.toast('API 할당량이 초과되었습니다.', 'error', 4000);
-      container.innerHTML = `
-        <div class="empty-state error" style="text-align: left; max-width: 600px; margin: auto; padding: 24px;">
-          <strong style="font-size: 18px; display: block; margin-bottom: 12px;">데이터 로딩 실패 (API 할당량 초과)</strong>
-          <p>${errorMessage}</p>
-          <p style="margin-top: 16px;">API 키가 올바른지, 또는 Google Cloud Console에서 할당량 관련 경고가 없는지 확인하는 것도 좋은 방법입니다.</p>
-          <a href="https://console.cloud.google.com/apis/dashboard" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top: 16px;">Cloud Console 대시보드 가기</a>
-        </div>
-      `;
+
+      // 각 채널에서 최신 영상 id 가져오고 상세 조회
+      const tasks = [];
+      for (const ch of channels) {
+        tasks.push(async ()=>{
+          const ids = await fetchLatestVideoIds(ch, 50);
+          if (!ids.length) return [];
+          const details = await fetchVideosDetails(ids);
+          return details.map(v => normalizeVideo(v, ch));
+        });
+      }
+      const parts = await runLimited(tasks, 4);
+      const flat = parts.flat().filter(Boolean);
+      await saveSnapshot(flat);
+      state.cached = flat;
     } else {
-      window.toast(`데이터 로딩 실패: ${e.message}`, 'error');
-      container.innerHTML = `<div class="empty-state error">데이터를 불러오는 데 실패했습니다.<br>${h(e.message)}</div>`;
+      state.cached = await loadSnapshot() || [];
     }
+
+    // 완료 여부 반영
+    await loadDoneIds();
+    state.cached = state.cached.map(v => ({ ...v, isDone: state.doneIds.has(v.id) }));
+
+    state.page = 1;
+    applyFiltersAndRender(root);
+
+  } catch(e){
+    console.error(e);
+    root.innerHTML = `<div class="empty-state error">데이터 로딩 실패: ${e.message || e}</div>`;
   } finally {
-    if (syncBadge) syncBadge.style.display = 'none';
+    syncBadge && (syncBadge.style.display = 'none');
     state._busy = false;
   }
 }
 
+// 엔트리
 export async function initVideos({ mount }){
   const root = document.querySelector(mount);
+  if (!root) throw new Error('videos mount element not found');
+
   root.innerHTML = `
-    <div id="videos-toolbar-container"></div>
-    <div class="section" style="margin-top: 18px;">
-        <div class="section-header" style="padding-bottom: 0;">
-            <div class="section-title">키워드 분석</div>
-        </div>
-        <div id="keywords-analysis-container">
-            <div class="empty-state" style="padding:16px;">필터 조건에 맞는 영상이 없습니다.</div>
-        </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">영상분석</div>
+        <div class="section-actions" id="videos-toolbar"></div>
+      </div>
+      <div id="keywords-analysis-container" class="section" style="margin-top:10px;"></div>
+      <!-- ✅ 검색창은 키워드 섹션 아래에 동적으로 삽입됩니다 -->
+      <div id="videos-list" class="section" style="margin-top:10px;"></div>
     </div>
-    <div id="videos-content-container" style="margin-top: 18px;"></div>
   `;
-  
-  const toolbarContainer = root.querySelector('#videos-toolbar-container');
-  const contentContainer = root.querySelector('#videos-content-container');
 
-  renderAndBindToolbar(toolbarContainer, contentContainer);
+  const toolbar = document.getElementById('videos-toolbar');
+  const list = document.getElementById('videos-list');
 
-  const channels = await channelsAll();
-  if (channels.length === 0) {
-    renderEmptyState(contentContainer);
-    return;
-  }
-  
-  reload(contentContainer, { force: false });
+  renderAndBindToolbar(toolbar, list);
+  renderLoadingState(list);
+  await reload(list, { force:false });
 }
+
+window.initVideos = initVideos;
