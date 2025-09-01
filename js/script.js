@@ -112,6 +112,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   let REMOVE_WORDS_SCRIPT = [];
   let REMOVE_WORDS_PROMPT = [];
 
+// 보수적 이모티콘 제거(토큰 단위, 일반 숫자·괄호 보존)
+const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|o|0))(?=$|[\s])/g;
+
+
   const buildRemoveRegex = (list) => {
     if (!Array.isArray(list) || !list.length) return null;
     const parts = list.map(w => String(w||'').trim()).filter(Boolean)
@@ -125,7 +129,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
    * -----------------------------------------------------
    * 1) #, ## 로 시작하는 줄은 내용 삭제 + 줄 당김 1회
    * 2) 해시로 시작하며 "장면 n" 포함 → "[장면 000]"으로 변환 (다음 빈줄 1개 유지)
-   * 3) 별표(*) 제거, 과도한 빈줄 정규화
+   * 3) 별표(*), 이모지, 이모티콘, 마이너스(-) 제거, 과도한 빈줄 정규화  // ← 추가
    * ===================================================== */
   function preprocessScript(rawText) {
     const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
@@ -148,7 +152,15 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       out.push(ln);
     }
 
-    let joined = out.join('\n').replace(/\*/g, '');
+    // ★ 여기서만 추가 처리 (대본 전용): 별표/이모지/이모티콘/마이너스 제거
+    let joined = out.join('\n')
+      .replace(/\*/g, '')
+	  .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '') // 이모지 제거(안전)
+	  .replace(EMOTICON_RE, '$1') // 이모티콘 '토큰'만 제거(숫자/괄호 보존)
+	  .replace(/\-/g, '') // 마이너스 제거(요청 사항)
+	  .replace(/#/g, ''); // 샵(#) 제거
+
+
     const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
     if (remRe) joined = joined.replace(remRe, '').replace(/[ \t]{2,}/g, ' ');
     joined = joined.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
