@@ -1,4 +1,4 @@
-// js/script.js (통합본: 대본 정렬/--- 제거 + 이미지 프롬프트 챕터/중복제거/주인공 + UI 유지)
+// js/script.js (중복 제거 + 챕터 그룹 + 주인공 프롬프트 블록 파싱 완성본)
 import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
 (function () {
@@ -121,115 +121,84 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   };
 
   /* =====================================================
-   *               대본 파싱 (Script)
+   *               파싱 규칙 구현: 대본 (Script)
    * -----------------------------------------------------
-   * #/## 줄 제거, ###등 해시+장면 → [장면 nnn], 별표 제거, --- 제거,
-   * [장면 nnn] 블록들을 **오름차순 정렬** (장면 외 텍스트는 직전 장면 블록에 포함)
+   * 1) #, ## 로 시작하는 줄은 내용 삭제 + 줄 당김 1회
+   * 2) 해시로 시작하며 "장면 n" 포함 → "[장면 000]"으로 변환 (다음 빈줄 1개 유지)
+   * 3) 별표(*) 제거, 과도한 빈줄 정규화
    * ===================================================== */
   function preprocessScript(rawText) {
     const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
     const out = [];
 
     for (let i = 0; i < lines.length; i++) {
-      let ln = lines[i] ?? '';
+      let ln = lines[i];
 
-      // --- 구분선은 빈 줄로
       if (/^\s*-{3,}\s*$/.test(ln)) { out.push(''); continue; }
 
-      // 해시+장면 → [장면 nnn]
       const sceneInHash = /^\s*#+.*장면\s*(\d{1,3})/i.exec(ln);
       if (sceneInHash) {
-        const n = pad3(parseInt(sceneInHash[1], 10));
-        out.push(`[장면 ${n}]`);
-        // 다음 줄이 빈 줄이면 1개만 유지
+        out.push(`[장면 ${pad3(parseInt(sceneInHash[1], 10))}]`);
         const next = lines[i + 1] ?? '';
         if (/^\s*$/.test(next)) out.push('');
         continue;
       }
 
-      // #, ## 시작 줄은 삭제 + 줄 당김 1
       if (/^\s*#\s+/.test(ln) || /^\s*##\s+/.test(ln)) { out.push(''); continue; }
-
       out.push(ln);
     }
 
-    // 별표 제거
     let joined = out.join('\n').replace(/\*/g, '');
-
-    // 사용자 제거어
     const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
     if (remRe) joined = joined.replace(remRe, '').replace(/[ \t]{2,}/g, ' ');
-
-    // [장면 nnn] 뒤 공백 1줄로 정규화
-    joined = joined.replace(/(\[장면\s+\d{3}\])\n+/g, '$1\n');
-
-    // 과도한 빈 줄 정규화
     joined = joined.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
-
-    // === [장면 nnn] 블록 단위 정렬 ===
-    (function sortBySceneBlocks() {
-      const sceneRe = /^\s*\[장면\s+(\d{3})\]\s*$/;
-      const L = joined.split('\n');
-      const blocks = [];
-      let buf = [];
-      let curId = null;
-
-      const push = () => {
-        if (buf.length) {
-          blocks.push({ id: curId, text: buf.join('\n') });
-          buf = [];
-        }
-      };
-
-      for (let i = 0; i < L.length; i++) {
-        const line = L[i];
-        const m = sceneRe.exec(line);
-        if (m) {
-          push();
-          curId = parseInt(m[1], 10);
-          buf.push(line);
-        } else {
-          buf.push(line);
-        }
-      }
-      push();
-
-      const prelude = blocks.filter(b => !Number.isFinite(b.id)); // 장면 전 텍스트
-      const scenes  = blocks.filter(b =>  Number.isFinite(b.id)).sort((a,b)=> a.id - b.id);
-      joined = [...prelude, ...scenes].map(b => b.text).join('\n');
-    })();
-
     return joined;
   }
 
   /* =====================================================
-   *           이미지 프롬프트 (Prompt)
+   *           파싱 규칙 구현: 이미지 프롬프트 (Prompt)
    * -----------------------------------------------------
-   * - 주인공:  "## ...주인공...프롬프트" 다음 본문 전체(다음 헤더/장면/--- 전까지)
-   * - 장면:    "### [장면 n]" 다음 첫 유효한 1줄
-   * - 챕터:    "## … (장면 a-b)" 범위별 출력, **겹치면 선착 챕터만** (중복 제거)
-   * - 별표 제거 및 사용자 제거어 적용
+   * 1) "[장면 n]" → 장면. 다음 줄을 프롬프트로 사용
+   * 2) "## … (장면 a-b)" 형식 → 챕터 라벨/범위로 수집
+   * 3) "## 👤 주인공 …" 등 주인공 헤더를 만나면, 다음 줄들(구분선/헤더/[장면] 전까지)을
+   *    하나로 모아 주인공 프롬프트로 수집 (볼드 ** 제거)
+   * 4) 별표(*) 제거, 사용자 제거어 적용
    * ===================================================== */
   function collectPromptRowsWithChapters(rawText) {
     const src = String(rawText || '').replace(/\r\n/g, '\n');
     const lines = src.split('\n');
 
     const chapters = []; // { label, lo, hi }
-    const scenes   = []; // { idNum, id:'nnn', prompt }
+    const scenes   = []; // { idNum, id, prompt }
     let heroPrompt = null;
+    let capturingHero = false;
+    const heroBuf = [];
 
-    const heroHeaderRe  = /^\s*##\s*.*주인공.*프롬프트.*$/i;
-    const sceneHeaderRe = /^\s*###\s*\[\s*장면\s*(\d{1,3})\s*\].*$/i;
-    const chapterRe     = /^\s*##\s*(.+?)\(\s*장면\s*(\d{1,3})\s*-\s*(\d{1,3})\s*\)\s*$/;
+    const chapterRe = /^\s*#{2,}\s*(.+?)\(\s*장면\s*(\d{1,3})\s*-\s*(\d{1,3})\s*\)\s*$/;
+    const sceneRe   = /\[\s*장면\s*(\d{1,3})\s*\]/i;
+    const heroHeaderRe = /^\s*#{1,6}\s*.*주인공.*(프롬프트|이미지).*$/i;
 
     const isSeparator = (s) => /^\s*-{3,}\s*$/.test(s);
-    const isH2        = (s) => /^\s*##\s+/.test(s);
-    const isH3        = (s) => /^\s*###\s+/.test(s);
+    const isHeader    = (s) => /^\s*#{1,6}\s+/.test(s);
 
     for (let i = 0; i < lines.length; i++) {
       let ln = String(lines[i] ?? '').replace(/\*/g, '');
 
-      // 챕터
+      // 주인공 헤더 시작
+      if (!heroPrompt && heroHeaderRe.test(ln)) { capturingHero = true; continue; }
+
+      if (capturingHero) {
+        if (isSeparator(ln) || isHeader(ln) || sceneRe.test(ln)) {
+          const joined = heroBuf.join(' ').replace(/\s+/g, ' ').trim();
+          heroPrompt = joined || heroPrompt;
+          capturingHero = false; // 이 줄은 아래 로직으로 계속 처리
+        } else {
+          if (ln.trim()) heroBuf.push(ln.trim());
+          continue; // 수집 중에는 다른 처리 없음
+        }
+      }
+
+      // 챕터 감지
       const ch = chapterRe.exec(ln);
       if (ch) {
         const labelRaw = ch[1].trim().replace(/\s+$/, '');
@@ -239,45 +208,44 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
         continue;
       }
 
-      // 주인공 헤더
-      if (!heroPrompt && heroHeaderRe.test(ln)) {
-        const buf = [];
-        for (let j = i + 1; j < lines.length; j++) {
-          const t = String(lines[j] ?? '');
-          if (isSeparator(t) || isH2(t) || isH3(t) || sceneHeaderRe.test(t)) break;
-          const clean = t.replace(/\*/g, '').trim();
-          if (clean) buf.push(clean);
-        }
-        const joined = buf.join(' ').replace(/\s+/g, ' ').trim();
-        if (joined) heroPrompt = joined;
-        continue;
-      }
-
-      // 장면 헤더
-      const m = sceneHeaderRe.exec(ln);
+      // 장면 감지
+      const m = sceneRe.exec(ln);
       if (m) {
         const idNum = parseInt(m[1], 10);
         const id = pad3(idNum);
-        // 다음 첫 유효한 1줄
-        let prompt = '';
-        for (let j = i + 1; j < lines.length; j++) {
-          const t = String(lines[j] ?? '');
-          if (isSeparator(t) || isH2(t) || isH3(t) || sceneHeaderRe.test(t)) break;
-          const clean = t.replace(/\*/g, '').trim();
-          if (clean) { prompt = clean; break; }
-        }
-        if (prompt) scenes.push({ idNum, id, prompt });
+        let prompt = String(lines[i + 1] ?? '').replace(/\*/g, '').trim();
+        scenes.push({ idNum, id, prompt });
       }
     }
 
-    // 제거어(Prompt)
+    // 파일 끝에서 주인공 블록 마무리
+    if (capturingHero && heroBuf.length) {
+      const joined = heroBuf.join(' ').replace(/\s+/g, ' ').trim();
+      heroPrompt = joined || heroPrompt;
+    }
+
+    // 제거어(Prompt) 적용
     const remRe = buildRemoveRegex(REMOVE_WORDS_PROMPT);
     if (remRe) {
       if (heroPrompt) heroPrompt = heroPrompt.replace(remRe, '').replace(/[ \t]{2,}/g, ' ').trim();
       for (const s of scenes) s.prompt = s.prompt.replace(remRe, '').replace(/[ \t]{2,}/g, ' ').trim();
     }
 
-    return { heroPrompt, chapters, scenes };
+    // 빈 프롬프트 제거
+    const cleanScenes = scenes.filter(s => s.prompt.length > 0);
+
+    return { heroPrompt, chapters, scenes: cleanScenes };
+  }
+
+  // 장면 번호 중복 방지 유틸
+  function uniqueScenesInRange(scenes, lo = -Infinity, hi = Infinity, usedGlobal = new Set()) {
+    const pick = new Map(); // idNum -> scene (가장 먼저 등장한 항목만 유지)
+    for (const s of scenes) {
+      if (s.idNum >= lo && s.idNum <= hi && !usedGlobal.has(s.idNum) && !pick.has(s.idNum)) {
+        pick.set(s.idNum, s);
+      }
+    }
+    return Array.from(pick.values()).sort((a, b) => a.idNum - b.idNum);
   }
 
   /* 문장 기준 자르기 (최대 1만자) */
@@ -371,7 +339,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
-  /* 프롬프트 테이블 렌더링 (챕터 그룹 + 주인공 프롬프트 + 중복 제거) */
+  /* 프롬프트 테이블 렌더링 (챕터 그룹 + 중복 제거 + 장면번호만 표기) */
   function renderPromptTable() {
     const tbody = $('#sp-tbody');
     if (!tbody) return;
@@ -382,7 +350,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     const { heroPrompt, chapters, scenes } = collectPromptRowsWithChapters(raw);
 
     tbody.innerHTML = '';
-
     if (!heroPrompt && scenes.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -396,7 +363,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
     const frag = document.createDocumentFragment();
 
-    // 주인공 프롬프트 최상단
+    // 주인공 프롬프트
     if (heroPrompt) {
       const tr = document.createElement('tr');
       const tdScene = document.createElement('td'); tdScene.textContent = '주인공';
@@ -408,8 +375,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       const btn = document.createElement('button'); btn.className = 'sp-btn sp-btn-sm sp-red'; btn.textContent = '복사';
       btn.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(div.dataset.full || ''); } catch {}
-        const ok = btn.classList.toggle('sp-green');
-        btn.classList.toggle('sp-red', !ok);
+        const ok = btn.classList.toggle('sp-green'); btn.classList.toggle('sp-red', !ok);
         toast('복사되었습니다.', 'success');
       });
       tdCopy.appendChild(btn);
@@ -429,8 +395,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       const btn = document.createElement('button'); btn.className = 'sp-btn sp-btn-sm sp-red'; btn.textContent = '복사';
       btn.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(div.dataset.full || ''); } catch {}
-        const ok = btn.classList.toggle('sp-green');
-        btn.classList.toggle('sp-red', !ok);
+        const ok = btn.classList.toggle('sp-green'); btn.classList.toggle('sp-red', !ok);
         toast('복사되었습니다.', 'success');
       });
       tdCopy.appendChild(btn);
@@ -440,21 +405,19 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
     if (sortedChapters.length > 0) {
       for (const ch of sortedChapters) {
-        // 챕터 라벨 (왼쪽 정렬)
+        // 챕터 라벨 줄 (왼쪽 정렬)
         const trH = document.createElement('tr');
         const tdH = document.createElement('td');
         tdH.colSpan = 3; tdH.textContent = ch.label; tdH.style.textAlign = 'left';
         trH.appendChild(tdH);
         frag.appendChild(trH);
 
-        const bucket = scenes
-          .filter(s => s.idNum >= ch.lo && s.idNum <= ch.hi && !used.has(s.idNum))
-          .sort((a,b)=> a.idNum - b.idNum);
+        const bucket = uniqueScenesInRange(scenes, ch.lo, ch.hi, used);
         for (const s of bucket) { used.add(s.idNum); frag.appendChild(makeRow(s.id, s.prompt)); }
       }
     } else {
-      // 챕터 없음 → 전체 오름차순
-      const bucket = scenes.slice().sort((a,b)=> a.idNum - b.idNum);
+      // 챕터가 없으면 모든 장면을 오름차순으로, 중복 없이
+      const bucket = uniqueScenesInRange(scenes);
       for (const s of bucket) frag.appendChild(makeRow(s.id, s.prompt));
     }
 
@@ -644,27 +607,33 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       toast('모두 지웠습니다.', 'success');
     });
 
-    // JSON 내보내기: 챕터/중복제거 반영
+    // JSON 내보내기: 주인공 + (챕터 반영) 장면 중복 제거
     $('#sp-export')?.addEventListener('click', () => {
       const rawPrompts = promptInput?.value || '';
-      const { heroPrompt, scenes, chapters } = collectPromptRowsWithChapters(rawPrompts);
+      const { heroPrompt, scenes, chapters } = collectPromptRowsWithChapters(String(rawPrompts).replace(/\*/g, ''));
 
-      if (!heroPrompt && scenes.length === 0) { toast('저장할 프롬프트가 없습니다.', 'warning'); return; }
-
+      const usedGlobal = new Set();
       let items = [];
-      if (chapters.length > 0) {
-        const used = new Set();
-        const sortedChapters = chapters.slice().sort((a,b)=> a.lo - b.lo || a.hi - b.hi);
+
+      const pushScenes = (arr) => {
+        for (const s of arr) {
+          if (usedGlobal.has(s.idNum)) continue;
+          usedGlobal.add(s.idNum);
+          items.push({ id: s.id, prompt: s.prompt, suggested_filenames: [`${s.id}.jpg`, `${s.id}.png`] });
+        }
+      };
+
+      const sortedChapters = chapters.slice().sort((a,b)=> a.lo - b.lo || a.hi - b.hi);
+      if (sortedChapters.length > 0) {
         for (const ch of sortedChapters) {
-          const bucket = scenes
-            .filter(s => s.idNum >= ch.lo && s.idNum <= ch.hi && !used.has(s.idNum))
-            .sort((a,b)=> a.idNum - b.idNum);
-          for (const s of bucket) { used.add(s.idNum); items.push({ id: s.id, prompt: s.prompt, suggested_filenames: [`${s.id}.jpg`, `${s.id}.png`] }); }
+          const bucket = uniqueScenesInRange(scenes, ch.lo, ch.hi, usedGlobal);
+          pushScenes(bucket);
         }
       } else {
-        items = scenes.slice().sort((a,b)=> a.idNum - b.idNum)
-          .map(s => ({ id: s.id, prompt: s.prompt, suggested_filenames: [`${s.id}.jpg`, `${s.id}.png`] }));
+        pushScenes(uniqueScenesInRange(scenes));
       }
+
+      if (!heroPrompt && items.length === 0) { toast('저장할 프롬프트가 없습니다.', 'warning'); return; }
 
       const payload = { version: 2, exported_at: todayStr(), count: items.length, hero_prompt: heroPrompt || '', items };
       const filename = `[${(date?.value || todayStr()).slice(5)}] ／ [${pad2(new Date().getHours())}:${pad2(new Date().getMinutes())}:${pad2(new Date().getSeconds())}] prompts.json`;
@@ -682,10 +651,20 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       const scriptContent = $('#sp-script-input')?.value || '';
       const promptValue = $('#sp-prompt-input')?.value || '';
 
-      const draft = { name: finalName, data: { script: scriptContent, prompt: promptValue }, createdAt: new Date(), updatedAt: new Date() };
+      const draft = {
+        name: finalName,
+        data: { script: scriptContent, prompt: promptValue },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      try { await draftsPut(draft); toast(`'${finalName}'(으)로 저장했습니다.`, 'success'); }
-      catch(e) { console.error('Draft save failed', e); toast('저장에 실패했습니다.', 'error'); }
+      try {
+        await draftsPut(draft);
+        toast(`'${finalName}'(으)로 저장했습니다.`, 'success');
+      } catch(e) {
+        console.error('Draft save failed', e);
+        toast('저장에 실패했습니다.', 'error');
+      }
     });
 
     $('#sp-load')?.addEventListener('click', showDraftsModal);
