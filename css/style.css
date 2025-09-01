@@ -243,3 +243,36 @@ select optgroup { font-style: italic; font-weight: bold; color: var(--muted); pa
   color: var(--brand);
   font-weight: bold;
 }
+
+/* ===== Analyze Button Accent ===== */
+.btn-analyze--accent{
+  background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 50%, #7f9cf5 100%);
+  color: #0b1020;
+  border: none;
+  font-weight: 800;
+  letter-spacing: .2px;
+  box-shadow: 0 6px 18px rgba(111, 173, 255, .35), inset 0 0 0 1px rgba(255,255,255,.25);
+  transform: translateY(0);
+  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
+}
+.btn-analyze--accent:hover{
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(111, 173, 255, .45), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+.btn-analyze--accent:active{
+  transform: translateY(0);
+  box-shadow: 0 4px 14px rgba(111, 173, 255, .35), inset 0 0 0 1px rgba(255,255,255,.25);
+}
+
+/* 살짝 눈에 띄는 펄스 */
+@keyframes analyzePulse {
+  0% { box-shadow: 0 0 0 0 rgba(111,173,255,.55); }
+  70% { box-shadow: 0 0 0 10px rgba(111,173,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(111,173,255,0); }
+}
+.channel-card .btn-analyze--accent{
+  animation: analyzePulse 1.8s ease-out 1;
+  border-radius: 12px;
+  padding: 8px 14px;
+}

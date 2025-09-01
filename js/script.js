@@ -8,6 +8,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   const pad2 = (n) => String(n).padStart(2, '0');
   const pad3 = (n) => String(n).padStart(3, '0');
   const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  const seoHeaderRe = /^##\s*📺\s*유튜브\s*SEO\s*설명글\s*$/m;
+
 
   function toast(msg, type = 'info', ms = 1500) {
     try { return window.toast?.(msg, type, ms); } catch (_) {}
@@ -350,6 +352,39 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
       container.appendChild(card);
     });
   }
+function renderSeoCard(rawText) {
+  const container = document.querySelector('#sp-seo-card');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+  let capturing = false, buf = [];
+
+  for (let ln of lines) {
+    if (/^##\s*📺\s*유튜브\s*SEO\s*설명글/.test(ln)) {
+      capturing = true;
+      continue;
+    }
+    if (capturing && /^##\s+/.test(ln)) break; // 다른 헤더 만나면 종료
+    if (capturing) buf.push(ln);
+  }
+
+  const seoText = buf.join('\n').trim();
+  if (!seoText) return;
+
+  const card = document.createElement('div');
+  card.className = 'sp-card';
+  const head = document.createElement('div');
+  head.className = 'sp-card-head';
+  head.innerHTML = '<div class="sp-card-title">📺 유튜브 SEO 설명글</div>';
+  const pre = document.createElement('pre');
+  pre.className = 'sp-card-pre';
+  pre.textContent = seoText;
+
+  card.appendChild(head);
+  card.appendChild(pre);
+  container.appendChild(card);
+}
 
   /* 프롬프트 테이블 렌더링 (챕터 그룹 + 중복 제거 + 장면번호만 표기) */
   function renderPromptTable() {

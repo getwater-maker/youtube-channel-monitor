@@ -326,15 +326,35 @@ function renderList(root){
   });
   root.appendChild(grid);
 
-  if (pages > 1) {
-    const pg = el('<nav class="pagination"></nav>');
-    for (let i=1; i<=pages; i++){
-      const btn = el(`<button class="btn ${i===state.page?'active':''}">${i}</button>`);
-      btn.onclick = ()=> { state.page=i; renderList(root); };
-      pg.appendChild(btn);
-    }
-    root.appendChild(pg);
+if (pages > 1) {
+  const nav = el('<nav class="pagination"></nav>');
+
+  const makeBtn = (label, page, disabled = false, active = false) => {
+    const b = el(`<button class="btn ${active ? 'active' : ''}">${label}</button>`);
+    if (disabled) b.disabled = true;
+    b.onclick = () => { state.page = page; renderList(root); };
+    return b;
+  };
+
+  // 이전
+  nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
+
+  // 가운데 숫자 5개 윈도우
+  const windowSize = 5;
+  let start = Math.max(1, state.page - Math.floor(windowSize / 2));
+  let end = Math.min(pages, start + windowSize - 1);
+  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
+
+  for (let i = start; i <= end; i++) {
+    nav.appendChild(makeBtn(String(i), i, false, i === state.page));
   }
+
+  // 이후
+  nav.appendChild(makeBtn('이후', Math.min(pages, state.page + 1), state.page === pages));
+
+  root.appendChild(nav);
+}
+
 }
 
 async function buildRawItems(){

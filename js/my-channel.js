@@ -221,22 +221,42 @@ function renderPagination() {
   const totalPages = Math.ceil(state.filteredVideos.length / state.itemsPerPage);
   if (totalPages <= 1) return;
 
-  const nav = document.createElement('nav');
-  nav.className = 'pagination';
-  for (let i = 1; i <= totalPages; i++) {
+  const makeBtn = (label, page, disabled = false, active = false) => {
     const btn = document.createElement('button');
-    btn.className = `btn btn-sm ${i === state.currentPage ? 'active' : ''}`;
-    btn.textContent = i;
+    btn.className = `btn btn-sm ${active ? 'active' : ''}`;
+    btn.textContent = label;
+    if (disabled) btn.disabled = true;
     btn.onclick = () => {
-      state.currentPage = i;
+      state.currentPage = page;
       renderMyVideoGrid();
       renderPagination();
-      UI.myVideosSection.scrollIntoView({ behavior: 'smooth' });
+      UI.myVideosSection?.scrollIntoView?.({ behavior: 'smooth' });
     };
-    nav.appendChild(btn);
+    return btn;
+  };
+
+  const nav = document.createElement('nav');
+  nav.className = 'pagination';
+
+  // 이전
+  nav.appendChild(makeBtn('이전', Math.max(1, state.currentPage - 1), state.currentPage === 1));
+
+  // 가운데 숫자 5개 윈도우
+  const windowSize = 5;
+  let start = Math.max(1, state.currentPage - Math.floor(windowSize / 2));
+  let end = Math.min(totalPages, start + windowSize - 1);
+  if (end - start + 1 < windowSize) start = Math.max(1, end - windowSize + 1);
+
+  for (let i = start; i <= end; i++) {
+    nav.appendChild(makeBtn(String(i), i, false, i === state.currentPage));
   }
+
+  // 이후
+  nav.appendChild(makeBtn('이후', Math.min(totalPages, state.currentPage + 1), state.currentPage === totalPages));
+
   UI.paginationContainer.appendChild(nav);
 }
+
 
 async function listMyVideos() {
   UI.myVideosList.innerHTML = '<div class="loading-state">내 영상 목록을 불러오는 중...</div>';
