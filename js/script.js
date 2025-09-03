@@ -1,4 +1,5 @@
-// js/script.js (챕터/장면 관대 인식 + 주인공 코드펜스/한글 안전 인식 + recomputeAll 중복 제거)
+// js/script.js
+// (장면 헤더가 "[장면 011 / ...]" 형태도 인식, 주인공 코드펜스/한글 안전 인식, 중복 선언 제거, 템플릿 문자열 올바르게 닫힘)
 import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
 (function () {
@@ -7,7 +8,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   const $ = (sel, root = document) => root.querySelector(sel);
   const pad2 = (n) => String(n).padStart(2, '0');
   const pad3 = (n) => String(n).padStart(3, '0');
-  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
   const seoHeaderRe = /^##\s*📺\s*유튜브\s*SEO\s*설명글\s*$/m;
 
   function toast(msg, type = 'info', ms = 1500) {
@@ -47,6 +51,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
   const debounce = (fn, ms) => { let t = null; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
 
+  // ──────────────────────────────────────────────────────
+  // Styles
   (function ensureStyles() {
     if ($('#sp-style')) return;
     const st = document.createElement('style');
@@ -108,10 +114,12 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     `;
     document.head.appendChild(st);
   })();
+  // ──────────────────────────────────────────────────────
 
   let REMOVE_WORDS_SCRIPT = [];
   let REMOVE_WORDS_PROMPT = [];
 
+  // 보수적 이모티콘 제거
   const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|o|0))(?=$|[\s])/g;
 
   const buildRemoveRegex = (list) => {
@@ -122,7 +130,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return new RegExp(parts.join('|'), 'gi');
   };
 
-  /* ========== 대본 전처리 ========== */
+  // ============================ 대본 전처리 ============================
   function preprocessScript(rawText) {
     const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
     const out = [];
@@ -157,28 +165,30 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return joined;
   }
 
-  /* ========== 이미지 프롬프트 파서 ========== */
+  // ============================ 이미지 프롬프트 파서 ============================
   function collectPromptRowsWithChapters(rawText) {
     const src = String(rawText || '').replace(/\r\n/g, '\n');
     const lines = src.split('\n');
 
-    const chapters = [];
-    const scenes   = [];
+    const chapters = []; // { label, lo, hi }
+    const scenes   = []; // { idNum, id, prompt }
     let heroPrompt = null;
 
     const chapterRes = [
-      /^\s*##\s+(.+)$/,
-      /^\s*#\s+(.+)$/,
-      /^\s*(?:📚\s*)?(?:제?\s*\d+\s*장|Chapter\s*\d+)\s*[-:–—]?\s*(.+)$/i
-    ];
-    const sceneRes = [
-      /^\s*#{2,3}\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})\s*\]/i,
-      /^\s*#{2,3}\s*(?:장면|scene|씬)\s*(\d{1,3})\b/i,
-      /^\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})\s*\]/i,
-      /^\s*(?:장면|scene|씬)\s*(\d{1,3})\b/i
+      /^\s*##\s+(.+)$/,                                                   // H2
+      /^\s*#\s+(.+)$/,                                                    // H1
+      /^\s*(?:📚\s*)?(?:제?\s*\d+\s*장|Chapter\s*\d+)\s*[-:–—]?\s*(.+)$/i // "📚 1장 - ..." 등
     ];
 
-    const nextHeaderRe = /^\s*#{2,}\s+/;
+    // 🔧 확장: 대괄호 안/밖에서 숫자 뒤에 부제가 와도 OK ("/", "-", en/em dash 등)
+    const sceneRes = [
+      /^\s*#{1,6}\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})[^\]]*\]/i,          // ### [장면 011 / …]
+      /^\s*#{1,6}\s*(?:장면|scene|씬)\s*(\d{1,3})(?:\s*[/\-–—].*)?$/i,      // ### 장면 011 / …
+      /^\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})[^\]]*\]/i,                    // [장면 011 / …]
+      /^\s*(?:장면|scene|씬)\s*(\d{1,3})(?:\s*[/\-–—].*)?$/i                // 장면 011 / …
+    ];
+
+    const nextHeaderRe = /^\s*#{2,}\s+/; // 다음 H2+ 헤더에서 본문 종료
     const isSeparator = (s) => /^\s*-{3,}\s*$/.test(s);
 
     const normalizeForChapter = (s) =>
@@ -217,7 +227,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
     const cleanInline = (s) =>
       String(s||'')
-        .replace(/`{1,3}[^`]*`{1,3}/g, m => m)
+        .replace(/`{1,3}[^`]*`{1,3}/g, m => m) // 인라인 코드는 보존
         .replace(/\*\*(.*?)\*\*/g, '$1')
         .replace(/\*(.*?)\*/g, '$1')
         .replace(/__([^_]+)__/g, '$1')
@@ -233,6 +243,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
     // ── 주인공 프롬프트 캡처(코드펜스/한글 안전)
     function captureHeroPrompt(allLines) {
+      // \b 대신 (?=[\s:：-]|$) 사용 → 한글/영문 안전
       const headerRe = /^\s*(?:#{1,3}\s*)?(?:👤\s*)?(?:주인공|protagonist|main character)(?=[\s:：-]|$).*$/i;
       let headerIdx = -1;
       for (let i = 0; i < allLines.length; i++) {
@@ -244,10 +255,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
       // 코드펜스 시작(언어 태그 허용)
       if (i < allLines.length && /^\s*```.*$/.test(allLines[i])) {
-        i++;
+        i++; // 여는 ``` 다음 줄
         const buf = [];
         for (; i < allLines.length; i++) {
-          if (/^\s*```/.test(allLines[i])) { i++; break; }
+          if (/^\s*```/.test(allLines[i])) { i++; break; } // 닫는 ```
           buf.push(allLines[i]);
         }
         const text = buf.join('\n').trim();
@@ -290,8 +301,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       for (; j < lines.length; j++) {
         const ln = lines[j];
         if (isSeparator(ln)) break;
-        if (nextHeaderRe.test(ln)) break;
-        if (matchScene(ln)) break;
+        if (nextHeaderRe.test(ln)) break; // 다음 챕터
+        if (matchScene(ln)) break;        // 다음 장면
         buf.push(ln);
       }
       const text = buf.join('\n').trim();
@@ -341,6 +352,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return Array.from(pick.values()).sort((a, b) => a.idNum - b.idNum);
   }
 
+  // 문장 기준 분할
   function splitCardsBySentence(src, LIMIT = 10000) {
     let rest = String(src || '').trim();
     const chunks = [];
@@ -378,7 +390,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return chunks;
   }
 
-  /* 카드 렌더링 (대본) */
+  // 카드 렌더링 (대본)
   function renderCards() {
     const container = $('#sp-cards');
     if (!container) return;
@@ -431,6 +443,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
+  // SEO 카드(옵션)
   function renderSeoCard(rawText) {
     const container = document.querySelector('#sp-seo-card');
     if (!container) return;
@@ -465,7 +478,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     container.appendChild(card);
   }
 
-  /* 프롬프트 테이블 렌더링 */
+  // 프롬프트 테이블 렌더링
   function renderPromptTable() {
     const tbody = $('#sp-tbody');
     if (!tbody) return;
@@ -546,6 +559,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     tbody.appendChild(frag);
   }
 
+  // Drafts 모달
   async function showDraftsModal() {
     $('#sp-draft-modal')?.remove();
     const overlay = document.createElement('div');
@@ -618,6 +632,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
+  // 레이아웃
   function buildLayout(mountSel) {
     const mount = typeof mountSel === 'string' ? $(mountSel) : mountSel;
     if (!mount) return;
@@ -685,7 +700,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     const date = $('#sp-date');
     if (date && !date.value) date.value = todayStr();
 
-    // ✅ 여기서만 선언 (중복 금지)
     const recomputeAll = () => { renderCards(); renderPromptTable(); };
     const onScriptInput  = debounce(recomputeAll, 120);
     const onPromptInput  = debounce(recomputeAll, 120);
@@ -730,6 +744,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       toast('모두 지웠습니다.', 'success');
     });
 
+    // JSON 내보내기
     $('#sp-export')?.addEventListener('click', () => {
       const rawPrompts = promptInput?.value || '';
       const { heroPrompt, scenes, chapters } = collectPromptRowsWithChapters(String(rawPrompts));
