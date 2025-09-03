@@ -187,7 +187,6 @@ function analyzeAndRenderKeywords(videos) {
     container.appendChild(keywordsEl);
   }
 
-  // ✅ 키워드 섹션 바로 아래에 검색창(카드 1장 폭, 한 줄) 보장
   ensureSearchBarBelowKeywords();
 }
 
@@ -199,7 +198,6 @@ function ensureSearchBarBelowKeywords(){
     box = document.createElement('div');
     box.id = 'videos-search-container';
     box.style.margin = '10px 0';
-    // 카드 한 장 폭(최대 360px), 한 줄로 입력 + 지우기 버튼
     box.innerHTML = `
       <div class="search-row" style="display:flex; gap:8px; width:min(100%, 360px);">
         <input id="video-search-input" type="search" placeholder="제목으로 검색..."
@@ -263,16 +261,14 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
     state.sortBy = state.mode === 'latest' ? 'publishedAt_desc' : 'mutant_desc';
     sortSelect.value = state.sortBy;
     tb.querySelectorAll('[data-mode]').forEach(n=>n.classList.toggle('active',n===x)); 
-    state.page=1; 
     applyFiltersAndRender(contentContainer); 
   });
   
-  tb.querySelectorAll('[data-views]').forEach(x=> x.onclick = ()=>{ CONFIG.minViews=Number(x.dataset.views); tb.querySelectorAll('[data-views]').forEach(n=>n.classList.toggle('active',n===x)); state.page=1; applyFiltersAndRender(contentContainer); });
-  tb.querySelectorAll('[data-period]').forEach(x=> x.onclick = ()=>{ CONFIG.period=x.dataset.period; tb.querySelectorAll('[data-period]').forEach(n=>n.classList.toggle('active',n===x)); state.page=1; applyFiltersAndRender(contentContainer); });
+  tb.querySelectorAll('[data-views]').forEach(x=> x.onclick = ()=>{ CONFIG.minViews=Number(x.dataset.views); tb.querySelectorAll('[data-views]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
+  tb.querySelectorAll('[data-period]').forEach(x=> x.onclick = ()=>{ CONFIG.period=x.dataset.period; tb.querySelectorAll('[data-period]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
   
   sortSelect.onchange = () => {
     state.sortBy = sortSelect.value;
-    state.page = 1;
     applyFiltersAndRender(contentContainer);
   };
 
@@ -296,14 +292,22 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
 function renderLoadingState(container) { container.innerHTML = `<div class="loading-state">영상 데이터를 분석하고 있습니다...</div>`; }
 function renderEmptyState(container) { container.innerHTML = `<div class="empty-state">분석할 채널이 없습니다.<br>먼저 '채널관리' 탭으로 이동하여 분석하고 싶은 채널을 등록해주세요.</div>`; }
 
-function applyFiltersAndRender(root){
+function applyFiltersAndRender(root, opts = {}){
   if (!root) return;
-  // 1) 기준 필터
+
   const base = filterRankFromRaw(state.cached);
-  // 2) 검색어 필터
   state.filtered = state.searchQuery
     ? base.filter(v => (v.title||'').toLowerCase().includes(state.searchQuery))
     : base;
+
+  if (opts.videoIdToFind) {
+    const newIndex = state.filtered.findIndex(v => v.id === opts.videoIdToFind);
+    if (newIndex > -1) {
+      state.page = Math.floor(newIndex / CONFIG.perPage) + 1;
+    }
+  } else if(opts.preservePage !== true) {
+    state.page = 1;
+  }
 
   renderList(root);
   analyzeAndRenderKeywords(state.filtered);
@@ -325,17 +329,14 @@ function renderPagination(root, totalItems){
     if (disabled) b.disabled = true;
     b.onclick = ()=>{
       state.page = page;
-      renderList(root);
+      applyFiltersAndRender(root, { preservePage: true });
       root.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     };
     return b;
   };
   const nav = el('<nav class="pagination"></nav>');
 
-  // 이전
   nav.appendChild(makeBtn('이전', Math.max(1, state.page-1), state.page===1));
-
-  // 숫자 5개 윈도우
   const windowSize = 5;
   let start = Math.max(1, state.page - Math.floor(windowSize / 2));
   let end = Math.min(totalPages, start + windowSize - 1);
@@ -343,10 +344,7 @@ function renderPagination(root, totalItems){
   for (let i = start; i <= end; i++) {
     nav.appendChild(makeBtn(String(i), i, false, i === state.page));
   }
-
-  // 이후
   nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page+1), state.page===totalPages));
-
   root.appendChild(nav);
 }
 
@@ -408,28 +406,32 @@ function renderList(root){
       const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`;
       copyText(info);
     };
+    
     card.querySelector('.btn-toggle-done').onclick = async ()=>{
-      if (state.doneIds.has(v.id)) state.doneIds.delete(v.id); else state.doneIds.add(v.id);
+      const isDone = state.doneIds.has(v.id);
+      if (isDone) state.doneIds.delete(v.id);
+      else state.doneIds.add(v.id);
       await saveDoneIds();
-      renderList(root);
+
+      const cachedItem = state.cached.find(item => item.id === v.id);
+      if (cachedItem) {
+        cachedItem.isDone = !isDone;
+      }
+
+      applyFiltersAndRender(root, { videoIdToFind: v.id });
     };
 
     grid.appendChild(card);
   });
   listWrap.appendChild(grid);
-
-  // 페이지네이션
   renderPagination(root, total);
 }
 
-// 데이터 로딩
 async function reload(root, { force=false } = {}){
   if (state._busy) return;
   state._busy = true;
-
   const syncBadge = document.getElementById('sync-badge');
   syncBadge && (syncBadge.style.display = 'inline-flex');
-
   try{
     if (force || !(await loadSnapshot())){
       const channels = await channelsAll();
@@ -437,8 +439,6 @@ async function reload(root, { force=false } = {}){
         renderEmptyState(root);
         return;
       }
-
-      // 각 채널에서 최신 영상 id 가져오고 상세 조회
       const tasks = [];
       for (const ch of channels) {
         tasks.push(async ()=>{
@@ -455,14 +455,9 @@ async function reload(root, { force=false } = {}){
     } else {
       state.cached = await loadSnapshot() || [];
     }
-
-    // 완료 여부 반영
     await loadDoneIds();
     state.cached = state.cached.map(v => ({ ...v, isDone: state.doneIds.has(v.id) }));
-
-    state.page = 1;
     applyFiltersAndRender(root);
-
   } catch(e){
     console.error(e);
     root.innerHTML = `<div class="empty-state error">데이터 로딩 실패: ${e.message || e}</div>`;
@@ -472,11 +467,9 @@ async function reload(root, { force=false } = {}){
   }
 }
 
-// 엔트리
 export async function initVideos({ mount }){
   const root = document.querySelector(mount);
   if (!root) throw new Error('videos mount element not found');
-
   root.innerHTML = `
     <div class="section">
       <div class="section-header">
@@ -484,14 +477,11 @@ export async function initVideos({ mount }){
         <div class="section-actions" id="videos-toolbar"></div>
       </div>
       <div id="keywords-analysis-container" class="section" style="margin-top:10px;"></div>
-      <!-- ✅ 검색창은 키워드 섹션 아래에 동적으로 삽입됩니다 -->
       <div id="videos-list" class="section" style="margin-top:10px;"></div>
     </div>
   `;
-
   const toolbar = document.getElementById('videos-toolbar');
   const list = document.getElementById('videos-list');
-
   renderAndBindToolbar(toolbar, list);
   renderLoadingState(list);
   await reload(list, { force:false });
