@@ -1,4 +1,4 @@
-// js/script.js (중복 제거 + 챕터 그룹 + 주인공 프롬프트 블록 파싱 완성본)
+// js/script.js (챕터/장면 관대 인식 + 주인공 코드펜스/한글 안전 인식 + recomputeAll 중복 제거)
 import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
 (function () {
@@ -9,7 +9,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   const pad3 = (n) => String(n).padStart(3, '0');
   const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
   const seoHeaderRe = /^##\s*📺\s*유튜브\s*SEO\s*설명글\s*$/m;
-
 
   function toast(msg, type = 'info', ms = 1500) {
     try { return window.toast?.(msg, type, ms); } catch (_) {}
@@ -48,7 +47,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
   const debounce = (fn, ms) => { let t = null; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; };
 
-  /* ========== (UI 유지) 스타일 삽입 ========== */
   (function ensureStyles() {
     if ($('#sp-style')) return;
     const st = document.createElement('style');
@@ -114,9 +112,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   let REMOVE_WORDS_SCRIPT = [];
   let REMOVE_WORDS_PROMPT = [];
 
-// 보수적 이모티콘 제거(토큰 단위, 일반 숫자·괄호 보존)
-const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|o|0))(?=$|[\s])/g;
-
+  const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|o|0))(?=$|[\s])/g;
 
   const buildRemoveRegex = (list) => {
     if (!Array.isArray(list) || !list.length) return null;
@@ -126,13 +122,7 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
     return new RegExp(parts.join('|'), 'gi');
   };
 
-  /* =====================================================
-   *               파싱 규칙 구현: 대본 (Script)
-   * -----------------------------------------------------
-   * 1) #, ## 로 시작하는 줄은 내용 삭제 + 줄 당김 1회
-   * 2) 해시로 시작하며 "장면 n" 포함 → "[장면 000]"으로 변환 (다음 빈줄 1개 유지)
-   * 3) 별표(*), 이모지, 이모티콘, 마이너스(-) 제거, 과도한 빈줄 정규화  // ← 추가
-   * ===================================================== */
+  /* ========== 대본 전처리 ========== */
   function preprocessScript(rawText) {
     const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
     const out = [];
@@ -154,14 +144,12 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
       out.push(ln);
     }
 
-    // ★ 여기서만 추가 처리 (대본 전용): 별표/이모지/이모티콘/마이너스 제거
     let joined = out.join('\n')
       .replace(/\*/g, '')
-	  .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '') // 이모지 제거(안전)
-	  .replace(EMOTICON_RE, '$1') // 이모티콘 '토큰'만 제거(숫자/괄호 보존)
-	  .replace(/\-/g, '') // 마이너스 제거(요청 사항)
-	  .replace(/#/g, ''); // 샵(#) 제거
-
+      .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
+      .replace(EMOTICON_RE, '$1')
+      .replace(/\-/g, '')
+      .replace(/#/g, '');
 
     const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
     if (remRe) joined = joined.replace(remRe, '').replace(/[ \t]{2,}/g, ' ');
@@ -169,91 +157,182 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
     return joined;
   }
 
-  /* =====================================================
-   *           파싱 규칙 구현: 이미지 프롬프트 (Prompt)
-   * -----------------------------------------------------
-   * 1) "[장면 n]" → 장면. 다음 줄을 프롬프트로 사용
-   * 2) "## … (장면 a-b)" 형식 → 챕터 라벨/범위로 수집
-   * 3) "## 👤 주인공 …" 등 주인공 헤더를 만나면, 다음 줄들(구분선/헤더/[장면] 전까지)을
-   *    하나로 모아 주인공 프롬프트로 수집 (볼드 ** 제거)
-   * 4) 별표(*) 제거, 사용자 제거어 적용
-   * ===================================================== */
+  /* ========== 이미지 프롬프트 파서 ========== */
   function collectPromptRowsWithChapters(rawText) {
     const src = String(rawText || '').replace(/\r\n/g, '\n');
     const lines = src.split('\n');
 
-    const chapters = []; // { label, lo, hi }
-    const scenes   = []; // { idNum, id, prompt }
+    const chapters = [];
+    const scenes   = [];
     let heroPrompt = null;
-    let capturingHero = false;
-    const heroBuf = [];
 
-    const chapterRe = /^\s*#{2,}\s*(.+?)\(\s*장면\s*(\d{1,3})\s*-\s*(\d{1,3})\s*\)\s*$/;
-    const sceneRe   = /\[\s*장면\s*(\d{1,3})\s*\]/i;
-    const heroHeaderRe = /^\s*#{1,6}\s*.*주인공.*(프롬프트|이미지).*$/i;
+    const chapterRes = [
+      /^\s*##\s+(.+)$/,
+      /^\s*#\s+(.+)$/,
+      /^\s*(?:📚\s*)?(?:제?\s*\d+\s*장|Chapter\s*\d+)\s*[-:–—]?\s*(.+)$/i
+    ];
+    const sceneRes = [
+      /^\s*#{2,3}\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})\s*\]/i,
+      /^\s*#{2,3}\s*(?:장면|scene|씬)\s*(\d{1,3})\b/i,
+      /^\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})\s*\]/i,
+      /^\s*(?:장면|scene|씬)\s*(\d{1,3})\b/i
+    ];
 
+    const nextHeaderRe = /^\s*#{2,}\s+/;
     const isSeparator = (s) => /^\s*-{3,}\s*$/.test(s);
-    const isHeader    = (s) => /^\s*#{1,6}\s+/.test(s);
+
+    const normalizeForChapter = (s) =>
+      String(s||'')
+        .replace(/^\s*(\*\*|__)/, '')
+        .replace(/(\*\*|__)\s*$/, '')
+        .replace(/\\\[/g, '[')
+        .replace(/\\#/g, '#')
+        .trim();
+
+    const normalizeForScene = (s) =>
+      String(s||'')
+        .replace(/^\s*(\*\*|__)/, '')
+        .replace(/(\*\*|__)\s*$/, '')
+        .replace(/\\\[/g, '[')
+        .replace(/\\#/g, '#')
+        .replace(/^\s*(?:[#](?!#)|[-–—•·∙▶►]|[*])\s*/, '')
+        .trim();
+
+    const matchChapter = (line) => {
+      const t = normalizeForChapter(line);
+      for (const re of chapterRes) {
+        const m = re.exec(t);
+        if (m) return m;
+      }
+      return null;
+    };
+    const matchScene = (line) => {
+      const t = normalizeForScene(line);
+      for (const re of sceneRes) {
+        const m = re.exec(t);
+        if (m) return m;
+      }
+      return null;
+    };
+
+    const cleanInline = (s) =>
+      String(s||'')
+        .replace(/`{1,3}[^`]*`{1,3}/g, m => m)
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/[_~`]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const applyRemovals = (s) => {
+      const remRe = buildRemoveRegex(REMOVE_WORDS_PROMPT);
+      if (!remRe) return s;
+      return s.replace(remRe, ' ').replace(/\s{2,}/g, ' ').trim();
+    };
+
+    // ── 주인공 프롬프트 캡처(코드펜스/한글 안전)
+    function captureHeroPrompt(allLines) {
+      const headerRe = /^\s*(?:#{1,3}\s*)?(?:👤\s*)?(?:주인공|protagonist|main character)(?=[\s:：-]|$).*$/i;
+      let headerIdx = -1;
+      for (let i = 0; i < allLines.length; i++) {
+        if (headerRe.test(allLines[i])) { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) return null;
+
+      let i = headerIdx + 1;
+
+      // 코드펜스 시작(언어 태그 허용)
+      if (i < allLines.length && /^\s*```.*$/.test(allLines[i])) {
+        i++;
+        const buf = [];
+        for (; i < allLines.length; i++) {
+          if (/^\s*```/.test(allLines[i])) { i++; break; }
+          buf.push(allLines[i]);
+        }
+        const text = buf.join('\n').trim();
+        return text ? cleanInline(text) : null;
+      }
+
+      // 코드펜스가 없으면 다음 헤더/구분선 전까지
+      const buf = [];
+      for (; i < allLines.length; i++) {
+        const ln = allLines[i];
+        if (/^\s*#{1,3}\s+/.test(ln)) break;
+        if (/^\s*-{3,}\s*$/.test(ln)) break;
+        buf.push(ln);
+      }
+      const text = buf.join('\n').trim();
+      return text ? cleanInline(text) : null;
+    }
+
+    heroPrompt = captureHeroPrompt(lines) || null;
+
+    let currentChapter = null;
+
+    const ensureChapter = (label) => {
+      const lab = cleanInline(label);
+      const ch = { label: lab, lo: Infinity, hi: -Infinity };
+      chapters.push(ch);
+      return ch;
+    };
+    const touchChapterRange = (ch, idNum) => {
+      if (!ch) return;
+      if (Number.isFinite(idNum)) {
+        ch.lo = Math.min(ch.lo, idNum);
+        ch.hi = Math.max(ch.hi, idNum);
+      }
+    };
+
+    const collectBody = (startIdx) => {
+      const buf = [];
+      let j = startIdx;
+      for (; j < lines.length; j++) {
+        const ln = lines[j];
+        if (isSeparator(ln)) break;
+        if (nextHeaderRe.test(ln)) break;
+        if (matchScene(ln)) break;
+        buf.push(ln);
+      }
+      const text = buf.join('\n').trim();
+      return { text, end: j - 1 };
+    };
 
     for (let i = 0; i < lines.length; i++) {
-      let ln = String(lines[i] ?? '').replace(/\*/g, '');
+      const ln = String(lines[i] ?? '');
 
-      // 주인공 헤더 시작
-      if (!heroPrompt && heroHeaderRe.test(ln)) { capturingHero = true; continue; }
+      const chm = matchChapter(ln);
+      if (chm) { currentChapter = ensureChapter(chm[1] || chm[0]); continue; }
 
-      if (capturingHero) {
-        if (isSeparator(ln) || isHeader(ln) || sceneRe.test(ln)) {
-          const joined = heroBuf.join(' ').replace(/\s+/g, ' ').trim();
-          heroPrompt = joined || heroPrompt;
-          capturingHero = false; // 이 줄은 아래 로직으로 계속 처리
-        } else {
-          if (ln.trim()) heroBuf.push(ln.trim());
-          continue; // 수집 중에는 다른 처리 없음
-        }
-      }
+      const shm = matchScene(ln);
+      if (shm) {
+        const idNum = parseInt(shm[1], 10);
+        if (!Number.isFinite(idNum)) continue;
 
-      // 챕터 감지
-      const ch = chapterRe.exec(ln);
-      if (ch) {
-        const labelRaw = ch[1].trim().replace(/\s+$/, '');
-        const lo = parseInt(ch[2], 10);
-        const hi = parseInt(ch[3], 10);
-        chapters.push({ label: `${labelRaw} (장면 ${lo}-${hi})`, lo, hi });
+        const { text, end } = collectBody(i + 1);
+
+        let prompt = cleanInline(text);
+        prompt = applyRemovals(prompt);
+        if (!prompt) { i = Math.max(i, end); continue; }
+
+        scenes.push({ idNum, id: pad3(idNum), prompt });
+        touchChapterRange(currentChapter, idNum);
+        i = Math.max(i, end);
         continue;
       }
-
-      // 장면 감지
-      const m = sceneRe.exec(ln);
-      if (m) {
-        const idNum = parseInt(m[1], 10);
-        const id = pad3(idNum);
-        let prompt = String(lines[i + 1] ?? '').replace(/\*/g, '').trim();
-        scenes.push({ idNum, id, prompt });
-      }
     }
 
-    // 파일 끝에서 주인공 블록 마무리
-    if (capturingHero && heroBuf.length) {
-      const joined = heroBuf.join(' ').replace(/\s+/g, ' ').trim();
-      heroPrompt = joined || heroPrompt;
-    }
+    const usableChapters = chapters
+      .filter(ch => Number.isFinite(ch.lo) && Number.isFinite(ch.hi) && ch.hi >= ch.lo)
+      .map(ch => ({ ...ch }));
 
-    // 제거어(Prompt) 적용
-    const remRe = buildRemoveRegex(REMOVE_WORDS_PROMPT);
-    if (remRe) {
-      if (heroPrompt) heroPrompt = heroPrompt.replace(remRe, '').replace(/[ \t]{2,}/g, ' ').trim();
-      for (const s of scenes) s.prompt = s.prompt.replace(remRe, '').replace(/[ \t]{2,}/g, ' ').trim();
-    }
-
-    // 빈 프롬프트 제거
     const cleanScenes = scenes.filter(s => s.prompt.length > 0);
 
-    return { heroPrompt, chapters, scenes: cleanScenes };
+    return { heroPrompt, chapters: usableChapters, scenes: cleanScenes };
   }
 
-  // 장면 번호 중복 방지 유틸
   function uniqueScenesInRange(scenes, lo = -Infinity, hi = Infinity, usedGlobal = new Set()) {
-    const pick = new Map(); // idNum -> scene (가장 먼저 등장한 항목만 유지)
+    const pick = new Map();
     for (const s of scenes) {
       if (s.idNum >= lo && s.idNum <= hi && !usedGlobal.has(s.idNum) && !pick.has(s.idNum)) {
         pick.set(s.idNum, s);
@@ -262,7 +341,6 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
     return Array.from(pick.values()).sort((a, b) => a.idNum - b.idNum);
   }
 
-  /* 문장 기준 자르기 (최대 1만자) */
   function splitCardsBySentence(src, LIMIT = 10000) {
     let rest = String(src || '').trim();
     const chunks = [];
@@ -352,48 +430,47 @@ const EMOTICON_RE = /(^|[\s])(?:[:;=8xX][\-o\^']?(?:\)|D|d|p|P|\(|\[|\]|\/|\\|O|
       container.appendChild(card);
     });
   }
-function renderSeoCard(rawText) {
-  const container = document.querySelector('#sp-seo-card');
-  if (!container) return;
-  container.innerHTML = '';
 
-  const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
-  let capturing = false, buf = [];
+  function renderSeoCard(rawText) {
+    const container = document.querySelector('#sp-seo-card');
+    if (!container) return;
+    container.innerHTML = '';
 
-  for (let ln of lines) {
-    if (/^##\s*📺\s*유튜브\s*SEO\s*설명글/.test(ln)) {
-      capturing = true;
-      continue;
+    const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+    let capturing = false, buf = [];
+
+    for (let ln of lines) {
+      if (/^##\s*📺\s*유튜브\s*SEO\s*설명글/.test(ln)) {
+        capturing = true;
+        continue;
+      }
+      if (capturing && /^##\s+/.test(ln)) break; // 다른 헤더 만나면 종료
+      if (capturing) buf.push(ln);
     }
-    if (capturing && /^##\s+/.test(ln)) break; // 다른 헤더 만나면 종료
-    if (capturing) buf.push(ln);
+
+    const seoText = buf.join('\n').trim();
+    if (!seoText) return;
+
+    const card = document.createElement('div');
+    card.className = 'sp-card';
+    const head = document.createElement('div');
+    head.className = 'sp-card-head';
+    head.innerHTML = '<div class="sp-card-title">📺 유튜브 SEO 설명글</div>';
+    const pre = document.createElement('pre');
+    pre.className = 'sp-card-pre';
+    pre.textContent = seoText;
+
+    card.appendChild(head);
+    card.appendChild(pre);
+    container.appendChild(card);
   }
 
-  const seoText = buf.join('\n').trim();
-  if (!seoText) return;
-
-  const card = document.createElement('div');
-  card.className = 'sp-card';
-  const head = document.createElement('div');
-  head.className = 'sp-card-head';
-  head.innerHTML = '<div class="sp-card-title">📺 유튜브 SEO 설명글</div>';
-  const pre = document.createElement('pre');
-  pre.className = 'sp-card-pre';
-  pre.textContent = seoText;
-
-  card.appendChild(head);
-  card.appendChild(pre);
-  container.appendChild(card);
-}
-
-  /* 프롬프트 테이블 렌더링 (챕터 그룹 + 중복 제거 + 장면번호만 표기) */
+  /* 프롬프트 테이블 렌더링 */
   function renderPromptTable() {
     const tbody = $('#sp-tbody');
     if (!tbody) return;
 
     let raw = $('#sp-prompt-input')?.value || '';
-    raw = String(raw).replace(/\*/g, '');
-
     const { heroPrompt, chapters, scenes } = collectPromptRowsWithChapters(raw);
 
     tbody.innerHTML = '';
@@ -435,7 +512,7 @@ function renderSeoCard(rawText) {
 
     const makeRow = (id, prompt) => {
       const tr = document.createElement('tr');
-      const tdScene = document.createElement('td'); tdScene.textContent = id; // 숫자만
+      const tdScene = document.createElement('td'); tdScene.textContent = id;
       const tdPrompt = document.createElement('td');
       const div = document.createElement('div'); div.className = 'sp-ellipsis'; div.title = prompt; div.textContent = prompt; div.dataset.full = prompt; tdPrompt.appendChild(div);
       const tdCopy = document.createElement('td'); tdCopy.style.textAlign = 'right';
@@ -452,7 +529,6 @@ function renderSeoCard(rawText) {
 
     if (sortedChapters.length > 0) {
       for (const ch of sortedChapters) {
-        // 챕터 라벨 줄 (왼쪽 정렬)
         const trH = document.createElement('tr');
         const tdH = document.createElement('td');
         tdH.colSpan = 3; tdH.textContent = ch.label; tdH.style.textAlign = 'left';
@@ -463,7 +539,6 @@ function renderSeoCard(rawText) {
         for (const s of bucket) { used.add(s.idNum); frag.appendChild(makeRow(s.id, s.prompt)); }
       }
     } else {
-      // 챕터가 없으면 모든 장면을 오름차순으로, 중복 없이
       const bucket = uniqueScenesInRange(scenes);
       for (const s of bucket) frag.appendChild(makeRow(s.id, s.prompt));
     }
@@ -610,6 +685,7 @@ function renderSeoCard(rawText) {
     const date = $('#sp-date');
     if (date && !date.value) date.value = todayStr();
 
+    // ✅ 여기서만 선언 (중복 금지)
     const recomputeAll = () => { renderCards(); renderPromptTable(); };
     const onScriptInput  = debounce(recomputeAll, 120);
     const onPromptInput  = debounce(recomputeAll, 120);
@@ -654,10 +730,9 @@ function renderSeoCard(rawText) {
       toast('모두 지웠습니다.', 'success');
     });
 
-    // JSON 내보내기: 주인공 + (챕터 반영) 장면 중복 제거
     $('#sp-export')?.addEventListener('click', () => {
       const rawPrompts = promptInput?.value || '';
-      const { heroPrompt, scenes, chapters } = collectPromptRowsWithChapters(String(rawPrompts).replace(/\*/g, ''));
+      const { heroPrompt, scenes, chapters } = collectPromptRowsWithChapters(String(rawPrompts));
 
       const usedGlobal = new Set();
       let items = [];
