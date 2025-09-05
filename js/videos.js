@@ -424,7 +424,7 @@ function renderList(root){
         cachedItem.isDone = !isDone;
       }
 
-      applyFiltersAndRender(root, { videoIdToFind: v.id });
+      applyFiltersAndRender(root, { preservePage: true });
     };
 
     grid.appendChild(card);
