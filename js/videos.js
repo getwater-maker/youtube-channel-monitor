@@ -4,6 +4,7 @@
 // - 필터(조회수/기간/정렬), 페이지네이션, 키워드 분석
 // - 제목 다운로드, 썸네일 복사, 정보 복사, 작업완료 토글
 // - ✅ 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
+// - ✅ 정보 복사 항목에 설명글, 해시태그 포함
 
 import { kvGet, kvSet, channelsAll, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
@@ -27,7 +28,7 @@ const state = {
 };
 
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
-const h = (s)=> (s??'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const h = (s)=> (s??'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
 const num = (n)=> Number(n||0);
 
 function downloadFile(filename, data, mime = 'text/plain;charset=utf-8') {
@@ -111,12 +112,16 @@ function normalizeVideo(raw, ch){
   const secs = secFromISO(raw.contentDetails?.duration);
   const views = Number(raw.statistics?.viewCount || 0);
   const title = raw.snippet?.title || '';
+  const description = raw.snippet?.description || '';   // ✅ 추가
+  const tags = raw.snippet?.tags || [];                 // ✅ 추가
   const publishedAt = raw.snippet?.publishedAt || '';
   const subs = Number(ch.subscriberCount || 0);
   const mutant = subs > 0 ? (views / subs) * 10 : 0;
   return {
     id: raw.id,
     title,
+    description,   // ✅ 추가
+    tags,          // ✅ 추가
     publishedAt,
     views,
     secs,
@@ -166,7 +171,7 @@ function analyzeAndRenderKeywords(videos) {
 
   videos.forEach(video => {
     const words = (video.title||'')
-      .replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
+      .replace(/[\[\]\(\)\{\}\.,!?#&`"']/g, ' ')
       .toLowerCase()
       .split(/\s+/)
       .filter(word => word.length > 1 && !stopWords.has(word) && !/^\d+$/.test(word));
@@ -403,7 +408,8 @@ function renderList(root){
 
     card.querySelector('.btn-copy-thumb').onclick = ()=> copyThumbnailImage(v.id);
     card.querySelector('.btn-copy-info').onclick = ()=>{
-      const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`;
+      const tagsStr = (v.tags && v.tags.length > 0) ? v.tags.map(t=>`#${t}`).join(' ') : '없음';
+      const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}\n설명글 : ${v.description || '없음'}\n해시태그 : ${tagsStr}`;
       copyText(info);
     };
     
