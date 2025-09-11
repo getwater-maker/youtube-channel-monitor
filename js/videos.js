@@ -3,8 +3,10 @@
 // - 채널 캐시를 기반으로 최신/돌연변이 모드 분석
 // - 필터(조회수/기간/정렬), 페이지네이션, 키워드 분석
 // - 제목 다운로드, 썸네일 복사, 정보 복사, 작업완료 토글
-// - ✅ 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
-// - ✅ 정보 복사 항목에 설명글, 해시태그 포함
+// - 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
+// - 정보 복사 항목에 설명글, 해시태그 포함
+// - 썸네일 다운로드 기능 추가
+// - PDF 분석 리포트 기능 추가 (A4, 3열, 자동 페이지 분할, 텍스트 잘림 최종 해결)
 
 import { kvGet, kvSet, channelsAll, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
@@ -112,16 +114,16 @@ function normalizeVideo(raw, ch){
   const secs = secFromISO(raw.contentDetails?.duration);
   const views = Number(raw.statistics?.viewCount || 0);
   const title = raw.snippet?.title || '';
-  const description = raw.snippet?.description || '';   // ✅ 추가
-  const tags = raw.snippet?.tags || [];                 // ✅ 추가
+  const description = raw.snippet?.description || '';
+  const tags = raw.snippet?.tags || [];
   const publishedAt = raw.snippet?.publishedAt || '';
   const subs = Number(ch.subscriberCount || 0);
   const mutant = subs > 0 ? (views / subs) * 10 : 0;
   return {
     id: raw.id,
     title,
-    description,   // ✅ 추가
-    tags,          // ✅ 추가
+    description,
+    tags,
     publishedAt,
     views,
     secs,
@@ -150,7 +152,7 @@ function filterRankFromRaw(videos){
     if (!a.isDone && b.isDone) return -1;
     switch (state.sortBy) {
       case 'mutant_desc': return b.mutant - a.mutant;
-      case 'publishedAt_desc': return new Date(b.publishedAt) - new Date(a.publishedAt);
+      case 'publishedAt_desc': return new Date(b.publishedAt) - new Date(b.publishedAt);
       case 'subs_desc': return b.channel.subs - a.channel.subs;
       default: return b.views - a.views;
     }
@@ -181,7 +183,7 @@ function analyzeAndRenderKeywords(videos) {
   const sortedKeywords = [...wordCounts.entries()].sort((a, b) => b[1] - a[1]);
   container.innerHTML = '';
   if (sortedKeywords.length === 0) {
-    container.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`;
+    container.innerHTML = `<div class="empty-state">분석할 키워드가 없습니다.</div>`;
   } else {
     const topKeywords = sortedKeywords.slice(0, 30);
     const keywordsEl = el(`<div class="keywords"></div>`);
@@ -202,12 +204,10 @@ function ensureSearchBarBelowKeywords(){
   if (!box){
     box = document.createElement('div');
     box.id = 'videos-search-container';
-    box.style.margin = '10px 0';
     box.innerHTML = `
-      <div class="search-row" style="display:flex; gap:8px; width:min(100%, 360px);">
-        <input id="video-search-input" type="search" placeholder="제목으로 검색..."
-               style="flex:1; height:36px; padding:0 12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text);" />
-        <button id="video-search-clear" class="btn btn-outline btn-sm" style="height:36px;">지우기</button>
+      <div class="search-row">
+        <input id="video-search-input" type="search" placeholder="제목으로 검색..." />
+        <button id="video-search-clear" class="btn btn-outline btn-sm">지우기</button>
       </div>
     `;
     keywords.insertAdjacentElement('afterend', box);
@@ -223,6 +223,109 @@ function ensureSearchBarBelowKeywords(){
   }
 }
 
+async function generateVideoAnalysisPDF() {
+  if (typeof jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+    window.toast('PDF 생성 라이브러리를 찾을 수 없습니다.', 'error');
+    return;
+  }
+  if (!state.filtered || state.filtered.length === 0) {
+    window.toast('PDF로 만들 영상 데이터가 없습니다.', 'warning');
+    return;
+  }
+
+  const pdfBtn = document.getElementById('btn-generate-pdf');
+  pdfBtn.disabled = true;
+  pdfBtn.textContent = 'PDF 생성 중...';
+  window.toast('PDF 생성을 시작합니다... 데이터 양에 따라 시간이 걸릴 수 있습니다.', 'info');
+
+  const contentElement = document.createElement('div');
+  // PDF 렌더링을 위한 스타일 (JS에 유지)
+  contentElement.style.position = 'absolute';
+  contentElement.style.left = '-9999px';
+  contentElement.style.top = '0';
+  contentElement.style.backgroundColor = 'white';
+  contentElement.style.fontFamily = 'sans-serif';
+  contentElement.style.color = '#333';
+  contentElement.style.width = '1200px';
+  document.body.appendChild(contentElement);
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const sortedVideos = [...state.filtered].sort((a, b) => b.views - a.views);
+    const dates = sortedVideos.map(v => new Date(v.publishedAt));
+    const minDate = new Date(Math.min.apply(null, dates));
+    const maxDate = new Date(Math.max.apply(null, dates));
+    const formatDate = (d) => `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+    const pdfTitle = `${formatDate(minDate)} ~ ${formatDate(maxDate)} 영상 분석`;
+
+    const CARDS_PER_PAGE = 6;
+    const MARGIN_MM = 10;
+    const usableWidth = pdf.internal.pageSize.getWidth() - MARGIN_MM * 2;
+
+    for (let i = 0; i < sortedVideos.length; i += CARDS_PER_PAGE) {
+      const pageVideos = sortedVideos.slice(i, i + CARDS_PER_PAGE);
+      
+      let pageHtml = `<div style="padding: 20px;">`;
+      if (i === 0) {
+        pageHtml += `<h1 style="text-align: center; font-size: 24px; margin-bottom: 20px;">${pdfTitle}</h1>`;
+      }
+      pageHtml += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">';
+      
+      pageVideos.forEach(v => {
+        const tagsStr = (v.tags && v.tags.length > 0) ? v.tags.map(t => `#${t}`).join(' ') : '없음';
+        const descriptionStr = v.description || '없음';
+        pageHtml += `
+          <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; page-break-inside: avoid; display: flex; flex-direction: column;">
+            <img src="https://i.ytimg.com/vi/${h(v.id)}/mqdefault.jpg" style="width: 100%; height: auto; display: block;">
+            <div style="padding: 10px; border-top: 1px solid #eee; display: flex; flex-direction: column; flex-grow: 1;">
+              <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; white-space: normal; word-break: break-all;">${h(v.title)}</div>
+              <div style="display: flex; align-items: center; margin-bottom: 8px; font-size: 12px;">
+                <img src="${h(v.channel.thumb)}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;">
+                <span style="margin-right: 8px; white-space: normal; word-break: break-all;">${h(v.channel.name)}</span>
+                <span style="color: #666; margin-left: auto; white-space: nowrap;">${num(v.channel.subs).toLocaleString()}명</span>
+              </div>
+              <div style="font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;">
+                <span><strong>조회수:</strong> ${num(v.views).toLocaleString()}회</span>
+                <span><strong>날짜:</strong> ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}</span>
+                <span><strong>지수:</strong> ${v.mutant.toFixed(1)}</span>
+              </div>
+              <div style="font-size: 12px; line-height: 1.5; flex-grow: 1;">
+                  <strong style="display: block; font-size: 13px; margin-bottom: 2px;">해시태그:</strong>
+                  <p style="margin: 0 0 10px 0; white-space: normal; word-break: break-all; color: #555;">${h(tagsStr)}</p>
+                  <strong style="display: block; font-size: 13px; margin-bottom: 2px;">설명글:</strong>
+                  <p style="margin: 0; white-space: pre-wrap; word-break: break-all; color: #555;">${h(descriptionStr)}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      pageHtml += '</div></div>';
+      contentElement.innerHTML = pageHtml;
+      
+      const canvas = await html2canvas(contentElement, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const imgHeight = (canvas.height * usableWidth) / canvas.width;
+
+      if (i > 0) {
+        pdf.addPage();
+      }
+      pdf.addImage(imgData, 'PNG', MARGIN_MM, MARGIN_MM, usableWidth, imgHeight);
+    }
+
+    pdf.save(`${pdfTitle}.pdf`);
+    window.toast('PDF 생성 완료!', 'success');
+
+  } catch (error) {
+    console.error('PDF 생성 오류:', error);
+    window.toast('PDF 생성 중 오류가 발생했습니다.', 'error');
+  } finally {
+    document.body.removeChild(contentElement);
+    pdfBtn.disabled = false;
+    pdfBtn.textContent = 'PDF 생성';
+  }
+}
+
 function renderAndBindToolbar(toolbarContainer, contentContainer) {
   toolbarContainer.innerHTML = '';
   const tb = el(`
@@ -231,28 +334,30 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
         <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
         <span class="chip ${state.mode==='mutant'?'active':''}" data-mode="mutant">돌연변이</span>
       </div>
-      <div class="group" style="margin-left: 16px;">
+      <div class="group">
         <span class="chip ${CONFIG.minViews===10000?'active':''}" data-views="10000">1만</span>
         <span class="chip ${CONFIG.minViews===30000?'active':''}" data-views="30000">3만</span>
         <span class="chip ${CONFIG.minViews===50000?'active':''}" data-views="50000">5만</span>
       </div>
-      <div class="group" style="margin-left: 16px;">
+      <div class="group">
         <span class="chip ${CONFIG.period==='1w'?'active':''}" data-period="1w">1주</span>
         <span class="chip ${CONFIG.period==='2w'?'active':''}" data-period="2w">2주</span>
         <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
         <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
       </div>
-      <div class="group" style="margin-left: 16px;">
-        <select id="video-sort-select" class="btn-outline" style="height:34px; padding: 0 10px; padding-right: 32px; -webkit-appearance: none; appearance: none;">
-          <option value="views_desc" ${state.sortBy === 'views_desc' ? 'selected' : ''}>조회수 순</option>
-          <option value="mutant_desc" ${state.sortBy === 'mutant_desc' ? 'selected' : ''}>돌연변이 지수 순</option>
-          <option value="publishedAt_desc" ${state.sortBy === 'publishedAt_desc' ? 'selected' : ''}>최신 업로드 순</option>
-          <option value="subs_desc" ${state.sortBy === 'subs_desc' ? 'selected' : ''}>채널 구독자 순</option>
+      <div class="group">
+        <select id="video-sort-select" class="btn-outline">
+          <option value="views_desc" ${state.sortBy === 'views_desc' ? 'selected' : ''}>조회수</option>
+          <option value="mutant_desc" ${state.sortBy === 'mutant_desc' ? 'selected' : ''}>돌연변이</option>
+          <option value="publishedAt_desc" ${state.sortBy === 'publishedAt_desc' ? 'selected' : ''}>최신</option>
+          <option value="subs_desc" ${state.sortBy === 'subs_desc' ? 'selected' : ''}>구독자</option>
         </select>
       </div>
-      <div class="group" style="margin-left:auto">
-        <span id="sync-badge" class="chip" style="pointer-events:none;display:none">업데이트 중…</span>
-        <button id="btn-download-titles" class="btn btn-outline btn-sm">제목 다운로드</button>
+      <div class="group">
+        <span id="sync-badge" class="chip">업데이트 중…</span>
+        <button id="btn-download-titles" class="btn btn-outline btn-sm">제목</button>
+        <button id="btn-download-thumbnails" class="btn btn-outline btn-sm">썸네일</button>
+        <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
         <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
       </div>
     </div>
@@ -261,23 +366,25 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
 
   const sortSelect = tb.querySelector('#video-sort-select');
 
-  tb.querySelectorAll('[data-mode]').forEach(x=> x.onclick = ()=>{ 
+  tb.querySelectorAll('[data-mode]').forEach(x=> x.onclick = ()=>{
     state.mode=x.dataset.mode;
     state.sortBy = state.mode === 'latest' ? 'publishedAt_desc' : 'mutant_desc';
     sortSelect.value = state.sortBy;
-    tb.querySelectorAll('[data-mode]').forEach(n=>n.classList.toggle('active',n===x)); 
-    applyFiltersAndRender(contentContainer); 
+    tb.querySelectorAll('[data-mode]').forEach(n=>n.classList.toggle('active',n===x));
+    applyFiltersAndRender(contentContainer);
   });
-  
+
   tb.querySelectorAll('[data-views]').forEach(x=> x.onclick = ()=>{ CONFIG.minViews=Number(x.dataset.views); tb.querySelectorAll('[data-views]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
   tb.querySelectorAll('[data-period]').forEach(x=> x.onclick = ()=>{ CONFIG.period=x.dataset.period; tb.querySelectorAll('[data-period]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
-  
+
   sortSelect.onchange = () => {
     state.sortBy = sortSelect.value;
     applyFiltersAndRender(contentContainer);
   };
 
   tb.querySelector('#btn-reload').onclick = () => reload(contentContainer, { force:true });
+  
+  tb.querySelector('#btn-generate-pdf').onclick = () => generateVideoAnalysisPDF();
 
   tb.querySelector('#btn-download-titles').onclick = () => {
     if (!state.filtered || state.filtered.length === 0) {
@@ -286,11 +393,54 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
     const d=new Date(), mm=(d.getMonth()+1+'').padStart(2,'0'), dd=(d.getDate()+'').padStart(2,'0');
     const filename = `${mm}${dd}_${state.mode==='latest'?'최신영상':'돌연변이'}_제목모음.txt`;
     const sorted = [...state.filtered].sort((a, b) => b.views - a.views);
-    const content = "제목 | 조회수 | 구독자수 | 업로드일자\n" + sorted.map(v => 
+    const content = "제목 | 조회수 | 구독자수 | 업로드일자\n" + sorted.map(v =>
         `${v.title.replace(/\|/g,'ㅣ')} | ${num(v.views).toLocaleString()} | ${num(v.channel.subs).toLocaleString()} | ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`
     ).join('\n');
     downloadFile(filename, content);
     window.toast('제목 다운로드 완료!', 'success');
+  };
+
+  tb.querySelector('#btn-download-thumbnails').onclick = async () => {
+    if (typeof JSZip === 'undefined') {
+      window.toast('썸네일 다운로드 라이브러리를 찾을 수 없습니다.', 'error');
+      return;
+    }
+    if (!state.filtered || state.filtered.length === 0) {
+      window.toast('다운로드할 영상 데이터가 없습니다.', 'warning');
+      return;
+    }
+
+    window.toast('썸네일 다운로드를 시작합니다...', 'info');
+    const zip = new JSZip();
+    const sorted = [...state.filtered].sort((a, b) => b.views - a.views);
+
+    const imagePromises = sorted.map(async (v, index) => {
+      try {
+        const response = await fetch(`https://i.ytimg.com/vi/${v.id}/maxresdefault.jpg`);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const blob = await response.blob();
+        const safeTitle = (v.title || 'untitled').replace(/[\/\\?%*:|"<>]/g, '-');
+        const filename = `${(index + 1).toString().padStart(3, '0')}_${safeTitle}.jpg`;
+        zip.file(filename, blob);
+      } catch (e) {
+        console.error(`썸네일 다운로드 실패 (ID: ${v.id}):`, e);
+      }
+    });
+
+    await Promise.all(imagePromises);
+
+    zip.generateAsync({ type: 'blob' }).then(blob => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = (d.getMonth() + 1 + '').padStart(2, '0');
+      const dd = (d.getDate() + '').padStart(2, '0');
+      const filename = `${yyyy}${mm}${dd}_썸네일다운.zip`;
+      downloadFile(filename, blob, 'application/zip');
+      window.toast('썸네일 zip 파일 생성 완료!', 'success');
+    }).catch(e => {
+      console.error('zip 파일 생성 오류:', e);
+      window.toast('zip 파일 생성에 실패했습니다.', 'error');
+    });
   };
 }
 
@@ -341,7 +491,9 @@ function renderPagination(root, totalItems){
   };
   const nav = el('<nav class="pagination"></nav>');
 
-  nav.appendChild(makeBtn('이전', Math.max(1, state.page-1), state.page===1));
+  nav.appendChild(makeBtn('처음으로', 1, state.page === 1));
+  nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
+  
   const windowSize = 5;
   let start = Math.max(1, state.page - Math.floor(windowSize / 2));
   let end = Math.min(totalPages, start + windowSize - 1);
@@ -349,7 +501,9 @@ function renderPagination(root, totalItems){
   for (let i = start; i <= end; i++) {
     nav.appendChild(makeBtn(String(i), i, false, i === state.page));
   }
-  nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page+1), state.page===totalPages));
+  
+  nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page + 1), state.page === totalPages));
+  nav.appendChild(makeBtn('끝으로', totalPages, state.page === totalPages));
   root.appendChild(nav);
 }
 
@@ -412,7 +566,7 @@ function renderList(root){
       const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}\n설명글 : ${v.description || '없음'}\n해시태그 : ${tagsStr}`;
       copyText(info);
     };
-    
+
     card.querySelector('.btn-toggle-done').onclick = async ()=>{
       const isDone = state.doneIds.has(v.id);
       if (isDone) state.doneIds.delete(v.id);
@@ -437,7 +591,7 @@ async function reload(root, { force=false } = {}){
   if (state._busy) return;
   state._busy = true;
   const syncBadge = document.getElementById('sync-badge');
-  syncBadge && (syncBadge.style.display = 'inline-flex');
+  if(syncBadge) syncBadge.style.display = 'inline-flex';
   try{
     if (force || !(await loadSnapshot())){
       const channels = await channelsAll();
@@ -468,7 +622,7 @@ async function reload(root, { force=false } = {}){
     console.error(e);
     root.innerHTML = `<div class="empty-state error">데이터 로딩 실패: ${e.message || e}</div>`;
   } finally {
-    syncBadge && (syncBadge.style.display = 'none');
+    if(syncBadge) syncBadge.style.display = 'none';
     state._busy = false;
   }
 }
@@ -482,8 +636,8 @@ export async function initVideos({ mount }){
         <div class="section-title">영상분석</div>
         <div class="section-actions" id="videos-toolbar"></div>
       </div>
-      <div id="keywords-analysis-container" class="section" style="margin-top:10px;"></div>
-      <div id="videos-list" class="section" style="margin-top:10px;"></div>
+      <div id="keywords-analysis-container" class="section"></div>
+      <div id="videos-list" class="section"></div>
     </div>
   `;
   const toolbar = document.getElementById('videos-toolbar');

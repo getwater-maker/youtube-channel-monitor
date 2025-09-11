@@ -105,12 +105,10 @@ function renderHeader(root, ch, latestLongformDate){
   const header = el(`
     <div class="section" style="padding:0; overflow:hidden; position:relative; margin-bottom:16px;">
       <div style="width:100%; aspect-ratio: 6/1; ${ch.bannerUrl?`background-image:url(${ch.bannerUrl}); background-size:cover; background-position:center;`:'background:var(--card);'}"></div>
-      <!-- 좌하단 채널명 -->
       <div style="position:absolute; left:16px; bottom:12px; display:flex; align-items:center; gap:10px;">
         <img src="${h(ch.thumbnail)}" alt="${h(ch.title)}" style="width:56px; height:56px; border-radius:50%; border:3px solid rgba(0,0,0,.25); box-shadow:0 4px 10px rgba(0,0,0,.3);" />
         <div style="font-weight:900; font-size:18px; text-shadow:0 2px 6px rgba(0,0,0,.6)">${h(ch.title)}</div>
       </div>
-      <!-- 우하단 통계 -->
       <div style="position:absolute; right:16px; bottom:12px; display:flex; gap:12px; flex-wrap:wrap;">
         <div class="chip" style="backdrop-filter: blur(4px);">${fmt(ch.subscriberCount)} 구독자</div>
         <div class="chip" style="backdrop-filter: blur(4px);">${fmt(ch.videoCount)} 동영상</div>
@@ -122,6 +120,7 @@ function renderHeader(root, ch, latestLongformDate){
   root.appendChild(header);
 }
 
+// --- [수정된 부분 시작] ---
 function videoCard(v){
   const done = state.doneIds.has(v.id);
   const doneButtonText = done ? '완료취소' : '작업완료';
@@ -164,19 +163,28 @@ function videoCard(v){
     const info = `제목 : ${v.title}\n구독자수 : ${fmt(v.channel.subs)}명\n조회수 : ${fmt(v.views)}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`;
     copyText(info);
   };
-  card.querySelector('.btn-toggle-done').onclick = ()=>{
-    if (state.doneIds.has(v.id)) { state.doneIds.delete(v.id); }
-    else { state.doneIds.add(v.id); }
-    saveDoneIds();
-    // 버튼/상태 즉시 반영
-    card.classList.toggle('is-done', state.doneIds.has(v.id));
-    card.querySelector('.btn-toggle-done').textContent = state.doneIds.has(v.id) ? '완료취소' : '작업완료';
-    card.querySelector('.btn-toggle-done').classList.toggle('btn-outline', state.doneIds.has(v.id));
-    card.querySelector('.btn-toggle-done').classList.toggle('btn-success', !state.doneIds.has(v.id));
+  
+  card.querySelector('.btn-toggle-done').onclick = async () => {
+    const isDone = state.doneIds.has(v.id);
+    if (isDone) {
+      state.doneIds.delete(v.id);
+    } else {
+      state.doneIds.add(v.id);
+    }
+    await saveDoneIds();
+
+    const itemInState = state.items.find(item => item.id === v.id);
+    if (itemInState) {
+      itemInState.isDone = !isDone;
+    }
+    
+    // 렌더링을 다시 하되, 방금 클릭한 비디오가 있는 페이지로 점프하도록 ID를 전달
+    applySearchAndRender({ videoIdToFind: v.id });
   };
 
   return card;
 }
+// --- [수정된 부분 끝] ---
 
 function renderToolbar(root){
   const tb = el(`
@@ -192,7 +200,6 @@ function renderToolbar(root){
     </div>
   `);
   root.appendChild(tb);
-
   tb.querySelector('#btn-latest').onclick = ()=> switchMode('latest');
   tb.querySelector('#btn-mutant').onclick = ()=> switchMode('mutant');
   tb.querySelector('#btn-all').onclick    = ()=> switchMode('all');
@@ -206,7 +213,6 @@ function markActiveButton(tb){
   else tb.querySelector('#btn-all')?.classList.add('active');
 }
 
-// ✅ 등록된 채널과 동일 UX의 페이지네이션
 function renderPaginationForVideos(root, totalItems){
   const totalPages = Math.ceil(totalItems / state.perPage);
   const existing = root.querySelector('.pagination');
@@ -218,17 +224,14 @@ function renderPaginationForVideos(root, totalItems){
     if (disabled) b.disabled = true;
     b.onclick = async ()=>{
       state.page = page;
-      renderList(root, state._lastItemsForRender, state._lastShowLoadMore);
+      // 페이지 버튼 클릭 시에는 페이지 점프가 아닌, 현재 페이지를 유지하며 렌더링
+      applySearchAndRender({ preservePage: true });
       root.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     };
     return b;
   };
   const nav = el('<nav class="pagination"></nav>');
-
-  // 이전
   nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
-
-  // 숫자 5개 윈도우
   const windowSize = 5;
   let start = Math.max(1, state.page - Math.floor(windowSize/2));
   let end = Math.min(totalPages, start + windowSize - 1);
@@ -236,18 +239,13 @@ function renderPaginationForVideos(root, totalItems){
   for (let i=start; i<=end; i++){
     nav.appendChild(makeBtn(String(i), i, false, i===state.page));
   }
-
-  // 이후
   nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page + 1), state.page === totalPages));
-
   root.appendChild(nav);
 }
 
-// ✅ 검색창(키워드와 카드 사이, 한 줄·카드 1장 폭)
 function renderSearchBox(){
   const mount = document.getElementById('ca-search-wrap');
   if (!mount) return;
-
   let box = document.getElementById('ca-search');
   if (!box){
     box = el(`
@@ -260,7 +258,6 @@ function renderSearchBox(){
       </div>
     `);
     mount.replaceChildren(box);
-
     box.querySelector('#ca-search-input').addEventListener('input', (e)=>{
       state.searchQuery = (e.target.value||'').trim().toLowerCase();
       applySearchAndRender();
@@ -279,22 +276,15 @@ function renderList(root, items, showLoadMore=false){
     root.innerHTML = `<div class="empty-state">표시할 영상이 없습니다.</div>`;
     return;
   }
-  // 페이지 단위로 자르기
   state._lastItemsForRender = items;
   state._lastShowLoadMore = showLoadMore;
-
   const total = items.length;
   const start = (state.page - 1) * state.perPage;
   const slice = items.slice(start, start + state.perPage);
-
   const grid = el('<div class="video-grid"></div>');
   slice.forEach(v => grid.appendChild(videoCard(v)));
   root.appendChild(grid);
-
-  // 페이지네이션
   renderPaginationForVideos(root, total);
-
-  // (옵션) 채널전체 모드에서 아직 더 로드할 페이지가 남아있는 경우
   if (showLoadMore){
     const more = el(`<div style="display:flex; justify-content:center; margin-top:16px;"><button id="btn-load-more" class="btn btn-primary">더 불러오기</button></div>`);
     more.querySelector('#btn-load-more').onclick = ()=> loadMoreAll(root);
@@ -306,73 +296,73 @@ function renderKeywordsContainer(items){
   const wrap = document.getElementById('ca-keywords');
   if (!wrap) return null;
   wrap.innerHTML = '';
-
   const wordCounts = new Map();
   const stop = new Set(['shorts', '그리고', '있는', '것은', '이유', '방법', '영상', '공개', '구독', '좋아요']);
-
   items.forEach(v=>{
-    const words = (v.title||'')
-      .replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ')
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(w => w.length > 1 && !stop.has(w) && !/^\d+$/.test(w));
+    const words = (v.title||'').replace(/[\[\]\(\)\{\}\.,!?#&`'"]/g, ' ').toLowerCase().split(/\s+/).filter(w => w.length > 1 && !stop.has(w) && !/^\d+$/.test(w));
     words.forEach(w => wordCounts.set(w, (wordCounts.get(w) || 0) + 1));
   });
-
   const sorted = [...wordCounts.entries()].sort((a,b)=> b[1]-a[1]).slice(0, 30);
   if (sorted.length === 0){
     wrap.innerHTML = `<div class="empty-state" style="padding:16px;">분석할 키워드가 없습니다.</div>`;
     return wrap;
   }
   const box = el('<div class="keywords"></div>');
-  sorted.forEach(([word, count])=>{
-    box.appendChild(el(`<span class="kw">${h(word)} <strong>${count}</strong></span>`));
-  });
+  sorted.forEach(([word, count])=>{ box.appendChild(el(`<span class="kw">${h(word)} <strong>${count}</strong></span>`)); });
   wrap.appendChild(box);
   return wrap;
 }
 
-// ───────────────────────── 모드 전환/로딩 ─────────────────────────
 async function switchMode(mode){
   if (state.loading) return;
   state.mode = mode;
   state.page = 1;
-
   const host = document.querySelector('#ca-list');
   const tb = document.querySelector('#ca-toolbar');
   markActiveButton(tb);
-
   if (mode === 'latest') {
-    state.sortBy = 'publishedAt_desc';
-    await loadLatest(host);
+    state.sortBy = 'publishedAt_desc'; await loadLatest(host);
   } else if (mode === 'mutant') {
-    state.sortBy = 'mutant_desc';
-    await loadMutant(host);
+    state.sortBy = 'mutant_desc'; await loadMutant(host);
   } else {
-    state.sortBy = 'views_desc';
-    state.items = [];
-    state.pageToken = '';
-    await loadAllFirst(host);
+    state.sortBy = 'views_desc'; state.items = []; state.pageToken = ''; await loadAllFirst(host);
   }
-
-  // 순서 고정: 키워드 → 검색창 → 리스트
   renderKeywordsContainer(state.items);
   renderSearchBox();
   applySearchAndRender();
 }
 
-function applySearchAndRender(){
+// --- [수정된 부분 시작] ---
+function applySearchAndRender(opts = {}){
   const host = document.querySelector('#ca-list');
-  const base = state.items || [];
+  if (!host) return;
+
+  // 1. 현재 `state.items`를 `sortItems` 함수를 이용해 새로 정렬
+  const sortedItems = sortItems(state.items || []);
+  state.items = sortedItems; // 정렬된 순서를 state에 영구 반영
+
+  // 2. 검색 필터 적용
   const filtered = state.searchQuery
-    ? base.filter(v => (v.title||'').toLowerCase().includes(state.searchQuery))
-    : base;
-  state.page = 1;
+    ? state.items.filter(v => (v.title||'').toLowerCase().includes(state.searchQuery))
+    : state.items;
+  
+  // 3. 페이지 계산
+  if (opts.videoIdToFind) {
+    // 특정 비디오 ID가 어느 페이지에 있는지 찾아서 state.page를 업데이트
+    const newIndex = filtered.findIndex(v => v.id === opts.videoIdToFind);
+    if (newIndex > -1) {
+      state.page = Math.floor(newIndex / state.perPage) + 1;
+    }
+  } else if (opts.preservePage !== true) {
+    // 옵션이 없으면 (필터 변경 등) 1페이지로 리셋
+    state.page = 1; 
+  }
+
   const showMore = state.mode === 'all' && !!state.pageToken;
   renderList(host, filtered, showMore);
 }
+// --- [수정된 부분 끝] ---
 
-// ───────────────────────── 데이터 적재(모드별) ─────────────────────────
 function normalizeVideo(raw, channel){
   const secs = secFromISO(raw.contentDetails?.duration);
   const views = Number(raw.statistics?.viewCount || 0);
@@ -382,24 +372,16 @@ function normalizeVideo(raw, channel){
   const subs = Number(channel.subscriberCount || 0);
   const mutant = subs > 0 ? (views / subs) * 10 : 0;
   return {
-    id: raw.id,
-    title,
-    publishedAt,
-    views,
-    secs,
-    longform,
-    mutant,
-    channel: {
-      id: channel.id,
-      name: channel.title,
-      subs: subs,
-      thumb: channel.thumbnail
-    }
+    id: raw.id, title, publishedAt, views, secs, longform, mutant,
+    channel: { id: channel.id, name: channel.title, subs: subs, thumb: channel.thumbnail },
+    isDone: state.doneIds.has(raw.id),
   };
 }
 
 function sortItems(items){
   return items.slice().sort((a,b)=>{
+    if (a.isDone && !b.isDone) return 1;
+    if (!a.isDone && b.isDone) return -1;
     if (state.sortBy === 'publishedAt_desc') return new Date(b.publishedAt) - new Date(a.publishedAt);
     if (state.sortBy === 'mutant_desc') return b.mutant - a.mutant;
     if (state.sortBy === 'views_desc') return b.views - a.views;
@@ -411,40 +393,29 @@ async function loadLatest(host){
   const ch = state.channel;
   if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
   host.innerHTML = `<div class="loading-state">최신 영상을 불러오는 중...</div>`;
-
   const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50);
   const details = await fetchVideosDetails(ids);
-  const items = details.map(v => normalizeVideo(v, ch))
-    .filter(v => within1Month(v.publishedAt))
-    .sort((a,b)=> new Date(b.publishedAt) - new Date(a.publishedAt));
-
-  state.items = items;
+  state.items = details.map(v => normalizeVideo(v, ch)).filter(v => within1Month(v.publishedAt));
 }
 
 async function loadMutant(host){
   const ch = state.channel;
   if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
   host.innerHTML = `<div class="loading-state">돌연변이 영상을 분석 중...</div>`;
-
   const { ids } = await fetchLatestVideoIdsFromUploads(ch.uploadsPlaylistId, 50);
   const details = await fetchVideosDetails(ids);
-  const items = details.map(v => normalizeVideo(v, ch))
-    .filter(v => v.longform)
-    .sort((a,b)=> b.mutant - a.mutant);
-
-  state.items = items;
+  state.items = details.map(v => normalizeVideo(v, ch)).filter(v => v.longform);
 }
 
 async function loadAllFirst(host){
   const ch = state.channel;
   if (!ch?.uploadsPlaylistId) { host.innerHTML = `<div class="empty-state">업로드 목록이 없는 채널입니다.</div>`; return; }
   host.innerHTML = `<div class="loading-state">전체 영상을 불러오는 중...</div>`;
-
   const first = await ytApi('playlistItems', { part:'contentDetails', playlistId:ch.uploadsPlaylistId, maxResults:50 });
   state.pageToken = first.nextPageToken || '';
   const ids = (first.items||[]).map(it=>it.contentDetails?.videoId).filter(Boolean);
   const details = await fetchVideosDetails(ids);
-  state.items = sortItems(details.map(v => normalizeVideo(v, ch)));
+  state.items = details.map(v => normalizeVideo(v, ch));
 }
 
 async function loadMoreAll(host){
@@ -457,21 +428,17 @@ async function loadMoreAll(host){
     const ids = (j.items||[]).map(it=>it.contentDetails?.videoId).filter(Boolean);
     const details = await fetchVideosDetails(ids);
     const more = details.map(v => normalizeVideo(v, ch));
-    state.items = sortItems(state.items.concat(more));
-    applySearchAndRender();
+    state.items = state.items.concat(more);
+    applySearchAndRender({ preservePage: true }); // 더 불러올 때는 현재 페이지 유지
   }finally{
     state.loading = false;
   }
 }
 
-// ───────────────────────── 엔트리 ─────────────────────────
 export async function openChannelAnalysis({ mount, channelId }){
   await loadDoneIds();
-
   const root = document.querySelector(mount);
   if (!root) throw new Error('channelAnalysis mount element not found');
-
-  // 순서 고정: 키워드 → 검색 → 리스트
   root.innerHTML = `
     <div id="ca-root">
       <div id="ca-header"></div>
@@ -481,7 +448,6 @@ export async function openChannelAnalysis({ mount, channelId }){
       <div id="ca-list" class="section" style="margin-top:10px;"></div>
     </div>
   `;
-
   const all = await channelsAll();
   const ch = all.find(c => c.id === channelId);
   if (!ch){
@@ -489,21 +455,16 @@ export async function openChannelAnalysis({ mount, channelId }){
     return;
   }
   state.channel = ch;
-
   renderHeader(document.querySelector('#ca-header'), ch, null);
   renderToolbar(document.querySelector('#ca-toolbar-wrap'));
-  await switchMode('mutant'); // 기본 모드
+  await switchMode('mutant');
 }
 
-// --- 호환을 위한 export (channel.js가 기대하는 이름) ---
 export async function renderChannelAnalysis(opts) {
   const { mount } = opts || {};
   const channelId = opts?.channelId || opts?.channel?.id || opts?.id || opts?.channelID;
   return openChannelAnalysis({ mount, channelId });
 }
 
-// 전역 바인딩 (동적 import 후 mod가 예상과 다를 경우 대비)
 window.renderChannelAnalysis = renderChannelAnalysis;
-
-// default alias (선택적 사용)
 export { openChannelAnalysis as default };

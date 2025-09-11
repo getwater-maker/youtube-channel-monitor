@@ -276,3 +276,48 @@ select optgroup { font-style: italic; font-weight: bold; color: var(--muted); pa
   border-radius: 12px;
   padding: 8px 14px;
 }
+
+/* --- [추가] videos.js UI 스타일 --- */
+#keywords-analysis-container,
+#videos-list {
+  margin-top: 10px;
+}
+
+#videos-search-container {
+  margin: 10px 0;
+}
+
+#videos-search-container .search-row {
+  display: flex;
+  gap: 8px;
+  width: min(100%, 360px);
+}
+
+#video-search-input {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+}
+
+#video-search-clear {
+  height: 36px;
+}
+
+#videos-toolbar .toolbar > .group:not(:first-child) {
+  margin-left: 16px;
+}
+#videos-toolbar .toolbar > .group:last-of-type {
+  margin-left: auto;
+}
+
+#video-sort-select {
+  height: 34px;
+  padding: 0 28px 0 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#sync-badge {
+  pointer-events: none;
+  display: none; /* JS will toggle this with inline-flex */
+}

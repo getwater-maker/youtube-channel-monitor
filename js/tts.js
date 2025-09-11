@@ -30,21 +30,25 @@ const state = {
     standard: 0,
     premium: 0,
   },
-  // [추가] 스마트 캐싱을 위한 상태 변수
   lastGeneratedAudio: null,
   lastGeneratedText: '',
   lastGeneratedVoice: '',
+  // [추가] 오디오 플레이어 상태 관리
+  currentAudio: null, 
 };
 
 const UI = {
   root: null,
   textarea: null,
   voiceSelect: null,
-  previewBtn: null,
   downloadBtn: null,
-  usageDisplayStandard: null,
   usageDisplayPremium: null,
   charCount: null,
+  // [추가] 오디오 플레이어 UI 요소
+  playPauseBtn: null,
+  stopBtn: null,
+  timeline: null,
+  timeDisplay: null,
 };
 
 async function loadUsage() {
@@ -75,12 +79,14 @@ function updateUsageUI() {
   UI.charCount.textContent = `현재 글자 수: ${textLength.toLocaleString()} 자`;
 
   const isOverLimit = state.monthlyUsage.premium + textLength > FREE_TIER.premium;
+  const hasText = textLength > 0;
 
-  UI.previewBtn.disabled = state.isBusy || isOverLimit;
-  UI.downloadBtn.disabled = state.isBusy || isOverLimit;
+  UI.downloadBtn.disabled = state.isBusy || isOverLimit || !hasText;
+  UI.playPauseBtn.disabled = state.isBusy || isOverLimit || !hasText;
+  
   UI.usageDisplayPremium.classList.toggle('limit-exceeded', isOverLimit);
 
-  if (isOverLimit && textLength > 0) {
+  if (isOverLimit && hasText) {
     window.toast(`프리미엄 등급의 무료 사용량을 초과합니다.`, 'warning', 3000);
   }
 }
@@ -91,7 +97,6 @@ async function synthesizeSpeech() {
   const text = UI.textarea.value.trim();
   const voice = UI.voiceSelect.value;
 
-  // [수정] 스마트 캐싱 로직 추가
   if (state.lastGeneratedAudio && state.lastGeneratedText === text && state.lastGeneratedVoice === voice) {
     window.toast('캐시된 음성을 사용합니다.', 'success', 1000);
     return state.lastGeneratedAudio;
@@ -113,7 +118,7 @@ async function synthesizeSpeech() {
   }
 
   state.isBusy = true;
-  UI.previewBtn.textContent = '변환 중...';
+  UI.playPauseBtn.textContent = '변환 중...';
   UI.downloadBtn.textContent = '변환 중...';
   updateUsageUI();
 
@@ -138,7 +143,6 @@ async function synthesizeSpeech() {
     state.monthlyUsage.premium += text.length;
     await saveUsage();
     
-    // [추가] 변환된 오디오와 정보를 캐시에 저장
     state.lastGeneratedAudio = data.audioContent;
     state.lastGeneratedText = text;
     state.lastGeneratedVoice = voice;
@@ -153,17 +157,73 @@ async function synthesizeSpeech() {
     return null;
   } finally {
     state.isBusy = false;
-    UI.previewBtn.textContent = '미리듣기';
+    UI.playPauseBtn.textContent = '▶️ 재생';
     UI.downloadBtn.textContent = 'MP3 다운로드';
     updateUsageUI();
   }
 }
 
-function playAudio(base64Audio) {
-  if (!base64Audio) return;
-  const audioSrc = `data:audio/mp3;base64,${base64Audio}`;
-  const audio = new Audio(audioSrc);
-  audio.play();
+// [추가] 오디오 플레이어 관련 함수
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+function stopAndResetPlayer() {
+  if (state.currentAudio) {
+    state.currentAudio.pause();
+    state.currentAudio.currentTime = 0;
+  }
+  UI.playPauseBtn.textContent = '▶️ 재생';
+  UI.timeline.value = 0;
+}
+
+async function handlePlayPreview() {
+  if (state.currentAudio && !state.currentAudio.paused) {
+    state.currentAudio.pause();
+    return;
+  }
+  
+  // 이미 로드된 오디오가 있으면 이어서 재생
+  if (state.currentAudio && state.currentAudio.currentTime > 0) {
+    state.currentAudio.play();
+    return;
+  }
+
+  // 새로 오디오 생성
+  const audioContent = await synthesizeSpeech();
+  if (!audioContent) return;
+
+  stopAndResetPlayer(); // 기존 오디오 객체 정리
+
+  const audioSrc = `data:audio/mp3;base64,${audioContent}`;
+  state.currentAudio = new Audio(audioSrc);
+
+  state.currentAudio.addEventListener('loadedmetadata', () => {
+    UI.timeline.max = state.currentAudio.duration;
+    UI.timeDisplay.textContent = `0:00 / ${formatTime(state.currentAudio.duration)}`;
+    UI.timeline.disabled = false;
+  });
+
+  state.currentAudio.addEventListener('timeupdate', () => {
+    UI.timeline.value = state.currentAudio.currentTime;
+    UI.timeDisplay.textContent = `${formatTime(state.currentAudio.currentTime)} / ${formatTime(state.currentAudio.duration)}`;
+  });
+
+  state.currentAudio.addEventListener('play', () => {
+    UI.playPauseBtn.textContent = '⏸️ 일시정지';
+  });
+
+  state.currentAudio.addEventListener('pause', () => {
+    UI.playPauseBtn.textContent = '▶️ 재생';
+  });
+
+  state.currentAudio.addEventListener('ended', () => {
+    stopAndResetPlayer();
+  });
+  
+  state.currentAudio.play();
 }
 
 function downloadAudio(base64Audio) {
@@ -205,10 +265,21 @@ export async function initTTS({ mount }) {
                 </div>
                 <div class="control-group">
                     <div id="tts-char-count" class="char-count">현재 글자 수: 0 자</div>
-                    <div id="tts-usage-premium" class="usage-display">프리미엄 사용량: 0 / 1,000,000 자</div>
+                    <div id="tts-usage-premium" class="usage-display"></div>
+                </div>
+                <!-- [수정] 고급 오디오 플레이어 UI -->
+                <div class="control-group">
+                    <label>미리듣기</label>
+                    <div id="tts-player-controls" class="tts-player">
+                        <button id="tts-play-pause-btn" class="btn btn-sm">▶️ 재생</button>
+                        <button id="tts-stop-btn" class="btn btn-sm">⏹️ 정지</button>
+                        <div class="timeline-container">
+                            <input type="range" id="tts-timeline" value="0" step="0.1" disabled>
+                            <span id="tts-time-display">0:00 / 0:00</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="control-group action-buttons">
-                    <button id="tts-preview-btn" class="btn btn-outline">미리듣기</button>
                     <button id="tts-download-btn" class="btn btn-primary">MP3 다운로드</button>
                 </div>
             </div>
@@ -219,10 +290,13 @@ export async function initTTS({ mount }) {
   UI.root = root;
   UI.textarea = root.querySelector('#tts-textarea');
   UI.voiceSelect = root.querySelector('#tts-voice-select');
-  UI.previewBtn = root.querySelector('#tts-preview-btn');
   UI.downloadBtn = root.querySelector('#tts-download-btn');
   UI.usageDisplayPremium = root.querySelector('#tts-usage-premium');
   UI.charCount = root.querySelector('#tts-char-count');
+  UI.playPauseBtn = root.querySelector('#tts-play-pause-btn');
+  UI.stopBtn = root.querySelector('#tts-stop-btn');
+  UI.timeline = root.querySelector('#tts-timeline');
+  UI.timeDisplay = root.querySelector('#tts-time-display');
 
   const femaleVoices = VOICES.filter(voice => voice.gender === '여성');
   const maleVoices = VOICES.filter(voice => voice.gender === '남성');
@@ -245,19 +319,42 @@ export async function initTTS({ mount }) {
   UI.voiceSelect.appendChild(femaleGroup);
   UI.voiceSelect.appendChild(maleGroup);
   
-  UI.voiceSelect.onchange = updateUsageUI;
-  UI.previewBtn.onclick = async () => {
-      const audioContent = await synthesizeSpeech();
-      playAudio(audioContent);
+  // [수정] 이벤트 핸들러 연결
+  UI.playPauseBtn.onclick = handlePlayPreview;
+  UI.stopBtn.onclick = stopAndResetPlayer;
+  UI.timeline.oninput = () => {
+    if (state.currentAudio) {
+      state.currentAudio.currentTime = UI.timeline.value;
+    }
   };
+
+  UI.voiceSelect.onchange = () => {
+    kvSet('tts:lastVoice', UI.voiceSelect.value); // 마지막 선택 목소리 저장
+    state.lastGeneratedAudio = null; // 목소리 변경 시 캐시 무효화
+    stopAndResetPlayer();
+    updateUsageUI();
+  };
+
   UI.downloadBtn.onclick = async () => {
       const audioContent = await synthesizeSpeech();
       downloadAudio(audioContent);
   };
-  UI.textarea.oninput = updateUsageUI;
+  
+  UI.textarea.oninput = () => {
+    state.lastGeneratedAudio = null; // 텍스트 변경 시 캐시 무효화
+    stopAndResetPlayer();
+    updateUsageUI();
+  };
 
   state.apiKey = await kvGet('ttsApiKey');
   await loadUsage();
+
+  // [추가] 마지막으로 선택한 목소리 불러오기
+  const lastVoice = await kvGet('tts:lastVoice');
+  if (lastVoice && UI.voiceSelect.querySelector(`option[value="${lastVoice}"]`)) {
+    UI.voiceSelect.value = lastVoice;
+  }
+
   if (!state.apiKey) {
     window.toast("'음성합성' 탭을 사용하려면 인증 정보 설정에서 Text-to-Speech API 키를 입력해주세요.", 'warning', 3500);
   }
