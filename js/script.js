@@ -1,5 +1,6 @@
 // js/script.js
 // ✨ CSS 수정: 제목(...처리), 반응형 카드 그리드로 레이아웃 깨짐 현상 완벽 해결
+// ✨ script2.js의 텍스트 기반 프롬프트 섹션을 새로운 섹션으로 병합
 import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
 (function () {
@@ -8,6 +9,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   // ============================ 헬퍼 함수 ============================
   const $ = (sel, root = document) => root.querySelector(sel);
   const pad2 = (n) => String(n).padStart(2, '0');
+  // [V2에서 추가됨] 3자리 숫자 패딩
+  const pad3 = (n) => String(n).padStart(3, '0');
   const todayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -57,6 +60,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       .sp-rem input[type="text"] { height:32px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); }
       
       .sp-textarea { width: 100%; height: 180px; resize: vertical; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); padding:14px; line-height:1.6; font-size:14px; margin-bottom: 12px; }
+      /* [V2에서 추가됨] 새로운 텍스트 입력창 스타일 */
+      .sp-textarea-v2 { height:240px; resize:vertical; overflow:auto; width:100%; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); padding:14px; line-height:1.6; font-size:14px; }
+
 
       #sp-cards { display:flex; flex-direction:column; gap:12px; min-height: 240px; }
       .sp-card { border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:12px; }
@@ -70,6 +76,15 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       .sp-prompt-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; text-align: center; min-height: 80px; }
       .sp-prompt-card-label { font-weight: 700; flex-grow: 1; display: flex; align-items: center; }
 
+      /* [V2에서 추가됨] 테이블 관련 스타일 */
+      .sp-table-wrap { width:100%; margin-top:10px; }
+      table.sp { width:100%; border-collapse:collapse; table-layout: fixed; }
+      table.sp thead th { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); }
+      table.sp tbody td { padding:6px 10px; border-bottom:1px solid var(--border); vertical-align:middle; word-break: break-all; }
+      table.sp th:first-child, table.sp td:first-child { width:96px; white-space:nowrap; text-align:left; }
+      table.sp th:last-child, table.sp td:last-child { width:80px; text-align:right; }
+      .sp-ellipsis { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; display:block; }
+      
       .sp-btn { display:inline-flex; align-items:center; justify-content:center; white-space:nowrap; height:36px; padding:0 14px; border-radius:8px; font-weight:700; font-size:14px; border:1px solid transparent; cursor:pointer; }
       .sp-btn-sm { height:30px; padding:0 10px; font-size:12px; }
       .sp-red { background:#c4302b; color:#fff; }
@@ -99,6 +114,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   // ============================ 전역 변수 및 공통 로직 ============================
   let currentScriptContent = '';
   let currentPromptData = null;
+  // [V2에서 추가됨] 새로운 텍스트 입력창의 내용을 담을 변수
+  let currentPromptV2Text = '';
+
   let REMOVE_WORDS_SCRIPT = [];
   let REMOVE_WORDS_PROMPT = [];
 
@@ -244,7 +262,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
-  // ============================ 이미지 프롬프트 섹션 로직 ============================
+  // ============================ 이미지 프롬프트 섹션 (V1 - JSON 불러오기) ============================
   function renderPromptListFromJsonData(data) {
     currentPromptData = data;
     const container = $('#sp-prompt-list');
@@ -303,12 +321,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       });
       
       const titleLabel = document.createElement('span');
-      titleLabel.textContent = '제목';
       titleLabel.style.fontWeight = '900';
+      titleLabel.textContent = '제목';
 
       const titleContent = document.createElement('span');
-      
-      // [수정됨] 제목이 15자 이상이면 잘라서 "..." 처리
       const fullTitle = data.audiobook_title;
       const truncatedTitle = fullTitle.length > 30 
         ? fullTitle.substring(0, 30) + '...' 
@@ -323,14 +339,11 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       copyBtn.textContent = '복사';
       copyBtn.addEventListener('click', async () => {
         try {
-          // [확인] 복사할 때는 전체 제목(fullTitle)을 사용
           await navigator.clipboard.writeText(data.audiobook_title);
           toast('제목이 복사되었습니다.', 'success');
           copyBtn.classList.remove('sp-red');
           copyBtn.classList.add('sp-green');
-        } catch (e) {
-          toast('복사에 실패했습니다.', 'error');
-        }
+        } catch (e) { toast('복사에 실패했습니다.', 'error'); }
       });
       
       titleContainer.appendChild(textWrapper);
@@ -364,6 +377,114 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     container.appendChild(frag);
   }
 
+  // ============================ [V2에서 추가됨] 이미지 프롬프트 섹션 (V2 - 텍스트 입력) ============================
+  function collectPromptRowsWithChapters(rawText) {
+    const src = String(rawText || '').replace(/\r\n/g, '\n');
+    const lines = src.split('\n');
+    const scenes   = [];
+    let heroPrompt = null;
+    const sceneRes = [
+      /^\s*#{1,6}\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})[^\]]*\]/i,
+      /^\s*#{1,6}\s*(?:장면|scene|씬)\s*(\d{1,3})(?:\s*[/\-–—].*)?$/i,
+      /^\s*\[\s*(?:장면|scene|씬)\s*(\d{1,3})[^\]]*\]/i,
+      /^\s*(?:장면|scene|씬)\s*(\d{1,3})(?:\s*[/\-–—].*)?$/i
+    ];
+    const nextHeaderRe = /^\s*#{2,}\s+/;
+    const isSeparator = (s) => /^\s*-{3,}\s*$/.test(s);
+    const normalizeForScene = (s) => String(s||'').replace(/^\s*(\*\*|__)/, '').replace(/(\*\*|__)\s*$/, '').replace(/\\\[/g, '[').replace(/\\#/g, '#').replace(/^\s*(?:[#](?!#)|[-–—•·∙▶►]|[*])\s*/, '').trim();
+    const matchScene = (line) => {
+      const t = normalizeForScene(line);
+      for (const re of sceneRes) { const m = re.exec(t); if (m) return m; }
+      return null;
+    };
+    const cleanInline = (s) => String(s||'').replace(/`{1,3}[^`]*`{1,3}/g, m => m).replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1').replace(/__([^_]+)__/g, '$1').replace(/[_~`]/g, '').replace(/\s+/g, ' ').trim();
+    const applyRemovals = (s) => {
+      const remRe = buildRemoveRegex(REMOVE_WORDS_PROMPT);
+      if (!remRe) return s;
+      return s.replace(remRe, ' ').replace(/\s{2,}/g, ' ').trim();
+    };
+    function captureHeroPrompt(allLines) {
+      const headerRe = /^\s*(?:#{1,3}\s*)?(?:👤\s*)?(?:주인공|protagonist|main character)(?=[\s:：-]|$).*$/i;
+      let headerIdx = allLines.findIndex(line => headerRe.test(line));
+      if (headerIdx === -1) return null;
+      let i = headerIdx + 1;
+      if (i < allLines.length && /^\s*```.*$/.test(allLines[i])) {
+        i++; const buf = [];
+        for (; i < allLines.length; i++) { if (/^\s*```/.test(allLines[i])) { i++; break; } buf.push(allLines[i]); }
+        const text = buf.join('\n').trim();
+        return text ? cleanInline(text) : null;
+      }
+      const buf = [];
+      for (; i < allLines.length; i++) {
+        const ln = allLines[i];
+        if (/^\s*#{1,3}\s+/.test(ln) || /^\s*-{3,}\s*$/.test(ln)) break;
+        buf.push(ln);
+      }
+      const text = buf.join('\n').trim();
+      return text ? cleanInline(text) : null;
+    }
+    heroPrompt = captureHeroPrompt(lines) || null;
+    const collectBody = (startIdx) => {
+      const buf = []; let j = startIdx;
+      for (; j < lines.length; j++) {
+        const ln = lines[j];
+        if (isSeparator(ln) || nextHeaderRe.test(ln) || matchScene(ln)) break;
+        buf.push(ln);
+      }
+      return { text: buf.join('\n').trim(), end: j - 1 };
+    };
+    for (let i = 0; i < lines.length; i++) {
+      const ln = String(lines[i] ?? '');
+      const shm = matchScene(ln);
+      if (shm) {
+        const idNum = parseInt(shm[1], 10);
+        if (!Number.isFinite(idNum)) continue;
+        const { text, end } = collectBody(i + 1);
+        let prompt = applyRemovals(cleanInline(text));
+        if (prompt) scenes.push({ idNum, id: pad3(idNum), prompt });
+        i = Math.max(i, end);
+      }
+    }
+    return { heroPrompt, scenes: scenes.filter(s => s.prompt.length > 0) };
+  }
+  
+  function renderPromptTableV2() {
+    const tbody = $('#sp-tbody-v2');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const { heroPrompt, scenes } = collectPromptRowsWithChapters(currentPromptV2Text);
+
+    if (!heroPrompt && scenes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted); text-align:center; padding:28px;">유효한 프롬프트를 입력하세요. (예: "장면 1", "주인공")</td></tr>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    const makeRow = (id, prompt) => {
+      const tr = document.createElement('tr');
+      const tdScene = document.createElement('td'); tdScene.textContent = id;
+      const tdPrompt = document.createElement('td');
+      const div = document.createElement('div'); div.className = 'sp-ellipsis'; div.title = prompt; div.textContent = prompt; div.dataset.full = prompt; tdPrompt.appendChild(div);
+      const tdCopy = document.createElement('td'); tdCopy.style.textAlign = 'right';
+      const btn = document.createElement('button'); btn.className = 'sp-btn sp-btn-sm sp-red'; btn.textContent = '복사';
+      btn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(div.dataset.full || ''); toast('복사되었습니다.', 'success'); } catch {}
+        btn.classList.remove('sp-red'); btn.classList.add('sp-green');
+      });
+      tdCopy.appendChild(btn);
+      tr.appendChild(tdScene); tr.appendChild(tdPrompt); tr.appendChild(tdCopy);
+      return tr;
+    };
+
+    if (heroPrompt) {
+      frag.appendChild(makeRow('주인공', heroPrompt));
+    }
+    scenes.sort((a,b) => a.idNum - b.idNum).forEach(s => frag.appendChild(makeRow(s.id, s.prompt)));
+
+    tbody.appendChild(frag);
+  }
+
   // ============================ UI 및 이벤트 처리 ============================
   async function showDraftsModal() {
     $('#sp-draft-modal')?.remove();
@@ -387,9 +508,18 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       if (e.target.classList.contains('btn-load-draft') && draft) {
         currentScriptContent = draft.data.script || '';
         currentPromptData = draft.data.prompt || null;
+        // [V2에서 추가됨] 새로운 프롬프트 텍스트 불러오기
+        currentPromptV2Text = draft.data.promptV2 || '';
+        
         $('#sp-script-input').value = currentScriptContent;
+        // [V2에서 추가됨] 새로운 입력창에 값 설정
+        $('#sp-prompt-input-v2').value = currentPromptV2Text;
+        
         renderCards(currentScriptContent);
         renderPromptListFromJsonData(currentPromptData);
+        // [V2에서 추가됨] 새로운 테이블 렌더링
+        renderPromptTableV2();
+        
         toast('초안을 불러왔습니다.', 'success');
         closeModal();
       }
@@ -418,6 +548,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
           </div>
         </div>
         <div class="sp-grid">
+          <!-- 대본 섹션 -->
           <div class="sp-section">
             <div class="sp-section-head">
               <div class="sp-section-title">대본</div>
@@ -430,9 +561,11 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
             <textarea id="sp-script-input" class="sp-textarea" placeholder="이곳에 대본을 입력하세요. 장면 순서가 뒤섞여도 자동으로 정렬됩니다."></textarea>
             <div id="sp-cards"></div>
           </div>
+          <!-- 이미지 섹션 -->
           <div class="sp-section">
+            <!-- 기존 이미지 섹션 (V1) -->
             <div class="sp-section-head">
-              <div class="sp-section-title">이미지</div>
+              <div class="sp-section-title">이미지 (JSON 불러오기)</div>
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto;">
                   <button id="sp-import-prompt-json" class="sp-btn sp-btn-sm sp-blue">JSON 불러오기</button>
                   <input type="file" id="sp-prompt-json-file-input" accept=".json" style="display:none;" />
@@ -444,6 +577,32 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
               </div>
             </div>
             <div id="sp-prompt-list"></div>
+            
+            <!-- [V2에서 추가됨] 새로운 이미지 섹션 (V2) -->
+            <div style="margin-top: 24px; border-top: 2px solid var(--border); padding-top: 16px;">
+                <div class="sp-section-head">
+                  <div class="sp-section-title">이미지 프롬프트 (텍스트 기반)</div>
+                  <div class="sp-rem">
+                    <input id="sp-rem-prompt-v2" type="text" placeholder="삭제할 단어" />
+                    <button id="sp-rem-prompt-add-v2" class="sp-btn sp-btn-sm sp-red">제거</button>
+                    <button id="sp-rem-prompt-reset-v2" class="sp-btn sp-btn-sm sp-gray">복구</button>
+                  </div>
+                </div>
+                <textarea id="sp-prompt-input-v2" class="sp-textarea-v2" placeholder="이곳에 프롬프트를 입력하세요... (예: '주인공: ...', '장면 1: ...')"></textarea>
+                <div class="sp-table-wrap">
+                  <table class="sp">
+                    <thead>
+                      <tr>
+                        <th>장면</th>
+                        <th>이미지 프롬프트</th>
+                        <th style="text-align:right;">복사</th>
+                      </tr>
+                    </thead>
+                    <tbody id="sp-tbody-v2"></tbody>
+                  </table>
+                </div>
+            </div>
+            
           </div>
         </div>
       </div>
@@ -452,8 +611,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     const recomputeAll = () => { 
       renderCards(currentScriptContent); 
       renderPromptListFromJsonData(currentPromptData);
+      renderPromptTableV2(); // V2 렌더링 함수 호출
     };
 
+    // --- 이벤트 리스너: 대본 ---
     $('#sp-script-input')?.addEventListener('input', debounce(() => {
       currentScriptContent = $('#sp-script-input').value;
       renderCards(currentScriptContent);
@@ -463,6 +624,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     $('#sp-rem-script')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#sp-rem-script-add').click(); } });
     $('#sp-rem-script-reset')?.addEventListener('click', () => { REMOVE_WORDS_SCRIPT = []; renderCards(currentScriptContent); });
 
+    // --- 이벤트 리스너: 이미지 (V1) ---
     $('#sp-rem-prompt-add')?.addEventListener('click', () => { const w = ($('#sp-rem-prompt')?.value || '').trim(); if (w && !REMOVE_WORDS_PROMPT.includes(w)) REMOVE_WORDS_PROMPT.push(w); $('#sp-rem-prompt').value = ''; renderPromptListFromJsonData(currentPromptData); });
     $('#sp-rem-prompt')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#sp-rem-prompt-add').click(); } });
     $('#sp-rem-prompt-reset')?.addEventListener('click', () => { REMOVE_WORDS_PROMPT = []; renderPromptListFromJsonData(currentPromptData); });
@@ -484,11 +646,24 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       reader.readAsText(file, 'UTF-8');
     });
 
+    // --- [V2에서 추가됨] 이벤트 리스너: 이미지 (V2) ---
+    $('#sp-prompt-input-v2')?.addEventListener('input', debounce(() => {
+        currentPromptV2Text = $('#sp-prompt-input-v2').value;
+        renderPromptTableV2();
+    }, 400));
+    $('#sp-rem-prompt-add-v2')?.addEventListener('click', () => { const w = ($('#sp-rem-prompt-v2')?.value || '').trim(); if (w && !REMOVE_WORDS_PROMPT.includes(w)) REMOVE_WORDS_PROMPT.push(w); $('#sp-rem-prompt-v2').value = ''; renderPromptTableV2(); });
+    $('#sp-rem-prompt-v2')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#sp-rem-prompt-add-v2').click(); } });
+    $('#sp-rem-prompt-reset-v2')?.addEventListener('click', () => { REMOVE_WORDS_PROMPT = []; renderPromptTableV2(); });
+
+
+    // --- 이벤트 리스너: 공통 액션 ---
     $('#sp-clear')?.addEventListener('click', () => {
       if (confirm('정말 모든 내용을 지우시겠습니까?')) {
         currentScriptContent = '';
         currentPromptData = null;
+        currentPromptV2Text = ''; // V2 데이터 초기화
         $('#sp-script-input').value = '';
+        $('#sp-prompt-input-v2').value = ''; // V2 입력창 초기화
         recomputeAll();
         toast('모두 지웠습니다.', 'success');
       }
@@ -500,7 +675,19 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       if (name === null) { toast('저장이 취소되었습니다.', 'info'); return; }
       const finalName = name.trim();
       if (!finalName) { toast('초안 이름은 비워둘 수 없습니다.', 'warning'); return; }
-      const draft = { name: finalName, data: { script: currentScriptContent, prompt: currentPromptData }, createdAt: new Date(), updatedAt: new Date() };
+      
+      // [V2에서 추가됨] 저장할 데이터에 promptV2 추가
+      const draft = { 
+        name: finalName, 
+        data: { 
+          script: currentScriptContent, 
+          prompt: currentPromptData,
+          promptV2: currentPromptV2Text,
+        }, 
+        createdAt: new Date(), 
+        updatedAt: new Date() 
+      };
+      
       try { await draftsPut(draft); toast(`'${finalName}'(으)로 저장했습니다.`, 'success'); } 
       catch(e) { console.error('Draft save failed', e); toast('저장에 실패했습니다.', 'error'); }
     });
