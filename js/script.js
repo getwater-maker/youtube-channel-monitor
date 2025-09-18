@@ -177,6 +177,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     }).filter(line => line !== null);
 
     let text = processedLines.join('\n');
+    // --- [수정된 부분] 별표(*)와 하이픈 세 개(---) 제거 ---
+    text = text.replace(/---|[*]/g, '');
+
     const remRe = buildRemoveRegex(REMOVE_WORDS_SCRIPT);
     if (remRe) text = text.replace(remRe, '');
     return text.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
@@ -269,7 +272,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     if (!container) return;
     container.innerHTML = '';
 
-    if (!data || !data.image_prompts || !Array.isArray(data.image_prompts)) {
+    // [수정] image_prompts 또는 selected_scenes를 확인
+    const scenes = data?.image_prompts || data?.selected_scenes;
+
+    if (!data || !scenes || !Array.isArray(scenes)) {
       const empty = document.createElement('div');
       empty.className = 'sp-card';
       empty.textContent = '유효한 이미지 프롬프트 JSON 파일을 불러오세요.';
@@ -365,7 +371,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     const scenesGrid = document.createElement('div');
     scenesGrid.className = 'sp-prompt-grid';
 
-    const sortedScenes = [...data.image_prompts].sort((a, b) => 
+    const sortedScenes = [...scenes].sort((a, b) => 
       parseInt(a.scene_number, 10) - parseInt(b.scene_number, 10)
     );
 
@@ -379,8 +385,31 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
   // ============================ [V2에서 추가됨] 이미지 프롬프트 섹션 (V2 - 텍스트 입력) ============================
   function collectPromptRowsWithChapters(rawText) {
-    const src = String(rawText || '').replace(/\r\n/g, '\n');
-    const lines = src.split('\n');
+    const src = String(rawText || '').trim();
+
+    // [수정] 입력된 텍스트가 JSON 형식인지 먼저 확인
+    try {
+        const jsonData = JSON.parse(src);
+        const scenes = [];
+        const heroPrompt = jsonData.character_profiles?.main_character?.description || null;
+        
+        const sceneList = jsonData.image_prompts || jsonData.selected_scenes;
+
+        if (Array.isArray(sceneList)) {
+            for (const item of sceneList) {
+                const idNum = parseInt(item.scene_number, 10);
+                const prompt = item.prompt;
+                if (Number.isFinite(idNum) && typeof prompt === 'string' && prompt) {
+                    scenes.push({ idNum, id: pad3(idNum), prompt });
+                }
+            }
+        }
+        return { heroPrompt, scenes: scenes.filter(s => s.prompt.length > 0) };
+    } catch (e) {
+        // JSON 파싱 실패 시, 기존의 텍스트 기반 파싱 로직 실행
+    }
+
+    const lines = src.replace(/\r\n/g, '\n').split('\n');
     const scenes   = [];
     let heroPrompt = null;
     const sceneRes = [
@@ -565,10 +594,10 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
           <div class="sp-section">
             <!-- 기존 이미지 섹션 (V1) -->
             <div class="sp-section-head">
-              <div class="sp-section-title">이미지 (JSON 불러오기)</div>
+              <div class="sp-section-title">이미지 (JSON)</div>
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto;">
-                  <button id="sp-import-prompt-json" class="sp-btn sp-btn-sm sp-blue">JSON 불러오기</button>
-                  <input type="file" id="sp-prompt-json-file-input" accept=".json" style="display:none;" />
+                  <button id="sp-import-prompt-json" class="sp-btn sp-btn-sm sp-blue">JSON/TXT</button>
+                  <input type="file" id="sp-prompt-json-file-input" accept=".json, .txt" style="display:none;" />
                   <div class="sp-rem">
                     <input id="sp-rem-prompt" type="text" placeholder="삭제할 단어" />
                     <button id="sp-rem-prompt-add" class="sp-btn sp-btn-sm sp-red">제거</button>
@@ -581,7 +610,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
             <!-- [V2에서 추가됨] 새로운 이미지 섹션 (V2) -->
             <div style="margin-top: 24px; border-top: 2px solid var(--border); padding-top: 16px;">
                 <div class="sp-section-head">
-                  <div class="sp-section-title">이미지 프롬프트 (텍스트 기반)</div>
+                  <div class="sp-section-title">이미지 (텍스트 기반)</div>
                   <div class="sp-rem">
                     <input id="sp-rem-prompt-v2" type="text" placeholder="삭제할 단어" />
                     <button id="sp-rem-prompt-add-v2" class="sp-btn sp-btn-sm sp-red">제거</button>
@@ -638,8 +667,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
         try {
           const data = JSON.parse(e.target.result);
           renderPromptListFromJsonData(data);
-          toast('프롬프트 JSON 파일을 성공적으로 불러왔습니다.', 'success');
-        } catch (error) { toast('유효하지 않은 JSON 파일입니다.', 'error'); } 
+          toast('프롬프트 파일을 성공적으로 불러왔습니다.', 'success');
+        } catch (error) { toast('유효하지 않은 JSON/TXT 파일입니다.', 'error'); } 
         finally { event.target.value = ''; }
       };
       reader.onerror = () => { toast('파일을 읽는 데 실패했습니다.', 'error'); event.target.value = ''; };
