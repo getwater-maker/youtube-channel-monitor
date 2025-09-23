@@ -1,6 +1,7 @@
 // js/script.js
 // ✨ CSS 수정: 제목(...처리), 반응형 카드 그리드로 레이아웃 깨짐 현상 완벽 해결
 // ✨ script2.js의 텍스트 기반 프롬프트 섹션을 새로운 섹션으로 병합
+// ✨ [요청사항 수정] 대본 섹션에 카드 당 글자 수(3000, 5000, 10000) 선택 기능 추가
 import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
 
 (function () {
@@ -58,6 +59,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       .sp-section-title { font-weight:800; }
       .sp-rem { display:inline-flex; gap:6px; align-items:center; }
       .sp-rem input[type="text"] { height:32px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); }
+      /* [요청사항 수정] 글자 수 선택 옵션 스타일 */
+      .sp-limit-options { display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; font-size:14px; }
+      .sp-limit-options label { display:flex; align-items:center; gap:4px; cursor:pointer; }
       
       .sp-textarea { width: 100%; height: 180px; resize: vertical; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); padding:14px; line-height:1.6; font-size:14px; margin-bottom: 12px; }
       /* [V2에서 추가됨] 새로운 텍스트 입력창 스타일 */
@@ -220,13 +224,19 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return chunks;
   }
 
+  // [수정된 함수]
   function renderCards(rawScriptText) {
     const container = $('#sp-cards');
     if (!container) return;
     container.innerHTML = '';
+    
+    // 사용자가 선택한 글자 수 제한 값을 읽어옴. 기본값은 10000.
+    const selectedLimit = Number($('#sp-limit-options input[name="sp-limit"]:checked')?.value || 10000);
+    
     const processedText = preprocessScript(rawScriptText);
     const sortedText = sortScriptByScene(processedText);
-    const chunks = splitCardsBySentence(sortedText, 10000);
+    const chunks = splitCardsBySentence(sortedText, selectedLimit); // 동적 값 전달
+
     if (!chunks.length) {
       const empty = document.createElement('div');
       empty.className = 'sp-card';
@@ -563,6 +573,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
+  // [수정된 함수]
   function buildLayout(mountSel) {
     const mount = typeof mountSel === 'string' ? $(mountSel) : mountSel;
     if (!mount) return;
@@ -586,6 +597,13 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
                 <button id="sp-rem-script-add" class="sp-btn sp-btn-sm sp-red">제거</button>
                 <button id="sp-rem-script-reset" class="sp-btn sp-btn-sm sp-gray">복구</button>
               </div>
+            </div>
+            <!-- [요청사항 수정] 글자 수 선택 UI 추가 -->
+            <div id="sp-limit-options" class="sp-limit-options">
+                <strong>카드 글자 수:</strong>
+                <label><input type="radio" name="sp-limit" value="3000"> 3,000자</label>
+                <label><input type="radio" name="sp-limit" value="5000"> 5,000자</label>
+                <label><input type="radio" name="sp-limit" value="10000" checked> 10,000자</label>
             </div>
             <textarea id="sp-script-input" class="sp-textarea" placeholder="이곳에 대본을 입력하세요. 장면 순서가 뒤섞여도 자동으로 정렬됩니다."></textarea>
             <div id="sp-cards"></div>
@@ -648,6 +666,11 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       currentScriptContent = $('#sp-script-input').value;
       renderCards(currentScriptContent);
     }, 400));
+    
+    // [요청사항 수정] 글자 수 선택 변경 시 카드 다시 렌더링
+    $('#sp-limit-options')?.addEventListener('change', () => {
+      renderCards(currentScriptContent);
+    });
 
     $('#sp-rem-script-add')?.addEventListener('click', () => { const w = ($('#sp-rem-script')?.value || '').trim(); if (w && !REMOVE_WORDS_SCRIPT.includes(w)) REMOVE_WORDS_SCRIPT.push(w); $('#sp-rem-script').value = ''; renderCards(currentScriptContent); });
     $('#sp-rem-script')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#sp-rem-script-add').click(); } });
