@@ -601,8 +601,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
             <!-- [요청사항 수정] 글자 수 선택 UI 추가 -->
             <div id="sp-limit-options" class="sp-limit-options">
                 <strong>카드 글자 수:</strong>
-                <label><input type="radio" name="sp-limit" value="3000"> 3,000자</label>
-                <label><input type="radio" name="sp-limit" value="5000"> 5,000자</label>
+                <!-- [수정된 부분] 3000자, 5000자를 바이트 기준으로 변경 -->
+                <label><input type="radio" name="sp-limit" value="9000"> 9,000 Bytes</label>
+                <label><input type="radio" name="sp-limit" value="15000"> 15,000 Bytes</label>
                 <label><input type="radio" name="sp-limit" value="10000" checked> 10,000자</label>
             </div>
             <textarea id="sp-script-input" class="sp-textarea" placeholder="이곳에 대본을 입력하세요. 장면 순서가 뒤섞여도 자동으로 정렬됩니다."></textarea>
