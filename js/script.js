@@ -59,8 +59,8 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       .sp-section-title { font-weight:800; }
       .sp-rem { display:inline-flex; gap:6px; align-items:center; }
       .sp-rem input[type="text"] { height:32px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); }
-      /* [요청사항 수정] 글자 수 선택 옵션 스타일 */
-      .sp-limit-options { display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; font-size:14px; }
+      /* [수정된 부분] 글자 수 선택 옵션 오른쪽 정렬 */
+      .sp-limit-options { display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap; font-size:14px; justify-content: flex-end; }
       .sp-limit-options label { display:flex; align-items:center; gap:4px; cursor:pointer; }
       
       .sp-textarea { width: 100%; height: 180px; resize: vertical; border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--text); padding:14px; line-height:1.6; font-size:14px; margin-bottom: 12px; }
@@ -224,7 +224,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     return chunks;
   }
 
-  // [수정된 함수]
   function renderCards(rawScriptText) {
     const container = $('#sp-cards');
     if (!container) return;
@@ -282,7 +281,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     if (!container) return;
     container.innerHTML = '';
 
-    // [수정] image_prompts 또는 selected_scenes를 확인
     const scenes = data?.image_prompts || data?.selected_scenes;
 
     if (!data || !scenes || !Array.isArray(scenes)) {
@@ -397,7 +395,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
   function collectPromptRowsWithChapters(rawText) {
     const src = String(rawText || '').trim();
 
-    // [수정] 입력된 텍스트가 JSON 형식인지 먼저 확인
     try {
         const jsonData = JSON.parse(src);
         const scenes = [];
@@ -547,16 +544,13 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       if (e.target.classList.contains('btn-load-draft') && draft) {
         currentScriptContent = draft.data.script || '';
         currentPromptData = draft.data.prompt || null;
-        // [V2에서 추가됨] 새로운 프롬프트 텍스트 불러오기
         currentPromptV2Text = draft.data.promptV2 || '';
         
         $('#sp-script-input').value = currentScriptContent;
-        // [V2에서 추가됨] 새로운 입력창에 값 설정
         $('#sp-prompt-input-v2').value = currentPromptV2Text;
         
         renderCards(currentScriptContent);
         renderPromptListFromJsonData(currentPromptData);
-        // [V2에서 추가됨] 새로운 테이블 렌더링
         renderPromptTableV2();
         
         toast('초안을 불러왔습니다.', 'success');
@@ -573,7 +567,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     });
   }
 
-  // [수정된 함수]
   function buildLayout(mountSel) {
     const mount = typeof mountSel === 'string' ? $(mountSel) : mountSel;
     if (!mount) return;
@@ -592,16 +585,19 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
           <div class="sp-section">
             <div class="sp-section-head">
               <div class="sp-section-title">대본</div>
-              <div class="sp-rem">
-                <input id="sp-rem-script" type="text" placeholder="삭제할 단어" />
-                <button id="sp-rem-script-add" class="sp-btn sp-btn-sm sp-red">제거</button>
-                <button id="sp-rem-script-reset" class="sp-btn sp-btn-sm sp-gray">복구</button>
+              <!-- [수정된 부분] TXT 불러오기 버튼 및 파일 인풋 추가 -->
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto;">
+                <button id="sp-import-script-txt" class="sp-btn sp-btn-sm sp-blue">TXT 불러오기</button>
+                <input type="file" id="sp-script-file-input" accept=".txt" style="display:none;" />
+                <div class="sp-rem">
+                  <input id="sp-rem-script" type="text" placeholder="삭제할 단어" />
+                  <button id="sp-rem-script-add" class="sp-btn sp-btn-sm sp-red">제거</button>
+                  <button id="sp-rem-script-reset" class="sp-btn sp-btn-sm sp-gray">복구</button>
+                </div>
               </div>
             </div>
-            <!-- [요청사항 수정] 글자 수 선택 UI 추가 -->
             <div id="sp-limit-options" class="sp-limit-options">
                 <strong>카드 글자 수:</strong>
-                <!-- [수정된 부분] 3000자, 5000자를 바이트 기준으로 변경 -->
                 <label><input type="radio" name="sp-limit" value="9000"> 9,000 Bytes</label>
                 <label><input type="radio" name="sp-limit" value="15000"> 15,000 Bytes</label>
                 <label><input type="radio" name="sp-limit" value="10000" checked> 10,000자</label>
@@ -659,7 +655,7 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     const recomputeAll = () => { 
       renderCards(currentScriptContent); 
       renderPromptListFromJsonData(currentPromptData);
-      renderPromptTableV2(); // V2 렌더링 함수 호출
+      renderPromptTableV2();
     };
 
     // --- 이벤트 리스너: 대본 ---
@@ -668,7 +664,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       renderCards(currentScriptContent);
     }, 400));
     
-    // [요청사항 수정] 글자 수 선택 변경 시 카드 다시 렌더링
     $('#sp-limit-options')?.addEventListener('change', () => {
       renderCards(currentScriptContent);
     });
@@ -676,6 +671,28 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
     $('#sp-rem-script-add')?.addEventListener('click', () => { const w = ($('#sp-rem-script')?.value || '').trim(); if (w && !REMOVE_WORDS_SCRIPT.includes(w)) REMOVE_WORDS_SCRIPT.push(w); $('#sp-rem-script').value = ''; renderCards(currentScriptContent); });
     $('#sp-rem-script')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#sp-rem-script-add').click(); } });
     $('#sp-rem-script-reset')?.addEventListener('click', () => { REMOVE_WORDS_SCRIPT = []; renderCards(currentScriptContent); });
+    
+    // --- [수정된 부분] 대본 TXT 파일 불러오기 이벤트 리스너 추가 ---
+    $('#sp-import-script-txt')?.addEventListener('click', () => { $('#sp-script-file-input')?.click(); });
+    $('#sp-script-file-input')?.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          currentScriptContent = e.target.result;
+          $('#sp-script-input').value = currentScriptContent;
+          renderCards(currentScriptContent);
+          toast('대본 파일을 성공적으로 불러왔습니다.', 'success');
+        } catch (error) { 
+          toast('파일을 읽는 데 실패했습니다.', 'error');
+        } finally { 
+          event.target.value = ''; 
+        }
+      };
+      reader.onerror = () => { toast('파일을 읽는 데 실패했습니다.', 'error'); event.target.value = ''; };
+      reader.readAsText(file, 'UTF-8');
+    });
 
     // --- 이벤트 리스너: 이미지 (V1) ---
     $('#sp-rem-prompt-add')?.addEventListener('click', () => { const w = ($('#sp-rem-prompt')?.value || '').trim(); if (w && !REMOVE_WORDS_PROMPT.includes(w)) REMOVE_WORDS_PROMPT.push(w); $('#sp-rem-prompt').value = ''; renderPromptListFromJsonData(currentPromptData); });
@@ -714,9 +731,9 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       if (confirm('정말 모든 내용을 지우시겠습니까?')) {
         currentScriptContent = '';
         currentPromptData = null;
-        currentPromptV2Text = ''; // V2 데이터 초기화
+        currentPromptV2Text = '';
         $('#sp-script-input').value = '';
-        $('#sp-prompt-input-v2').value = ''; // V2 입력창 초기화
+        $('#sp-prompt-input-v2').value = '';
         recomputeAll();
         toast('모두 지웠습니다.', 'success');
       }
@@ -729,7 +746,6 @@ import { draftsGetAll, draftsPut, draftsRemove } from './indexedStore.js';
       const finalName = name.trim();
       if (!finalName) { toast('초안 이름은 비워둘 수 없습니다.', 'warning'); return; }
       
-      // [V2에서 추가됨] 저장할 데이터에 promptV2 추가
       const draft = { 
         name: finalName, 
         data: { 
