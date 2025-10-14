@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한국 시니어 유튜브 콘텐츠 기획 가이드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #F8F1F1;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .gradient-text {
+            background: linear-gradient(to right, #004369, #01949A);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .kpi-box {
+            background-color: white;
+            border-left: 5px solid #01949A;
+        }
+        .flowchart-arrow {
+            position: relative;
+            text-align: center;
+            line-height: 1.5;
+            color: #004369;
+        }
+        .flowchart-arrow::after {
+            content: '▼';
+            font-size: 2rem;
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #01949A;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <header class="bg-white shadow-md p-6 text-center">
+        <h1 class="text-4xl md:text-5xl font-black gradient-text">시니어의 목소리, 콘텐츠가 되다</h1>
+        <p class="mt-2 text-lg text-gray-600">데이터로 발굴하는 한국 시니어 유튜브 콘텐츠 기획 가이드</p>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+        
+        <section class="text-center mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">왜 시니어의 이야기에 주목해야 할까요?</h2>
+            <p class="max-w-3xl mx-auto text-gray-600">빠르게 초고령사회로 진입하는 한국에서 시니어 세대는 더 이상 주변인이 아닙니다. 그들의 고민은 우리 사회의 현주소이며, 그들의 이야기는 모든 세대에게 깊은 공감과 울림을 줄 수 있는 콘텐츠의 보고입니다.</p>
+        </section>
+
+        <section id="data-deep-dive" class="mb-12">
+            <h2 class="text-3xl font-bold text-center mb-8 text-[#004369]">숫자로 보는 시니어의 현실</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-xl font-bold text-center mb-4">경제적 어려움: 높은 노인 빈곤율</h3>
+                    <p class="text-center text-gray-600 mb-4">OECD 최고 수준의 노인 빈곤율은 시니어 콘텐츠의 가장 중요한 배경입니다. 이는 생활고, 재취업, 자식과의 갈등 등 다양한 이야기의 시작점이 됩니다.</p>
+                    <div class="chart-container">
+                        <canvas id="povertyRateChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-xl font-bold text-center mb-4">사회적 고립: 외로움의 원인</h3>
+                    <p class="text-center text-gray-600 mb-4">시니어들이 느끼는 외로움의 원인은 복합적입니다. 배우자나 친구의 부재는 물론, 사회적 관계망의 축소가 큰 영향을 미칩니다. 이는 '관계'에 대한 이야기로 확장될 수 있습니다.</p>
+                     <div class="chart-container">
+                        <canvas id="lonelinessSourceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-xl font-bold text-center mb-4">디지털 격차: 세상과의 단절</h3>
+                    <p class="text-center text-gray-600 mb-4">키오스크, 스마트폰 앱 없이는 일상생활이 어려운 시대. 디지털 장벽은 시니어들에게 단순한 불편을 넘어 소외감과 무력감을 안겨주는 중요한 소재입니다.</p>
+                    <div class="chart-container">
+                        <canvas id="digitalDivideChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-xl font-bold text-center mb-4">건강 문제: 삶의 질과 직결</h3>
+                    <p class="text-center text-gray-600 mb-4">만성질환, 치매에 대한 불안감 등 건강 문제는 시니어의 가장 큰 고민입니다. 건강 정보를 제공하거나, 질병을 극복하는 과정은 유용한 정보와 감동을 동시에 줄 수 있습니다.</p>
+                    <div class="text-center mt-12">
+                        <div class="text-6xl font-extrabold text-[#DB1F48]">72.9%</div>
+                        <p class="text-lg font-bold text-gray-700 mt-2">65세 이상 시니어, 만성질환 보유율</p>
+                        <p class="text-sm text-gray-500 mt-1">(2023년 노인실태조사 기준)</p>
+                        <div class="text-6xl font-extrabold text-[#DB1F48] mt-8">10.4%</div>
+                        <p class="text-lg font-bold text-gray-700 mt-2">65세 이상 추정 치매 유병률</p>
+                         <p class="text-sm text-gray-500 mt-1">(중앙치매센터 자료)</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="story-creation-flow" class="mb-12 bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-3xl font-bold text-center mb-8 text-[#004369]">데이터를 드라마로 바꾸는 5단계 공식</h2>
+            <div class="flex flex-col md:flex-row justify-around items-center space-y-12 md:space-y-0 md:space-x-4">
+                <div class="text-center max-w-xs space-y-4">
+                    <div class="bg-[#E5DDC8] p-4 rounded-lg shadow">
+                        <div class="text-2xl font-bold text-[#004369]">1. 핵심 문제 선택</div>
+                        <p class="text-sm text-gray-700">앞서 본 데이터(경제, 고립, 디지털, 건강) 중 하나를 선택합니다.</p>
+                    </div>
+                     <div class="flowchart-arrow h-12 md:hidden"></div>
+                </div>
+                 <div class="hidden md:block text-4xl text-[#01949A] font-bold">→</div>
+                <div class="text-center max-w-xs space-y-4">
+                    <div class="bg-[#E5DDC8] p-4 rounded-lg shadow">
+                        <div class="text-2xl font-bold text-[#004369]">2. 캐릭터 창조</div>
+                        <p class="text-sm text-gray-700">문제에 직면한 구체적인 인물을 설정합니다. (예: 폐지 줍는 할머니, 독거노인)</p>
+                    </div>
+                    <div class="flowchart-arrow h-12 md:hidden"></div>
+                </div>
+                <div class="hidden md:block text-4xl text-[#01949A] font-bold">→</div>
+                <div class="text-center max-w-xs space-y-4">
+                    <div class="bg-[#E5DDC8] p-4 rounded-lg shadow">
+                        <div class="text-2xl font-bold text-[#004369]">3. 갈등 부여</div>
+                        <p class="text-sm text-gray-700">문제를 심화시키는 사건을 만듭니다. (예: 사기, 가족과의 다툼, 키오스크 주문 실패)</p>
+                    </div>
+                    <div class="flowchart-arrow h-12 md:hidden"></div>
+                </div>
+                <div class="hidden md:block text-4xl text-[#01949A] font-bold">→</div>
+                <div class="text-center max-w-xs space-y-4">
+                     <div class="bg-[#E5DDC8] p-4 rounded-lg shadow">
+                        <div class="text-2xl font-bold text-[#004369]">4. 여정 탐색</div>
+                        <p class="text-sm text-gray-700">주인공이 문제를 해결하거나 상황에 적응하는 과정을 보여줍니다.</p>
+                    </div>
+                    <div class="flowchart-arrow h-12 md:hidden"></div>
+                </div>
+                <div class="hidden md:block text-4xl text-[#01949A] font-bold">→</div>
+                <div class="text-center max-w-xs">
+                     <div class="bg-[#E5DDC8] p-4 rounded-lg shadow">
+                        <div class="text-2xl font-bold text-[#004369]">5. 결말 선택</div>
+                        <p class="text-sm text-gray-700">사이다(통쾌한 복수, 문제 해결) 또는 해피엔딩(화해, 새로운 시작)을 결정합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="content-ideas">
+            <h2 class="text-3xl font-bold text-center mb-8 text-[#004369]">실전! 유튜브 콘텐츠 소재 아이디어</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                
+                <div class="bg-white rounded-lg shadow-md p-6 transform hover:scale-105 transition-transform duration-300">
+                    <div class="text-3xl mb-3">💰</div>
+                    <h3 class="text-xl font-bold text-[#004369] mb-2">주제: 경제적 어려움</h3>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <li><span class="font-bold text-[#DB1F48]">[사이다]</span> 보이스피싱범에게 역으로 호통치는 할머니</li>
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 평생 모은 돈 기부한 폐지 줍는 할아버지, 되돌아온 온정</li>
+                        <li><span class="font-bold text-[#DB1F48]">[사이다]</span> "내 돈은 내 것!" 자식에게 당당히 재산 거부하는 아버지</li>
+                    </ul>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-6 transform hover:scale-105 transition-transform duration-300">
+                    <div class="text-3xl mb-3">❤️</div>
+                    <h3 class="text-xl font-bold text-[#004369] mb-2">주제: 사회적 고립</h3>
+                     <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 반려견과 함께 우울증 극복한 독거노인의 하루</li>
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 70대에 동네 친구들과 아이돌 댄스 배우는 할머니들</li>
+                        <li><span class="font-bold text-[#DB1F48]">[사이다]</span> 무심한 자식들 대신 이웃과 생일잔치 여는 할아버지</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6 transform hover:scale-105 transition-transform duration-300">
+                    <div class="text-3xl mb-3">📱</div>
+                    <h3 class="text-xl font-bold text-[#004369] mb-2">주제: 디지털 격차</h3>
+                     <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <li><span class="font-bold text-[#DB1F48]">[사이다]</span> 키오스크 앞에서 버벅인다고 무시한 젊은이에게 일침</li>
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 손주에게 스마트폰 배워 처음으로 영상통화하는 할머니의 눈물</li>
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 동네 노인정의 '스마트폰 마스터'가 된 할아버지</li>
+                    </ul>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6 transform hover:scale-105 transition-transform duration-300">
+                    <div class="text-3xl mb-3">💪</div>
+                    <h3 class="text-xl font-bold text-[#004369] mb-2">주제: 건강 & 새로운 도전</h3>
+                     <ul class="list-disc list-inside text-gray-700 space-y-1">
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 암 투병 후 80대에 마라톤 완주에 성공한 할아버지</li>
+                        <li><span class="font-bold text-[#DB1F48]">[사이다]</span> "늙으면 집에나 있어" 핀잔 주는 사람들에게 실력 보여주는 시니어 헬스왕</li>
+                        <li><span class="font-bold text-teal-600">[해피엔딩]</span> 치매 아내를 위해 평생 안하던 요리를 배우는 남편</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="text-center p-6 mt-8 bg-gray-800 text-white">
+        <p>이 자료는 공공 데이터를 기반으로 제작되었습니다.</p>
+        <p class="text-sm opacity-75">시니어의 모든 이야기가 존중받는 콘텐츠를 응원합니다.</p>
+        <!-- NEITHER Mermaid JS NOR SVG were used. -->
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const wrapLabel = (label, maxLength = 16) => {
+                if (typeof label !== 'string' || label.length <= maxLength) {
+                    return label;
+                }
+                const words = label.split(' ');
+                const lines = [];
+                let currentLine = '';
+                for (const word of words) {
+                    if ((currentLine + ' ' + word).trim().length > maxLength) {
+                        lines.push(currentLine.trim());
+                        currentLine = word;
+                    } else {
+                        currentLine = (currentLine + ' ' + word).trim();
+                    }
+                }
+                if (currentLine) {
+                    lines.push(currentLine.trim());
+                }
+                return lines;
+            };
+
+            const tooltipTitleCallback = (tooltipItems) => {
+                const item = tooltipItems[0];
+                let label = item.chart.data.labels[item.dataIndex];
+                if (Array.isArray(label)) {
+                    return label.join(' ');
+                } else {
+                    return label;
+                }
+            };
+            
+            const sharedChartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: tooltipTitleCallback
+                        }
+                    }
+                }
+            };
+
+            const povertyRateCtx = document.getElementById('povertyRateChart').getContext('2d');
+            new Chart(povertyRateCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['빈곤층 노인', '비빈곤층 노인'],
+                    datasets: [{
+                        label: '노인 빈곤율',
+                        data: [40.4, 59.6],
+                        backgroundColor: ['#DB1F48', '#01949A'],
+                        borderColor: '#F8F1F1',
+                        borderWidth: 4,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    ...sharedChartOptions,
+                    cutout: '60%',
+                }
+            });
+
+            const lonelinessSourceCtx = document.getElementById('lonelinessSourceChart').getContext('2d');
+            new Chart(lonelinessSourceCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['배우자 사별', '친구/이웃과 교류 단절', '자녀와 떨어져 삶', '건강 악화로 외출 어려움'],
+                    datasets: [{
+                        label: '외로움을 느끼는 주된 이유 (%)',
+                        data: [58.7, 25.1, 10.5, 5.7],
+                        backgroundColor: ['#004369', '#01949A', '#DB1F48', '#E5DDC8'],
+                        borderColor: '#F8F1F1',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    ...sharedChartOptions,
+                    indexAxis: 'y',
+                    scales: {
+                         x: { beginAtZero: true }
+                    }
+                }
+            });
+
+            const digitalDivideCtx = document.getElementById('digitalDivideChart').getContext('2d');
+            new Chart(digitalDivideCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['스마트폰', '키오스크', '온라인 뱅킹/쇼핑'],
+                    datasets: [
+                        {
+                            label: '사용 가능',
+                            data: [75, 42, 38],
+                            backgroundColor: '#01949A',
+                        },
+                        {
+                            label: '사용 어려움',
+                            data: [25, 58, 62],
+                            backgroundColor: '#DB1F48',
+                        }
+                    ]
+                },
+                options: {
+                    ...sharedChartOptions,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true, max: 100 }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: tooltipTitleCallback,
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
