@@ -60,7 +60,7 @@ function createChannelCard(ch, isRegistered = false) {
         <a href="https://www.youtube.com/channel/${h(ch.id)}" target="_blank" rel="noopener" class="card-title-link">
           <div class="card-title">${h(ch.title)}</div>
         </a>
-        <div class="card-stats" style="flex-wrap: wrap; justify-content: space-between;">
+        <div class="card-stats" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;">
           <div class="stat-item"><strong>${formatNum(ch.subscriberCount)}</strong><span>구독자</span></div>
           <div class="stat-item"><strong>${formatNum(ch.videoCount)}</strong><span>동영상</span></div>
           <div class="stat-item"><strong>${formatNum(ch.viewCount)}</strong><span>총 조회수</span></div>
@@ -183,11 +183,7 @@ function renderPagination(root, totalItems) {
   };
 
   const nav = el('<nav class="pagination"></nav>');
-
-  // 이전
   nav.appendChild(makeBtn('이전', Math.max(1, state.page - 1), state.page === 1));
-
-  // 가운데 숫자 5개 윈도우
   const windowSize = 5;
   let start = Math.max(1, state.page - Math.floor(windowSize / 2));
   let end = Math.min(totalPages, start + windowSize - 1);
@@ -196,10 +192,7 @@ function renderPagination(root, totalItems) {
   for (let i = start; i <= end; i++) {
     nav.appendChild(makeBtn(String(i), i, false, i === state.page));
   }
-
-  // 이후
   nav.appendChild(makeBtn('이후', Math.min(totalPages, state.page + 1), state.page === totalPages));
-
   root.appendChild(nav);
 }
 
@@ -218,24 +211,16 @@ async function renderRegistered(){
     return;
   }
 
-  // 돌연변이 지수 계산 (정렬에 필요)
   list.forEach(c => c._mutant = (Number(c.viewCount||0) && Number(c.subscriberCount||0)) ? Number(c.viewCount)/Number(c.subscriberCount) : 0);
   
-  // 상태에 따른 정렬
   list.sort((a, b) => {
     switch (state.sortBy) {
-        case 'subscribers':
-            return (Number(b.subscriberCount) || 0) - (Number(a.subscriberCount) || 0);
-        case 'views':
-            return (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0);
-        case 'videos':
-            return (Number(b.videoCount) || 0) - (Number(a.videoCount) || 0);
-        case 'mutant':
-        default:
-            return (b._mutant || 0) - (a._mutant || 0);
+        case 'subscribers': return (Number(b.subscriberCount) || 0) - (Number(a.subscriberCount) || 0);
+        case 'views': return (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0);
+        case 'videos': return (Number(b.videoCount) || 0) - (Number(a.videoCount) || 0);
+        case 'mutant': default: return (b._mutant || 0) - (a._mutant || 0);
     }
   });
-
 
   const start = (state.page - 1) * state.perPage;
   const end = start + state.perPage;
@@ -244,7 +229,6 @@ async function renderRegistered(){
   paginatedItems.forEach(c => {
     const card = createChannelCard(c, true);
 
-    // [분석] → 같은 탭 내 하단 섹션에 채널분석 렌더
     const analyzeBtn = card.querySelector('.btn-analyze');
     if (analyzeBtn) {
       analyzeBtn.onclick = async () => {
@@ -252,14 +236,10 @@ async function renderRegistered(){
           const mod = await import('./channelAnalysis.js');
           await mod.renderChannelAnalysis({ mount: '#channel-analysis-root', channel: c });
           document.querySelector('#channel-analysis-root')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (e) {
-          console.error(e);
-          window.toast?.('채널 분석을 시작할 수 없습니다.', 'error');
-        }
+        } catch (e) { console.error(e); window.toast?.('채널 분석을 시작할 수 없습니다.', 'error'); }
       };
     }
 
-    // 삭제
     card.querySelector('.btn-remove').onclick = async () => {
       if (confirm(`'${c.title}' 채널을 정말 삭제하시겠습니까?`)) {
         await channelsRemove(c.id);
@@ -274,13 +254,8 @@ async function renderRegistered(){
 
   renderPagination(sectionEl, list.length);
 
-  // 분석 섹션 앵커가 없다면 추가
   if (!document.querySelector('#channel-analysis-root')) {
-    const analysisSection = el(`
-      <div id="channel-analysis-root" class="section" style="margin-top: 20px;">
-        <div class="empty-state">채널 카드의 <strong>분석</strong> 버튼을 눌러 채널별 분석을 시작하세요.</div>
-      </div>
-    `);
+    const analysisSection = el(`<div id="channel-analysis-root" class="section" style="margin-top: 20px;"><div class="empty-state">채널 카드의 <strong>분석</strong> 버튼을 눌러 채널별 분석을 시작하세요.</div></div>`);
     sectionEl.parentElement.appendChild(analysisSection);
   }
 }
@@ -298,6 +273,7 @@ export async function initChannel({ mount }){
             <span class="chip" data-sort="videos">영상 수</span>
         </div>
         <div class="section-actions" style="margin-left: auto;">
+          <button id="btn-refresh-all" class="btn btn-outline btn-sm">전체 새로고침</button>
           <button id="btn-import" class="btn btn-outline btn-sm">가져오기</button>
           <button id="btn-export" class="btn btn-outline btn-sm">내보내기</button>
           <button id="btn-show-search-modal" class="btn btn-primary">채널 추가</button>
@@ -309,31 +285,44 @@ export async function initChannel({ mount }){
 
   sectionEl = root.querySelector('.section');
 
-  // 정렬 버튼 이벤트 리스너
   const sortControls = root.querySelector('#channel-sort-controls');
   sortControls.addEventListener('click', (e) => {
       if (e.target.matches('.chip[data-sort]')) {
           const sortBy = e.target.dataset.sort;
           if (state.sortBy === sortBy) return;
-
           state.sortBy = sortBy;
           state.page = 1;
-
-          sortControls.querySelectorAll('.chip').forEach(btn => {
-              btn.classList.toggle('active', btn.dataset.sort === sortBy);
-          });
-
+          sortControls.querySelectorAll('.chip').forEach(btn => btn.classList.toggle('active', btn.dataset.sort === sortBy));
           renderRegistered();
       }
   });
 
-
   document.getElementById('btn-show-search-modal').onclick = () => showSearchModal();
+  document.addEventListener('channelsUpdated', () => { state.page = 1; renderRegistered(); });
 
-  document.addEventListener('channelsUpdated', () => {
-    state.page = 1;
-    renderRegistered();
-  });
+  document.getElementById('btn-refresh-all').onclick = async () => {
+    if (!confirm('등록된 모든 채널 정보를 YouTube에서 새로 불러옵니다. API 할당량이 소모될 수 있습니다. 계속하시겠습니까?')) return;
+    
+    const channels = await channelsAll();
+    if (!channels.length) { window.toast?.('새로고침할 채널이 없습니다.', 'info'); return; }
+
+    const toastHandle = window.toast?.('채널 정보 새로고침 중...', 'info', 99999);
+    let successCount = 0, errorCount = 0;
+
+    const results = await Promise.allSettled(channels.map(async (ch) => {
+        const freshData = await fetchChannelExtra(ch.id);
+        await channelsPut(freshData);
+    }));
+
+    results.forEach(result => {
+        if (result.status === 'fulfilled') successCount++;
+        else { errorCount++; console.error('Channel refresh failed:', result.reason); }
+    });
+    
+    toastHandle?.close();
+    window.toast?.(`새로고침 완료: ${successCount}개 성공, ${errorCount}개 실패`, errorCount > 0 ? 'warning' : 'success');
+    await renderRegistered();
+  };
 
   document.getElementById('btn-export').onclick = async ()=>{
     const list = await channelsAll();
@@ -353,7 +342,6 @@ export async function initChannel({ mount }){
         const text = await f.text();
         const arr = JSON.parse(text);
         let ok = 0; const failed = [];
-
         await Promise.all(arr.map(async (c) => {
           if (!c?.id) return;
           try {
@@ -365,13 +353,9 @@ export async function initChannel({ mount }){
             console.error('Import failed:', c.id, e);
           }
         }));
-
-        window.toast?.(`완료: ${ok}개 성공${failed.length?`, ${failed.length}개 실패(콘솔 확인)`:''}`, failed.length? 'warning':'success');
+        window.toast?.(`완료: ${ok}개 성공, ${failed.length}개 실패`, failed.length ? 'warning' : 'success');
         renderRegistered();
-      } catch(e) {
-        console.error(e);
-        window.toast?.('JSON 파일을 처리하는 데 실패했습니다.', 'error');
-      }
+      } catch(e) { console.error(e); window.toast?.('JSON 파일을 처리하는 데 실패했습니다.', 'error'); }
     };
     inp.click();
   };
