@@ -46,7 +46,6 @@ function createChannelCard(ch, isRegistered = false) {
          <button class="btn btn-sm btn-primary btn-register">등록</button>
        </div>`;
 
-  // 개설일 표시를 위한 HTML 추가
   const publishedAtHtml = ch.publishedAt 
     ? `<div class="stat-item"><strong>${ch.publishedAt.slice(0, 10)}</strong><span>개설일</span></div>`
     : '';
@@ -60,7 +59,7 @@ function createChannelCard(ch, isRegistered = false) {
         <a href="https://www.youtube.com/channel/${h(ch.id)}" target="_blank" rel="noopener" class="card-title-link">
           <div class="card-title">${h(ch.title)}</div>
         </a>
-        <div class="card-stats" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;">
+        <div class="card-stats">
           <div class="stat-item"><strong>${formatNum(ch.subscriberCount)}</strong><span>구독자</span></div>
           <div class="stat-item"><strong>${formatNum(ch.videoCount)}</strong><span>동영상</span></div>
           <div class="stat-item"><strong>${formatNum(ch.viewCount)}</strong><span>총 조회수</span></div>
