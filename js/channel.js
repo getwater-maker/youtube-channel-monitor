@@ -5,6 +5,7 @@ import { ytApi } from './youtube.js';
 const state = {
   page: 1,
   perPage: 8,
+  sortBy: 'mutant', // 'mutant', 'subscribers', 'views', 'videos'
 };
 
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
@@ -196,7 +197,7 @@ function renderPagination(root, totalItems) {
 }
 
 
-/** 등록된 채널 렌더 + 정렬 기준: 돌연변이 지수(총조회수/구독자수) 내림차순 */
+/** 등록된 채널 렌더 + 정렬 기준 */
 let sectionEl;
 async function renderRegistered(){
   if (!sectionEl) return;
@@ -210,8 +211,24 @@ async function renderRegistered(){
     return;
   }
 
+  // 돌연변이 지수 계산 (정렬에 필요)
   list.forEach(c => c._mutant = (Number(c.viewCount||0) && Number(c.subscriberCount||0)) ? Number(c.viewCount)/Number(c.subscriberCount) : 0);
-  list.sort((a,b) => b._mutant - a._mutant);
+  
+  // 상태에 따른 정렬
+  list.sort((a, b) => {
+    switch (state.sortBy) {
+        case 'subscribers':
+            return (Number(b.subscriberCount) || 0) - (Number(a.subscriberCount) || 0);
+        case 'views':
+            return (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0);
+        case 'videos':
+            return (Number(b.videoCount) || 0) - (Number(a.videoCount) || 0);
+        case 'mutant':
+        default:
+            return (b._mutant || 0) - (a._mutant || 0);
+    }
+  });
+
 
   const start = (state.page - 1) * state.perPage;
   const end = start + state.perPage;
@@ -254,7 +271,7 @@ async function renderRegistered(){
   if (!document.querySelector('#channel-analysis-root')) {
     const analysisSection = el(`
       <div id="channel-analysis-root" class="section" style="margin-top: 20px;">
-        <div class="empty-state">왼쪽 채널 카드의 <strong>분석</strong> 버튼을 눌러 채널별 분석을 시작하세요.</div>
+        <div class="empty-state">채널 카드의 <strong>분석</strong> 버튼을 눌러 채널별 분석을 시작하세요.</div>
       </div>
     `);
     sectionEl.parentElement.appendChild(analysisSection);
@@ -267,7 +284,13 @@ export async function initChannel({ mount }){
     <div class="section">
       <div class="section-header">
         <div class="section-title">등록된 채널</div>
-        <div class="section-actions">
+        <div id="channel-sort-controls" class="section-actions" style="margin-left: 16px;">
+            <span class="chip active" data-sort="mutant">돌연변이 지수</span>
+            <span class="chip" data-sort="subscribers">구독자</span>
+            <span class="chip" data-sort="views">총 조회수</span>
+            <span class="chip" data-sort="videos">영상 수</span>
+        </div>
+        <div class="section-actions" style="margin-left: auto;">
           <button id="btn-import" class="btn btn-outline btn-sm">가져오기</button>
           <button id="btn-export" class="btn btn-outline btn-sm">내보내기</button>
           <button id="btn-show-search-modal" class="btn btn-primary">채널 추가</button>
@@ -278,6 +301,25 @@ export async function initChannel({ mount }){
   `;
 
   sectionEl = root.querySelector('.section');
+
+  // 정렬 버튼 이벤트 리스너
+  const sortControls = root.querySelector('#channel-sort-controls');
+  sortControls.addEventListener('click', (e) => {
+      if (e.target.matches('.chip[data-sort]')) {
+          const sortBy = e.target.dataset.sort;
+          if (state.sortBy === sortBy) return;
+
+          state.sortBy = sortBy;
+          state.page = 1;
+
+          sortControls.querySelectorAll('.chip').forEach(btn => {
+              btn.classList.toggle('active', btn.dataset.sort === sortBy);
+          });
+
+          renderRegistered();
+      }
+  });
+
 
   document.getElementById('btn-show-search-modal').onclick = () => showSearchModal();
 
