@@ -25,6 +25,7 @@ async function fetchChannelExtra(id){
     id,
     title: c.snippet?.title || '',
     description: c.snippet?.description || '',
+    publishedAt: c.snippet?.publishedAt || null, // 채널 개설일 추가
     thumbnail: c.snippet?.thumbnails?.medium?.url || c.snippet?.thumbnails?.default?.url || '',
     uploadsPlaylistId: c.contentDetails?.relatedPlaylists?.uploads || null,
     subscriberCount: Number(c.statistics?.subscriberCount||0),
@@ -45,6 +46,11 @@ function createChannelCard(ch, isRegistered = false) {
          <button class="btn btn-sm btn-primary btn-register">등록</button>
        </div>`;
 
+  // 개설일 표시를 위한 HTML 추가
+  const publishedAtHtml = ch.publishedAt 
+    ? `<div class="stat-item"><strong>${ch.publishedAt.slice(0, 10)}</strong><span>개설일</span></div>`
+    : '';
+
   return el(`
     <div class="channel-card" data-id="${h(ch.id)}">
       <div class="card-banner" style="${ch.bannerUrl ? `background-image:url(${ch.bannerUrl})` : ''}">
@@ -54,10 +60,11 @@ function createChannelCard(ch, isRegistered = false) {
         <a href="https://www.youtube.com/channel/${h(ch.id)}" target="_blank" rel="noopener" class="card-title-link">
           <div class="card-title">${h(ch.title)}</div>
         </a>
-        <div class="card-stats">
+        <div class="card-stats" style="flex-wrap: wrap; justify-content: space-between;">
           <div class="stat-item"><strong>${formatNum(ch.subscriberCount)}</strong><span>구독자</span></div>
           <div class="stat-item"><strong>${formatNum(ch.videoCount)}</strong><span>동영상</span></div>
           <div class="stat-item"><strong>${formatNum(ch.viewCount)}</strong><span>총 조회수</span></div>
+          ${publishedAtHtml}
         </div>
         <p class="card-description">${h(ch.description)}</p>
         ${actionsHtml}
