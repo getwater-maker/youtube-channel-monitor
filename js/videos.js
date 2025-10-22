@@ -381,7 +381,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
             <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
         </div>
       </div>
-      <div class="toolbar">
+      <div class="toolbar" style="justify-content: space-between;">
         <div class="group">
             <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">구독자:</strong>
             <input id="sub-filter-min" type="number" min="0" placeholder="최소" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
@@ -389,18 +389,18 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
             <input id="sub-filter-max" type="number" min="0" placeholder="최대" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
             <button id="btn-subs-under-10k" class="btn btn-outline btn-sm" style="height: 34px;">1만이하</button>
         </div>
-        <div class="group" style="margin-left: 16px;">
+        <div class="group">
+            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">정렬기준:</strong>
             <select id="video-sort-select" class="btn-outline" style="height: 34px;">
-              <option value="" disabled selected>정렬기준</option>
               <option value="views_desc">조회수</option>
               <option value="mutant_desc">돌연변이</option>
               <option value="publishedAt_desc">최신</option>
               <option value="subs_desc">구독자</option>
             </select>
         </div>
-        <div class="group" style="margin-left: auto;">
+        <div class="group">
              <span id="sync-badge" class="chip">업데이트 중…</span>
-             <button id="btn-download-titles" class="btn btn-outline btn-sm">제목</button>
+             <button id="btn-download-titles" class="btn btn-outline btn-sm">제목추출</button>
              <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
              <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
         </div>
@@ -444,10 +444,8 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
   };
 
   sortSelect.onchange = () => {
-    if (sortSelect.value) {
-      state.sortBy = sortSelect.value;
-      applyFiltersAndRender(contentContainer);
-    }
+    state.sortBy = sortSelect.value;
+    applyFiltersAndRender(contentContainer);
   };
   sortSelect.value = state.sortBy;
 
@@ -465,7 +463,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
         `${v.title.replace(/\|/g,'ㅣ')} | ${num(v.views).toLocaleString()} | ${num(v.channel.subs).toLocaleString()} | ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}`
     ).join('\n');
     downloadFile(filename, content);
-    window.toast('제목 다운로드 완료!', 'success');
+    window.toast('제목추출 완료!', 'success');
   };
 }
 
