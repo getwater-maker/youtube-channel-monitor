@@ -184,7 +184,7 @@ function filterRankFromRaw(videos){
     if (!a.isDone && b.isDone) return -1;
     switch (state.sortBy) {
       case 'mutant_desc': return b.mutant - a.mutant;
-      case 'publishedAt_desc': return new Date(b.publishedAt) - new Date(b.publishedAt);
+      case 'publishedAt_desc': return new Date(b.publishedAt) - new Date(a.publishedAt);
       case 'subs_desc': return b.channel.subs - a.channel.subs;
       default: return b.views - a.views;
     }
@@ -271,7 +271,6 @@ async function generateVideoAnalysisPDF() {
   window.toast('PDF 생성을 시작합니다... 데이터 양에 따라 시간이 걸릴 수 있습니다.', 'info');
 
   const contentElement = document.createElement('div');
-  // PDF 렌더링을 위한 스타일 (JS에 유지)
   contentElement.style.position = 'absolute';
   contentElement.style.left = '-9999px';
   contentElement.style.top = '0';
@@ -361,40 +360,50 @@ async function generateVideoAnalysisPDF() {
 function renderAndBindToolbar(toolbarContainer, contentContainer) {
   toolbarContainer.innerHTML = '';
   const tb = el(`
-    <div class="toolbar">
-      <div class="group">
-        <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
-        <span class="chip ${state.mode==='mutant'?'active':''}" data-mode="mutant">돌연변이</span>
+    <div id="videos-toolbar-container" style="width: 100%;">
+      <div class="toolbar" style="border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px;">
+        <div class="group">
+            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">모드:</strong>
+            <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
+            <span class="chip ${state.mode==='mutant'?'active':''}" data-mode="mutant">돌연변이</span>
+        </div>
+        <div class="group">
+            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">조회수:</strong>
+            <span class="chip ${CONFIG.minViews===10000?'active':''}" data-views="10000">1만</span>
+            <span class="chip ${CONFIG.minViews===30000?'active':''}" data-views="30000">3만</span>
+            <span class="chip ${CONFIG.minViews===50000?'active':''}" data-views="50000">5만</span>
+        </div>
+        <div class="group">
+            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">기간:</strong>
+            <span class="chip ${CONFIG.period==='1w'?'active':''}" data-period="1w">1주</span>
+            <span class="chip ${CONFIG.period==='2w'?'active':''}" data-period="2w">2주</span>
+            <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
+            <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
+        </div>
       </div>
-      <div class="group">
-        <span class="chip ${CONFIG.minViews===10000?'active':''}" data-views="10000">1만</span>
-        <span class="chip ${CONFIG.minViews===30000?'active':''}" data-views="30000">3만</span>
-        <span class="chip ${CONFIG.minViews===50000?'active':''}" data-views="50000">5만</span>
-      </div>
-      <div class="group">
-        <span class="chip ${CONFIG.period==='1w'?'active':''}" data-period="1w">1주</span>
-        <span class="chip ${CONFIG.period==='2w'?'active':''}" data-period="2w">2주</span>
-        <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
-        <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
-      </div>
-       <div class="group">
-        <input id="sub-filter-min" type="number" min="0" placeholder="최소 구독자" style="width: 120px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
-        <span style="color: var(--muted);">-</span>
-        <input id="sub-filter-max" type="number" min="0" placeholder="최대 구독자" style="width: 120px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
-      </div>
-      <div class="group">
-        <select id="video-sort-select" class="btn-outline">
-          <option value="views_desc" ${state.sortBy === 'views_desc' ? 'selected' : ''}>조회수</option>
-          <option value="mutant_desc" ${state.sortBy === 'mutant_desc' ? 'selected' : ''}>돌연변이</option>
-          <option value="publishedAt_desc" ${state.sortBy === 'publishedAt_desc' ? 'selected' : ''}>최신</option>
-          <option value="subs_desc" ${state.sortBy === 'subs_desc' ? 'selected' : ''}>구독자</option>
-        </select>
-      </div>
-      <div class="group">
-        <span id="sync-badge" class="chip">업데이트 중…</span>
-        <button id="btn-download-titles" class="btn btn-outline btn-sm">제목</button>
-        <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
-        <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
+      <div class="toolbar">
+        <div class="group">
+            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">구독자:</strong>
+            <input id="sub-filter-min" type="number" min="0" placeholder="최소" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+            <span style="color: var(--muted);">-</span>
+            <input id="sub-filter-max" type="number" min="0" placeholder="최대" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+            <button id="btn-subs-under-10k" class="btn btn-outline btn-sm" style="height: 34px;">1만이하</button>
+        </div>
+        <div class="group" style="margin-left: 16px;">
+            <select id="video-sort-select" class="btn-outline" style="height: 34px;">
+              <option value="" disabled selected>정렬기준</option>
+              <option value="views_desc">조회수</option>
+              <option value="mutant_desc">돌연변이</option>
+              <option value="publishedAt_desc">최신</option>
+              <option value="subs_desc">구독자</option>
+            </select>
+        </div>
+        <div class="group" style="margin-left: auto;">
+             <span id="sync-badge" class="chip">업데이트 중…</span>
+             <button id="btn-download-titles" class="btn btn-outline btn-sm">제목</button>
+             <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
+             <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
+        </div>
       </div>
     </div>
   `);
@@ -418,21 +427,31 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
   const handleSubFilterChange = () => {
     const minVal = parseInt(minSubsInput.value, 10);
     const maxVal = parseInt(maxSubsInput.value, 10);
-    CONFIG.minSubs = isNaN(minVal) || minVal <= 0 ? 0 : minVal;
-    CONFIG.maxSubs = isNaN(maxVal) || maxVal <= 0 ? 0 : maxVal;
+    CONFIG.minSubs = isNaN(minVal) || minVal < 0 ? 0 : minVal;
+    CONFIG.maxSubs = isNaN(maxVal) || maxVal < 0 ? 0 : maxVal;
     applyFiltersAndRender(contentContainer);
   };
-
+  
   minSubsInput.addEventListener('input', debounce(handleSubFilterChange, 500));
   maxSubsInput.addEventListener('input', debounce(handleSubFilterChange, 500));
-
-  sortSelect.onchange = () => {
-    state.sortBy = sortSelect.value;
-    applyFiltersAndRender(contentContainer);
+  
+  tb.querySelector('#btn-subs-under-10k').onclick = () => {
+    minSubsInput.value = '';
+    maxSubsInput.value = '10000';
+    CONFIG.minSubs = 0;
+    CONFIG.maxSubs = 10000;
+    reload(contentContainer, { force: true });
   };
 
+  sortSelect.onchange = () => {
+    if (sortSelect.value) {
+      state.sortBy = sortSelect.value;
+      applyFiltersAndRender(contentContainer);
+    }
+  };
+  sortSelect.value = state.sortBy;
+
   tb.querySelector('#btn-reload').onclick = () => reload(contentContainer, { force:true });
-  
   tb.querySelector('#btn-generate-pdf').onclick = () => generateVideoAnalysisPDF();
 
   tb.querySelector('#btn-download-titles').onclick = () => {
@@ -641,7 +660,6 @@ export async function initVideos({ mount }){
   root.innerHTML = `
     <div class="section">
       <div class="section-header">
-        <div class="section-title">영상분석</div>
         <div class="section-actions" id="videos-toolbar"></div>
       </div>
       <div id="keywords-analysis-container" class="section"></div>
