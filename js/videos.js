@@ -378,9 +378,9 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
         <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
       </div>
        <div class="group">
-        <input id="sub-filter-min" type="number" min="0" placeholder="구독자(만)" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+        <input id="sub-filter-min" type="number" min="0" placeholder="최소 구독자" style="width: 120px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
         <span style="color: var(--muted);">-</span>
-        <input id="sub-filter-max" type="number" min="0" placeholder="구독자(만)" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+        <input id="sub-filter-max" type="number" min="0" placeholder="최대 구독자" style="width: 120px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
       </div>
       <div class="group">
         <select id="video-sort-select" class="btn-outline">
@@ -393,7 +393,6 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
       <div class="group">
         <span id="sync-badge" class="chip">업데이트 중…</span>
         <button id="btn-download-titles" class="btn btn-outline btn-sm">제목</button>
-        <button id="btn-download-thumbnails" class="btn btn-outline btn-sm">썸네일</button>
         <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
         <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
       </div>
@@ -419,8 +418,8 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
   const handleSubFilterChange = () => {
     const minVal = parseInt(minSubsInput.value, 10);
     const maxVal = parseInt(maxSubsInput.value, 10);
-    CONFIG.minSubs = isNaN(minVal) || minVal <= 0 ? 0 : minVal * 10000;
-    CONFIG.maxSubs = isNaN(maxVal) || maxVal <= 0 ? 0 : maxVal * 10000;
+    CONFIG.minSubs = isNaN(minVal) || minVal <= 0 ? 0 : minVal;
+    CONFIG.maxSubs = isNaN(maxVal) || maxVal <= 0 ? 0 : maxVal;
     applyFiltersAndRender(contentContainer);
   };
 
@@ -448,49 +447,6 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
     ).join('\n');
     downloadFile(filename, content);
     window.toast('제목 다운로드 완료!', 'success');
-  };
-
-  tb.querySelector('#btn-download-thumbnails').onclick = async () => {
-    if (typeof JSZip === 'undefined') {
-      window.toast('썸네일 다운로드 라이브러리를 찾을 수 없습니다.', 'error');
-      return;
-    }
-    if (!state.filtered || state.filtered.length === 0) {
-      window.toast('다운로드할 영상 데이터가 없습니다.', 'warning');
-      return;
-    }
-
-    window.toast('썸네일 다운로드를 시작합니다...', 'info');
-    const zip = new JSZip();
-    const sorted = [...state.filtered].sort((a, b) => b.views - a.views);
-
-    const imagePromises = sorted.map(async (v, index) => {
-      try {
-        const response = await fetch(`https://i.ytimg.com/vi/${v.id}/maxresdefault.jpg`);
-        if (!response.ok) throw new Error('Network response was not ok');
-        const blob = await response.blob();
-        const safeTitle = (v.title || 'untitled').replace(/[\/\\?%*:|"<>]/g, '-');
-        const filename = `${(index + 1).toString().padStart(3, '0')}_${safeTitle}.jpg`;
-        zip.file(filename, blob);
-      } catch (e) {
-        console.error(`썸네일 다운로드 실패 (ID: ${v.id}):`, e);
-      }
-    });
-
-    await Promise.all(imagePromises);
-
-    zip.generateAsync({ type: 'blob' }).then(blob => {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = (d.getMonth() + 1 + '').padStart(2, '0');
-      const dd = (d.getDate() + '').padStart(2, '0');
-      const filename = `${yyyy}${mm}${dd}_썸네일다운.zip`;
-      downloadFile(filename, blob, 'application/zip');
-      window.toast('썸네일 zip 파일 생성 완료!', 'success');
-    }).catch(e => {
-      console.error('zip 파일 생성 오류:', e);
-      window.toast('zip 파일 생성에 실패했습니다.', 'error');
-    });
   };
 }
 
