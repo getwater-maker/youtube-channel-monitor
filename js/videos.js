@@ -454,7 +454,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
 
   tb.querySelector('#btn-download-titles').onclick = () => {
     if (!state.filtered || state.filtered.length === 0) {
-        window.toast('다운로드할 영상 데이터가 없습니다.', 'warning'); return;
+        window.toast('추출할 영상 데이터가 없습니다.', 'warning'); return;
     }
     const d=new Date(), mm=(d.getMonth()+1+'').padStart(2,'0'), dd=(d.getDate()+'').padStart(2,'0');
     const filename = `${mm}${dd}_${state.mode==='latest'?'최신영상':'돌연변이'}_제목모음.txt`;
