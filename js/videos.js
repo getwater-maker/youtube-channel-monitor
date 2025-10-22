@@ -1,11 +1,10 @@
 // js/videos.js
 // 영상분석 탭
 // - 채널 캐시를 기반으로 최신/돌연변이 모드 분석
-// - 필터(조회수/기간/정렬), 페이지네이션, 키워드 분석
-// - 제목 다운로드, 썸네일 복사, 정보 복사, 작업완료 토글
+// - 필터(조회수/기간/정렬/구독자수), 페이지네이션, 키워드 분석
+// - 제목 다운로드, 썸네일 복사/다운로드, 정보 복사, 작업완료 토글
 // - 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
 // - 정보 복사 항목에 설명글, 해시태그 포함
-// - 썸네일 다운로드 기능 추가
 // - PDF 분석 리포트 기능 추가 (A4, 3열, 자동 페이지 분할, 텍스트 잘림 최종 해결)
 
 import { kvGet, kvSet, channelsAll, channelsRemove } from './indexedStore.js';
@@ -16,6 +15,8 @@ const CONFIG = {
   minViews: 10000,
   period: '1m', // '1w'|'2w'|'1m'|'all'
   longformSec: 181,
+  minSubs: 0, // 구독자 최소값 필터 (0 = 비활성)
+  maxSubs: 0, // 구독자 최대값 필터 (0 = 비활성)
 };
 
 const state = {
@@ -32,6 +33,13 @@ const state = {
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
 const h = (s)=> (s??'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
 const num = (n)=> Number(n||0);
+const debounce = (fn, ms) => {
+  let timeoutId;
+  return function(...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), ms);
+  };
+};
 
 function downloadFile(filename, data, mime = 'text/plain;charset=utf-8') {
   const blob = new Blob([data], { type: mime });
@@ -42,6 +50,28 @@ function downloadFile(filename, data, mime = 'text/plain;charset=utf-8') {
   a.click();
   a.remove();
   URL.revokeObjectURL(a.href);
+}
+
+async function downloadThumbnail(videoId, videoTitle) {
+  try {
+    const response = await fetch(`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`);
+    if (!response.ok) throw new Error('썸네일을 찾을 수 없습니다.');
+    const blob = await response.blob();
+    const safeTitle = (videoTitle || 'thumbnail').replace(/[\/\\?%*:|"<>]/g, '-').substring(0, 100);
+    const filename = `${safeTitle}_thumbnail.jpg`;
+    
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    window.toast?.('썸네일 다운로드 완료!', 'success');
+  } catch (e) {
+    console.error('썸네일 다운로드 실패:', e);
+    window.toast?.('썸네일 다운로드에 실패했습니다.', 'error');
+  }
 }
 
 function getQuotaResetTimeKST() {
@@ -143,6 +173,8 @@ function filterRankFromRaw(videos){
     if (v.secs < CONFIG.longformSec) return false;
     if (v.views < CONFIG.minViews) return false;
     if (!withinPeriod(v.publishedAt)) return false;
+    if (CONFIG.minSubs > 0 && v.channel.subs < CONFIG.minSubs) return false;
+    if (CONFIG.maxSubs > 0 && v.channel.subs > CONFIG.maxSubs) return false;
     if (state.mode==='mutant' && v.mutant < 2.0) return false;
     return true;
   });
@@ -345,6 +377,11 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
         <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
         <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
       </div>
+       <div class="group">
+        <input id="sub-filter-min" type="number" min="0" placeholder="구독자(만)" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+        <span style="color: var(--muted);">-</span>
+        <input id="sub-filter-max" type="number" min="0" placeholder="구독자(만)" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+      </div>
       <div class="group">
         <select id="video-sort-select" class="btn-outline">
           <option value="views_desc" ${state.sortBy === 'views_desc' ? 'selected' : ''}>조회수</option>
@@ -365,6 +402,8 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
   toolbarContainer.appendChild(tb);
 
   const sortSelect = tb.querySelector('#video-sort-select');
+  const minSubsInput = tb.querySelector('#sub-filter-min');
+  const maxSubsInput = tb.querySelector('#sub-filter-max');
 
   tb.querySelectorAll('[data-mode]').forEach(x=> x.onclick = ()=>{
     state.mode=x.dataset.mode;
@@ -376,6 +415,17 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
 
   tb.querySelectorAll('[data-views]').forEach(x=> x.onclick = ()=>{ CONFIG.minViews=Number(x.dataset.views); tb.querySelectorAll('[data-views]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
   tb.querySelectorAll('[data-period]').forEach(x=> x.onclick = ()=>{ CONFIG.period=x.dataset.period; tb.querySelectorAll('[data-period]').forEach(n=>n.classList.toggle('active',n===x)); applyFiltersAndRender(contentContainer); });
+
+  const handleSubFilterChange = () => {
+    const minVal = parseInt(minSubsInput.value, 10);
+    const maxVal = parseInt(maxSubsInput.value, 10);
+    CONFIG.minSubs = isNaN(minVal) || minVal <= 0 ? 0 : minVal * 10000;
+    CONFIG.maxSubs = isNaN(maxVal) || maxVal <= 0 ? 0 : maxVal * 10000;
+    applyFiltersAndRender(contentContainer);
+  };
+
+  minSubsInput.addEventListener('input', debounce(handleSubFilterChange, 500));
+  maxSubsInput.addEventListener('input', debounce(handleSubFilterChange, 500));
 
   sortSelect.onchange = () => {
     state.sortBy = sortSelect.value;
@@ -552,8 +602,9 @@ function renderList(root){
             </div>
           </div>
         </div>
-        <div class="video-actions">
-          <button class="btn btn-sm btn-outline btn-copy-thumb">썸네일</button>
+        <div class="video-actions" style="flex-wrap: wrap; justify-content: flex-start; gap: 6px;">
+          <button class="btn btn-sm btn-outline btn-copy-thumb">썸네일복사</button>
+          <button class="btn btn-sm btn-outline btn-download-thumb">썸네일다운</button>
           <button class="btn btn-sm btn-outline btn-copy-info">정보</button>
           <button class="btn btn-sm ${doneButtonClass} btn-toggle-done">${doneButtonText}</button>
         </div>
@@ -561,6 +612,7 @@ function renderList(root){
     `);
 
     card.querySelector('.btn-copy-thumb').onclick = ()=> copyThumbnailImage(v.id);
+    card.querySelector('.btn-download-thumb').onclick = () => downloadThumbnail(v.id, v.title);
     card.querySelector('.btn-copy-info').onclick = ()=>{
       const tagsStr = (v.tags && v.tags.length > 0) ? v.tags.map(t=>`#${t}`).join(' ') : '없음';
       const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}\n설명글 : ${v.description || '없음'}\n해시태그 : ${tagsStr}`;
