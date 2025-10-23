@@ -360,8 +360,8 @@ async function generateVideoAnalysisPDF() {
 function renderAndBindToolbar(toolbarContainer, contentContainer) {
   toolbarContainer.innerHTML = '';
   const tb = el(`
-    <div id="videos-toolbar-container" style="width: 100%;">
-      <div class="toolbar" style="border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px;">
+    <div id="videos-toolbar-container" style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
+      <div class="toolbar" style="justify-content: flex-start; gap: 24px;">
         <div class="group">
             <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">모드:</strong>
             <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
@@ -381,6 +381,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
             <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
         </div>
       </div>
+      <div style="height: 1px; background: var(--border); width: 100%;"></div>
       <div class="toolbar" style="justify-content: space-between;">
         <div class="group">
             <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">구독자:</strong>
@@ -391,7 +392,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
         </div>
         <div class="group">
             <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">정렬기준:</strong>
-            <select id="video-sort-select" class="btn-outline" style="height: 34px;">
+            <select id="video-sort-select" class="btn-outline" style="height: 34px; min-width: 120px;">
               <option value="views_desc">조회수</option>
               <option value="mutant_desc">돌연변이</option>
               <option value="publishedAt_desc">최신</option>
@@ -537,6 +538,8 @@ function renderList(root){
   if (state.filtered.length === 0) {
     if (state.cached.length > 0) {
       listWrap.innerHTML = `<div class="empty-state">조건에 맞는 영상이 없습니다. 필터 설정을 변경해보세요.</div>`;
+    } else {
+       listWrap.innerHTML = `<div class="empty-state">분석할 채널이 없습니다.<br>먼저 '채널관리' 탭으로 이동하여 분석하고 싶은 채널을 등록해주세요.</div>`;
     }
     return;
   }
@@ -657,8 +660,8 @@ export async function initVideos({ mount }){
   if (!root) throw new Error('videos mount element not found');
   root.innerHTML = `
     <div class="section">
-      <div class="section-header">
-        <div class="section-actions" id="videos-toolbar"></div>
+      <div class="section-header" style="display: block;">
+        <div id="videos-toolbar"></div>
       </div>
       <div id="keywords-analysis-container" class="section"></div>
       <div id="videos-list" class="section"></div>
