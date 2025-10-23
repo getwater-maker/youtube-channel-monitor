@@ -360,51 +360,48 @@ async function generateVideoAnalysisPDF() {
 function renderAndBindToolbar(toolbarContainer, contentContainer) {
   toolbarContainer.innerHTML = '';
   const tb = el(`
-    <div id="videos-toolbar-container" style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
-      <div class="toolbar" style="justify-content: flex-start; gap: 24px;">
-        <div class="group">
-            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">모드:</strong>
-            <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
-            <span class="chip ${state.mode==='mutant'?'active':''}" data-mode="mutant">돌연변이</span>
-        </div>
-        <div class="group">
-            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">조회수:</strong>
-            <span class="chip ${CONFIG.minViews===10000?'active':''}" data-views="10000">1만</span>
-            <span class="chip ${CONFIG.minViews===30000?'active':''}" data-views="30000">3만</span>
-            <span class="chip ${CONFIG.minViews===50000?'active':''}" data-views="50000">5만</span>
-        </div>
-        <div class="group">
-            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">기간:</strong>
-            <span class="chip ${CONFIG.period==='1w'?'active':''}" data-period="1w">1주</span>
-            <span class="chip ${CONFIG.period==='2w'?'active':''}" data-period="2w">2주</span>
-            <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
-            <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
-        </div>
+    <div id="videos-toolbar-container">
+      <!-- Row 1 -->
+      <div class="group">
+          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">모드:</strong>
+          <span class="chip ${state.mode==='latest'?'active':''}" data-mode="latest">최신영상</span>
+          <span class="chip ${state.mode==='mutant'?'active':''}" data-mode="mutant">돌연변이</span>
       </div>
-      <div style="height: 1px; background: var(--border); width: 100%;"></div>
-      <div class="toolbar" style="justify-content: space-between;">
-        <div class="group">
-            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">구독자:</strong>
-            <input id="sub-filter-min" type="number" min="0" placeholder="최소" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
-            <span style="color: var(--muted);">-</span>
-            <input id="sub-filter-max" type="number" min="0" placeholder="최대" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
-            <button id="btn-subs-under-10k" class="btn btn-outline btn-sm" style="height: 34px;">1만이하</button>
-        </div>
-        <div class="group">
-            <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">정렬기준:</strong>
-            <select id="video-sort-select" class="btn-outline" style="height: 34px; min-width: 120px;">
-              <option value="views_desc">조회수</option>
-              <option value="mutant_desc">돌연변이</option>
-              <option value="publishedAt_desc">최신</option>
-              <option value="subs_desc">구독자</option>
-            </select>
-        </div>
-        <div class="group">
-             <span id="sync-badge" class="chip">업데이트 중…</span>
-             <button id="btn-download-titles" class="btn btn-outline btn-sm">제목추출</button>
-             <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
-             <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
-        </div>
+      <div class="group">
+          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">조회수:</strong>
+          <span class="chip ${CONFIG.minViews===10000?'active':''}" data-views="10000">1만</span>
+          <span class="chip ${CONFIG.minViews===30000?'active':''}" data-views="30000">3만</span>
+          <span class="chip ${CONFIG.minViews===50000?'active':''}" data-views="50000">5만</span>
+      </div>
+      <div class="group">
+          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">기간:</strong>
+          <span class="chip ${CONFIG.period==='1w'?'active':''}" data-period="1w">1주</span>
+          <span class="chip ${CONFIG.period==='2w'?'active':''}" data-period="2w">2주</span>
+          <span class="chip ${CONFIG.period==='1m'?'active':''}" data-period="1m">한달</span>
+          <span class="chip ${CONFIG.period==='all'?'active':''}" data-period="all">전체</span>
+      </div>
+      <!-- Row 2 -->
+      <div class="group">
+          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">구독자:</strong>
+          <input id="sub-filter-min" type="number" min="0" placeholder="최소" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+          <span style="color: var(--muted);">-</span>
+          <input id="sub-filter-max" type="number" min="0" placeholder="최대" style="width: 100px; height: 34px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; text-align: right;">
+          <button id="btn-subs-under-10k" class="btn btn-outline btn-sm" style="height: 34px;">1만이하</button>
+      </div>
+      <div class="group">
+          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">정렬기준:</strong>
+          <select id="video-sort-select" class="btn-outline" style="height: 34px; min-width: 120px;">
+            <option value="views_desc">조회수</option>
+            <option value="mutant_desc">돌연변이</option>
+            <option value="publishedAt_desc">최신</option>
+            <option value="subs_desc">구독자</option>
+          </select>
+      </div>
+      <div class="group">
+           <span id="sync-badge" class="chip">업데이트 중…</span>
+           <button id="btn-download-titles" class="btn btn-outline btn-sm">제목추출</button>
+           <button id="btn-generate-pdf" class="btn btn-outline btn-sm">PDF 생성</button>
+           <button id="btn-reload" class="btn btn-primary btn-sm">다시불러오기</button>
       </div>
     </div>
   `);
@@ -659,8 +656,28 @@ export async function initVideos({ mount }){
   const root = document.querySelector(mount);
   if (!root) throw new Error('videos mount element not found');
   root.innerHTML = `
+    <style>
+      #videos-toolbar-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px 24px;
+        align-items: center;
+        width: 100%;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+        margin-bottom: 12px;
+      }
+      #videos-toolbar-container > .group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      #videos-toolbar-container > .group:nth-child(3n-1) { justify-self: center; }
+      #videos-toolbar-container > .group:nth-child(3n) { justify-self: end; }
+    </style>
     <div class="section">
-      <div class="section-header" style="display: block;">
+      <div class="section-header" style="display: block; padding-bottom: 0;">
         <div id="videos-toolbar"></div>
       </div>
       <div id="keywords-analysis-container" class="section"></div>
