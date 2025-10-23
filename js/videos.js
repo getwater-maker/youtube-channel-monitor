@@ -389,8 +389,7 @@ function renderAndBindToolbar(toolbarContainer, contentContainer) {
           <button id="btn-subs-under-10k" class="btn btn-outline btn-sm" style="height: 34px;">1만이하</button>
       </div>
       <div class="group">
-          <strong style="font-size: 14px; color: var(--muted); white-space: nowrap;">정렬기준:</strong>
-          <select id="video-sort-select" class="btn-outline" style="height: 34px; min-width: 120px;">
+            <select id="video-sort-select" class="btn-outline" style="height: 34px; min-width: 120px;">
             <option value="views_desc">조회수</option>
             <option value="mutant_desc">돌연변이</option>
             <option value="publishedAt_desc">최신</option>
