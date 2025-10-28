@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown 합치기 및 DOCX 변환기 (완전 페이지 구분)</title>
+  <title>Markdown 합치기 및 DOCX 변환기 (페이지 구분 추가)</title>
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.min.js"></script>
   <style>
@@ -57,14 +57,14 @@
 <body>
   <div id="container">
     <h1>📄 Markdown 합치기 & DOCX 변환기</h1>
-    <p>각 Markdown 파일이 Word 문서에서 **새 페이지**에서 시작되도록 변환합니다.</p>
+    <p>여러 개의 .md 파일을 업로드하면 파일마다 새로운 페이지에서 DOCX로 변환됩니다.</p>
     <input type="file" id="mdFiles" accept=".md" multiple>
     <button id="convertBtn">변환 시작</button>
     <div id="status"></div>
   </div>
 
   <footer>
-    <p>© 2025 Markdown to DOCX Web Converter (완전 페이지 구분 버전)</p>
+    <p>© 2025 Markdown to DOCX Web Converter (페이지 구분 버전)</p>
   </footer>
 
   <script>
@@ -78,7 +78,7 @@
 
       status.innerText = '📂 파일을 읽는 중...';
 
-      // 파일 이름 기준으로 정렬 (1강, 2강 순)
+      // 파일 이름 순서대로 정렬 (예: 1강, 2강, 3강 순)
       const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
 
       let combinedHTML = '';
@@ -88,14 +88,12 @@
         const text = await sortedFiles[i].text();
         const html = converter.makeHtml(text);
         const title = sortedFiles[i].name.replace('.md', '');
-
-        // ✅ 파일마다 반드시 새로운 페이지에서 시작하도록 처리
-        combinedHTML += `
-          <div style="page-break-before: always;">
-            <h1>${title}</h1>
-            ${html}
-          </div>
-        `;
+        combinedHTML += `<h1>${title}</h1>${html}`;
+        
+        // 마지막 파일이 아니라면 페이지 나누기 추가
+        if (i < sortedFiles.length - 1) {
+          combinedHTML += `<div style="page-break-before: always;"></div>`;
+        }
       }
 
       status.innerText = '🧾 DOCX 파일 생성 중...';
@@ -109,10 +107,10 @@
 
       const a = document.createElement('a');
       a.href = URL.createObjectURL(docxBlob);
-      a.download = 'merged_markdown_with_pagebreaks.docx';
+      a.download = 'merged_markdown_with_pages.docx';
       a.click();
 
-      status.innerText = '✅ 변환 완료! 각 파일이 새 페이지에서 시작됩니다.';
+      status.innerText = '✅ 변환 완료! merged_markdown_with_pages.docx 파일이 다운로드되었습니다.';
     };
   </script>
 </body>
