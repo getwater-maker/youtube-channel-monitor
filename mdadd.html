@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown 합치기 및 DOCX 변환기</title>
+  <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 40px;
+      background-color: #f5f7fa;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    #container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      margin: 10px 0 20px 0;
+    }
+    button {
+      background-color: #0078d7;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+    #status {
+      margin-top: 15px;
+      font-size: 15px;
+      color: #333;
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>📄 Markdown 합치기 & DOCX 변환기</h1>
+    <p>여러 개의 .md 파일을 업로드하면 자동으로 합치고 DOCX로 변환합니다.</p>
+    <input type="file" id="mdFiles" accept=".md" multiple>
+    <button id="convertBtn">변환 시작</button>
+    <div id="status"></div>
+  </div>
+
+  <footer>
+    <p>© 2025 Markdown to DOCX Web Converter</p>
+  </footer>
+
+  <script>
+    document.getElementById('convertBtn').onclick = async () => {
+      const files = document.getElementById('mdFiles').files;
+      const status = document.getElementById('status');
+      if (!files.length) {
+        alert('하나 이상의 MD 파일을 선택하세요.');
+        return;
+      }
+
+      status.innerText = '📂 파일을 읽는 중...';
+
+      let combinedText = '';
+      for (let i = 0; i < files.length; i++) {
+        const text = await files[i].text();
+        combinedText += `\n\n# ${files[i].name.replace('.md', '')}\n\n` + text;
+      }
+
+      status.innerText = '🧩 Markdown을 HTML로 변환 중...';
+
+      const converter = new showdown.Converter();
+      const html = converter.makeHtml(combinedText);
+
+      status.innerText = '🧾 DOCX 파일 생성 중...';
+
+      const fullHTML = `
+        <html>
+          <head><meta charset="UTF-8"></head>
+          <body>${html}</body>
+        </html>`;
+      const docxBlob = window.htmlDocx.asBlob(fullHTML);
+
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(docxBlob);
+      a.download = 'merged_markdown.docx';
+      a.click();
+
+      status.innerText = '✅ 변환 완료! merged_markdown.docx 파일이 다운로드되었습니다.';
+    };
+  </script>
+</body>
+</html>
