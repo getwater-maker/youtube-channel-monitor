@@ -3,171 +3,213 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown & DOCX 통합 변환기 (페이지 강제 나눔 버전)</title>
+  <title>MD & DOCX 통합 병합기</title>
+  
+  <!-- 필수 라이브러리 (인터넷 연결 필요) -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.0.1/dist/docx-merger.min.js"></script>
+  <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.1/dist/docx-merger.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 40px;
-      background-color: #f5f7fa;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
     }
     #container {
-      max-width: 700px;
-      margin: 0 auto;
+      max-width: 800px;
+      width: 100%;
       background: white;
-      padding: 30px;
-      border-radius: 16px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 30px;
     }
     input[type="file"] {
+      display: none;
+    }
+    label.file-label {
       display: block;
-      width: 100%;
-      margin: 10px 0 20px 0;
+      padding: 40px;
+      border: 2px dashed #0078d7;
+      border-radius: 8px;
+      background-color: #f8f9fa;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-bottom: 20px;
+    }
+    label.file-label:hover {
+      background-color: #e9f4ff;
     }
     button {
       background-color: #0078d7;
       color: white;
       border: none;
-      padding: 12px 20px;
+      padding: 15px 30px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: 600;
       transition: background-color 0.2s;
       width: 100%;
     }
-    button:hover {
+    button:disabled {
+      background-color: #a0a0a0;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
       background-color: #005fa3;
     }
     #status {
-      margin-top: 15px;
+      margin-top: 25px;
       font-size: 15px;
       color: #333;
-      white-space: pre-line;
+      white-space: pre-wrap; /* 줄바꿈을 위해 pre-wrap 사용 */
+      text-align: left;
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      min-height: 100px;
+      overflow-x: auto;
     }
-    footer {
-      text-align: center;
-      margin-top: 40px;
-      color: #777;
+    #file-list {
+        text-align: left;
+        color: #555;
+        font-size: 14px;
+        margin-bottom: 20px;
     }
   </style>
 </head>
 <body>
   <div id="container">
-    <h1>📄 Markdown & DOCX 변환/병합기</h1>
+    <h1>📄 MD & DOCX 자동 변환/병합기</h1>
+    <p>Markdown(.md)과 Word(.docx) 파일을 선택하면, 순서대로 정렬하여 하나의 Word 파일로 합쳐줍니다.</p>
 
-    <h3>① Markdown 파일 → 하나의 DOCX로 합치기 (페이지 강제 나눔)</h3>
-    <input type="file" id="mdFiles" accept=".md" multiple>
-    <button id="convertMdBtn">MD → DOCX 변환</button>
+    <label for="files" class="file-label" id="file-label-text">여기를 클릭하여 파일 선택<br>(.md, .docx 파일, 여러 개 선택 가능)</label>
+    <input type="file" id="files" accept=".md,.docx" multiple>
+    
+    <div id="file-list"></div>
 
-    <h3>② DOCX 파일 → 하나로 병합</h3>
-    <input type="file" id="docxFiles" accept=".docx" multiple>
-    <button id="mergeDocxBtn">DOCX 병합</button>
+    <button id="convertBtn" disabled>변환 및 병합 시작</button>
 
-    <div id="status"></div>
+    <div id="status">진행 상태가 여기에 표시됩니다.</div>
   </div>
 
-  <footer>
-    <p>© 2025 Markdown & DOCX Web Converter (페이지 강제 나눔 버전)</p>
-  </footer>
-
   <script>
-    const status = document.getElementById('status');
+    const fileInput = document.getElementById('files');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusDiv = document.getElementById('status');
+    const fileListDiv = document.getElementById('file-list');
+    const fileLabelText = document.getElementById('file-label-text');
 
-    // ✅ Markdown → DOCX (파일 단위로 페이지 강제 나눔)
-    document.getElementById('convertMdBtn').onclick = async () => {
-      const files = document.getElementById('mdFiles').files;
-      if (!files.length) {
-        alert('하나 이상의 Markdown 파일을 선택하세요.');
-        return;
-      }
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        convertBtn.disabled = false;
+        fileLabelText.textContent = `${fileInput.files.length}개의 파일이 선택되었습니다.`;
+        
+        // 정렬된 파일 목록을 보여주기 위함
+        const sortedFiles = Array.from(fileInput.files).sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko', { numeric: true })
+        );
 
-      status.innerText = '📂 Markdown 파일 읽는 중...';
-
-      // 이름순 정렬 (1강, 2강 순서)
-      const sortedFiles = Array.from(files).sort((a, b) =>
-        a.name.localeCompare(b.name, 'ko', { numeric: true })
-      );
-
-      const converter = new showdown.Converter();
-      let combinedHTML = '';
-
-      for (let i = 0; i < sortedFiles.length; i++) {
-        const text = await sortedFiles[i].text();
-
-        // 파일명 정제: 전자책_01_... → 1강: ...
-        let rawName = sortedFiles[i].name.replace('.md', '');
-        let title = rawName
-          .replace(/^전자책[_-]?(\d+)/, '$1강:')
-          .replace(/^강의대본[_-]?(\d+)/, '$1강:')
-          .replace(/^HTML강의자료[_-]?(\d+)/, '$1강:')
-          .replace(/_/g, ' ')
-          .trim();
-
-        const html = converter.makeHtml(text);
-
-        // 첫 파일 제외, 그 전에는 페이지 강제 구분
-        if (i > 0) {
-          combinedHTML += `<div style="page-break-before: always;"></div>`;
+        let listHtml = '<strong>처리 순서:</strong><ol>';
+        for(const file of sortedFiles) {
+            listHtml += `<li>${file.name}</li>`;
         }
+        listHtml += '</ol>';
+        fileListDiv.innerHTML = listHtml;
 
-        combinedHTML += `
-          <div>
-            <h1>${title}</h1>
-            ${html}
-          </div>
-        `;
+      } else {
+        convertBtn.disabled = true;
+        fileLabelText.innerHTML = '여기를 클릭하여 파일 선택<br>(.md, .docx 파일, 여러 개 선택 가능)';
+        fileListDiv.innerHTML = '';
       }
+    });
 
-      status.innerText = '🧾 DOCX 파일 생성 중...';
-
-      const fullHTML = `
-        <html>
-          <head><meta charset="UTF-8"></head>
-          <body>${combinedHTML}</body>
-        </html>`;
-      const docxBlob = window.htmlDocx.asBlob(fullHTML);
-
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(docxBlob);
-      a.download = 'merged_markdown_with_pagebreaks.docx';
-      a.click();
-
-      status.innerText = '✅ 변환 완료! 각 파일이 새 페이지에서 시작됩니다.';
-    };
-
-    // ✅ DOCX 파일 병합 기능
-    document.getElementById('mergeDocxBtn').onclick = async () => {
-      const files = document.getElementById('docxFiles').files;
+    convertBtn.onclick = async () => {
+      const files = fileInput.files;
       if (!files.length) {
-        alert('병합할 DOCX 파일을 선택하세요.');
+        alert('하나 이상의 파일을 선택하세요.');
         return;
       }
 
-      status.innerText = '📄 DOCX 파일 병합 중...';
+      // 버튼 비활성화 및 상태 초기화
+      convertBtn.disabled = true;
+      statusDiv.innerText = ' INFO: 작업을 시작합니다.\n';
 
       try {
-        const docs = [];
-        for (let i = 0; i < files.length; i++) {
-          const arrayBuffer = await files[i].arrayBuffer();
-          docs.push(arrayBuffer);
+        // 1. 이름순으로 파일 정렬 (1, 2, 10 순서를 올바르게 인식)
+        const sortedFiles = Array.from(files).sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko', { numeric: true })
+        );
+        
+        statusDiv.innerText += ' INFO: 파일 정렬 완료. 변환을 시작합니다...\n';
+
+        const docxBuffers = [];
+        const converter = new showdown.Converter();
+
+        // 2. 각 파일을 순회하며 DOCX 버퍼(메모리상의 파일 데이터)로 변환
+        for (let i = 0; i < sortedFiles.length; i++) {
+          const file = sortedFiles[i];
+          const isMarkdown = file.name.toLowerCase().endsWith('.md');
+          
+          statusDiv.innerText += ` -> PROCESSING (${i + 1}/${sortedFiles.length}): ${file.name}\n`;
+
+          if (isMarkdown) {
+            // Markdown 파일 처리
+            const markdownText = await file.text();
+            
+            // 파일명에서 제목 추출
+            const title = file.name.replace(/\.md$/i, '').replace(/_/g, ' ');
+            
+            // HTML로 변환하고 제목 추가
+            const htmlContent = `<h1>${title}</h1>\n${converter.makeHtml(markdownText)}`;
+            
+            // DOCX Blob으로 변환
+            const docxBlob = htmlDocx.asBlob(htmlContent);
+            const arrayBuffer = await docxBlob.arrayBuffer();
+            docxBuffers.push(arrayBuffer);
+          } else {
+            // DOCX 파일은 그대로 ArrayBuffer로 읽어들임
+            const arrayBuffer = await file.arrayBuffer();
+            docxBuffers.push(arrayBuffer);
+          }
         }
 
-        const docx = new DocxMerger({}, docs);
+        statusDiv.innerText += '\n INFO: 모든 파일 변환 완료. 병합을 시작합니다...\n';
+
+        // 3. 모든 DOCX 버퍼 병합
+        // DocxMerger는 페이지 나눔 옵션을 직접 제공하지 않으므로, 각 파일을 개별 문서로 유지하며 합칩니다.
+        // 대부분의 워드 프로세서는 파일 경계에서 페이지를 자동으로 나눕니다.
+        const docx = new DocxMerger({ pageBreak: true }, docxBuffers); // 페이지 나누기 옵션 추가
+        
+        // 결과물을 Blob으로 렌더링
         docx.save('blob', (data) => {
-          saveAs(data, 'merged_docx_files.docx');
+          saveAs(data, 'final_merged_document.docx');
+          statusDiv.innerText += '\n✅ SUCCESS: 병합이 완료되었습니다! "final_merged_document.docx" 파일이 다운로드됩니다.';
         });
 
-        status.innerText = '✅ DOCX 병합 완료! merged_docx_files.docx 파일이 다운로드됩니다.';
       } catch (err) {
         console.error(err);
-        status.innerText = '❌ 오류 발생: 병합 중 문제가 생겼습니다.';
+        statusDiv.innerText += `\n❌ ERROR: 오류가 발생했습니다. \n${err.message}`;
+      } finally {
+        // 작업 완료 후 버튼 다시 활성화
+        convertBtn.disabled = false;
       }
     };
   </script>
