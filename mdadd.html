@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown & DOCX 통합 변환기</title>
+  <title>Markdown & DOCX 통합 변환기 (페이지 강제 나눔 버전)</title>
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.0.1/dist/docx-merger.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -60,9 +61,8 @@
 <body>
   <div id="container">
     <h1>📄 Markdown & DOCX 변환/병합기</h1>
-    <p>기능 선택:</p>
 
-    <h3>① Markdown 파일 → 하나의 DOCX로 합치기</h3>
+    <h3>① Markdown 파일 → 하나의 DOCX로 합치기 (페이지 강제 나눔)</h3>
     <input type="file" id="mdFiles" accept=".md" multiple>
     <button id="convertMdBtn">MD → DOCX 변환</button>
 
@@ -74,13 +74,13 @@
   </div>
 
   <footer>
-    <p>© 2025 Markdown & DOCX Web Converter</p>
+    <p>© 2025 Markdown & DOCX Web Converter (페이지 강제 나눔 버전)</p>
   </footer>
 
   <script>
     const status = document.getElementById('status');
 
-    // ✅ Markdown 파일 → DOCX 변환
+    // ✅ Markdown → DOCX (파일 단위로 페이지 강제 나눔)
     document.getElementById('convertMdBtn').onclick = async () => {
       const files = document.getElementById('mdFiles').files;
       if (!files.length) {
@@ -90,17 +90,35 @@
 
       status.innerText = '📂 Markdown 파일 읽는 중...';
 
-      const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
+      // 이름순 정렬 (1강, 2강 순서)
+      const sortedFiles = Array.from(files).sort((a, b) =>
+        a.name.localeCompare(b.name, 'ko', { numeric: true })
+      );
+
       const converter = new showdown.Converter();
       let combinedHTML = '';
 
       for (let i = 0; i < sortedFiles.length; i++) {
         const text = await sortedFiles[i].text();
+
+        // 파일명 정제: 전자책_01_... → 1강: ...
+        let rawName = sortedFiles[i].name.replace('.md', '');
+        let title = rawName
+          .replace(/^전자책[_-]?(\d+)/, '$1강:')
+          .replace(/^강의대본[_-]?(\d+)/, '$1강:')
+          .replace(/^HTML강의자료[_-]?(\d+)/, '$1강:')
+          .replace(/_/g, ' ')
+          .trim();
+
         const html = converter.makeHtml(text);
-        const title = sortedFiles[i].name.replace('.md', '');
+
+        // 첫 파일 제외, 그 전에는 페이지 강제 구분
+        if (i > 0) {
+          combinedHTML += `<div style="page-break-before: always;"></div>`;
+        }
 
         combinedHTML += `
-          <div style="page-break-before: always;">
+          <div>
             <h1>${title}</h1>
             ${html}
           </div>
@@ -121,7 +139,7 @@
       a.download = 'merged_markdown_with_pagebreaks.docx';
       a.click();
 
-      status.innerText = '✅ Markdown 변환 완료! merged_markdown_with_pagebreaks.docx 파일이 다운로드됩니다.';
+      status.innerText = '✅ 변환 완료! 각 파일이 새 페이지에서 시작됩니다.';
     };
 
     // ✅ DOCX 파일 병합 기능
@@ -142,7 +160,6 @@
         }
 
         const docx = new DocxMerger({}, docs);
-
         docx.save('blob', (data) => {
           saveAs(data, 'merged_docx_files.docx');
         });
@@ -154,7 +171,5 @@
       }
     };
   </script>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </body>
 </html>
