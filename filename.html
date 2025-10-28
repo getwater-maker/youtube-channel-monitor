@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown 파일명 자동 변경기</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 40px;
+      background-color: #f5f7fa;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    #container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      margin: 20px 0;
+    }
+    button {
+      background-color: #0078d7;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+    #status {
+      margin-top: 15px;
+      font-size: 15px;
+      color: #333;
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>📁 Markdown 파일명 자동 변경기</h1>
+    <p>여러 개의 .md 파일을 업로드하면 자동으로 이름을 다음 형식으로 바꿉니다:</p>
+    <p><b>강의대본_01_제목...</b> / <b>전자책_01_제목...</b> / <b>HTML강의자료_01_제목...</b></p>
+    <input type="file" id="mdFiles" accept=".md" multiple>
+    <button id="renameBtn">파일명 변경 ZIP 다운로드</button>
+    <div id="status"></div>
+  </div>
+
+  <footer>
+    <p>© 2025 Markdown Rename Utility</p>
+  </footer>
+
+  <script>
+    function getTypeFromName(name) {
+      if (name.includes('강의대본')) return '강의대본';
+      if (name.includes('전자책')) return '전자책';
+      if (name.includes('HTML')) return 'HTML강의자료';
+      return '기타';
+    }
+
+    function extractNumber(name) {
+      const match = name.match(/^(\d+)강/);
+      if (match) return match[1].padStart(2, '0');
+      return '00';
+    }
+
+    function extractTitle(name) {
+      let title = name.replace(/^(\d+)강[_\-]*/, '');
+      title = title.replace(/(HTML|강의대본|전자책|강의자료|기타)[_\-]*/, '');
+      title = title.replace(/\.md$/, '');
+      return title.trim();
+    }
+
+    document.getElementById('renameBtn').onclick = async () => {
+      const files = document.getElementById('mdFiles').files;
+      const status = document.getElementById('status');
+      if (!files.length) {
+        alert('변경할 MD 파일을 선택하세요.');
+        return;
+      }
+
+      status.innerText = '📦 파일 처리 중...';
+
+      const zip = new JSZip();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const oldName = file.name;
+        const type = getTypeFromName(oldName);
+        const num = extractNumber(oldName);
+        const title = extractTitle(oldName);
+        const newName = `${type}_${num}_${title}.md`;
+
+        const content = await file.text();
+        zip.file(newName, content);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, "renamed_markdowns.zip");
+
+      status.innerText = '✅ ZIP 파일 다운로드 완료!';
+    };
+  </script>
+</body>
+</html>
