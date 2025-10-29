@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MD & DOCX 통합 병합기</title>
+  <title>MD & DOCX 통합 병합기 (v2 - 수정판)</title>
   
   <!-- 필수 라이브러리 (인터넷 연결 필요) -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
@@ -97,7 +97,7 @@
 </head>
 <body>
   <div id="container">
-    <h1>📄 MD & DOCX 자동 변환/병합기</h1>
+    <h1>📄 MD & DOCX 자동 변환/병합기 (v2)</h1>
     <p>Markdown(.md)과 Word(.docx) 파일을 선택하면, 순서대로 정렬하여 하나의 Word 파일로 합쳐줍니다.</p>
 
     <label for="files" class="file-label" id="file-label-text">여기를 클릭하여 파일 선택<br>(.md, .docx 파일, 여러 개 선택 가능)</label>
@@ -122,7 +122,6 @@
         convertBtn.disabled = false;
         fileLabelText.textContent = `${fileInput.files.length}개의 파일이 선택되었습니다.`;
         
-        // 정렬된 파일 목록을 보여주기 위함
         const sortedFiles = Array.from(fileInput.files).sort((a, b) =>
           a.name.localeCompare(b.name, 'ko', { numeric: true })
         );
@@ -148,12 +147,10 @@
         return;
       }
 
-      // 버튼 비활성화 및 상태 초기화
       convertBtn.disabled = true;
       statusDiv.innerText = ' INFO: 작업을 시작합니다.\n';
 
       try {
-        // 1. 이름순으로 파일 정렬 (1, 2, 10 순서를 올바르게 인식)
         const sortedFiles = Array.from(files).sort((a, b) =>
           a.name.localeCompare(b.name, 'ko', { numeric: true })
         );
@@ -163,7 +160,6 @@
         const docxBuffers = [];
         const converter = new showdown.Converter();
 
-        // 2. 각 파일을 순회하며 DOCX 버퍼(메모리상의 파일 데이터)로 변환
         for (let i = 0; i < sortedFiles.length; i++) {
           const file = sortedFiles[i];
           const isMarkdown = file.name.toLowerCase().endsWith('.md');
@@ -171,21 +167,20 @@
           statusDiv.innerText += ` -> PROCESSING (${i + 1}/${sortedFiles.length}): ${file.name}\n`;
 
           if (isMarkdown) {
-            // Markdown 파일 처리
             const markdownText = await file.text();
-            
-            // 파일명에서 제목 추출
             const title = file.name.replace(/\.md$/i, '').replace(/_/g, ' ');
             
-            // HTML로 변환하고 제목 추가
-            const htmlContent = `<h1>${title}</h1>\n${converter.makeHtml(markdownText)}`;
-            
-            // DOCX Blob으로 변환
+            // 각 MD 파일 변환 시, 페이지 나누기(page-break-before) 스타일을 포함한 HTML 생성
+            const htmlContent = `
+              <div style="page-break-before: always;">
+                <h1>${title}</h1>
+                ${converter.makeHtml(markdownText)}
+              </div>`;
+
             const docxBlob = htmlDocx.asBlob(htmlContent);
             const arrayBuffer = await docxBlob.arrayBuffer();
             docxBuffers.push(arrayBuffer);
           } else {
-            // DOCX 파일은 그대로 ArrayBuffer로 읽어들임
             const arrayBuffer = await file.arrayBuffer();
             docxBuffers.push(arrayBuffer);
           }
@@ -193,22 +188,22 @@
 
         statusDiv.innerText += '\n INFO: 모든 파일 변환 완료. 병합을 시작합니다...\n';
 
-        // 3. 모든 DOCX 버퍼 병합
-        // DocxMerger는 페이지 나눔 옵션을 직접 제공하지 않으므로, 각 파일을 개별 문서로 유지하며 합칩니다.
-        // 대부분의 워드 프로세서는 파일 경계에서 페이지를 자동으로 나눕니다.
-        const docx = new DocxMerger({ pageBreak: true }, docxBuffers); // 페이지 나누기 옵션 추가
+        if(docxBuffers.length === 0){
+           throw new Error("처리할 파일이 없습니다.");
+        }
+
+        // 🚨 여기가 수정된 부분입니다: DocxMerger -> docxMerger
+        const mergedDoc = new docxMerger({ pageBreak: false }, docxBuffers);
         
-        // 결과물을 Blob으로 렌더링
-        docx.save('blob', (data) => {
+        mergedDoc.save('blob', (data) => {
           saveAs(data, 'final_merged_document.docx');
           statusDiv.innerText += '\n✅ SUCCESS: 병합이 완료되었습니다! "final_merged_document.docx" 파일이 다운로드됩니다.';
         });
 
       } catch (err) {
         console.error(err);
-        statusDiv.innerText += `\n❌ ERROR: 오류가 발생했습니다. \n${err.message}`;
+        statusDiv.innerText += `\n❌ ERROR: 오류가 발생했습니다. \n${err.message}\n\n(인터넷 연결을 확인하시거나, 잠시 후 다시 시도해보세요.)`;
       } finally {
-        // 작업 완료 후 버튼 다시 활성화
         convertBtn.disabled = false;
       }
     };
