@@ -8,10 +8,7 @@
   <!-- 필수 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
   <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
-
-  <!-- ✅ 수정된 부분: 안정적인 unpkg 버전 (전역 DocxMerger 객체 등록됨) -->
   <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.2/dist/docx-merger.min.js"></script>
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   
@@ -79,141 +76,67 @@
 
   <script>
     const statusDiv = document.getElementById('status');
-    
-    // --- 드래그 앤 드롭 공통 로직 ---
+
+    // 드래그 앤 드롭 설정
     function setupDragAndDrop(dropZoneId, fileInputId, fileListId) {
-        const dropZone = document.getElementById(dropZoneId);
-        const fileInput = document.getElementById(fileInputId);
-        const fileList = document.getElementById(fileListId);
-        dropZone.onclick = () => fileInput.click();
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); fileInput.files = e.dataTransfer.files; updateFileList(fileInput, fileList); });
-        fileInput.addEventListener('change', () => updateFileList(fileInput, fileList));
+      const dropZone = document.getElementById(dropZoneId);
+      const fileInput = document.getElementById(fileInputId);
+      const fileList = document.getElementById(fileListId);
+      dropZone.onclick = () => fileInput.click();
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+      dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); fileInput.files = e.dataTransfer.files; updateFileList(fileInput, fileList); });
+      fileInput.addEventListener('change', () => updateFileList(fileInput, fileList));
     }
     function updateFileList(fileInput, fileListElement) {
-        const files = fileInput.files;
-        if (files.length > 0) {
-            let fileNames = Array.from(files).sort((a,b) => a.name.localeCompare(b.name, 'ko', {numeric: true})).map(f => f.name).join('<br>');
-            fileListElement.innerHTML = `<strong>선택된 파일 (${files.length}개, 순서대로 정렬됨):</strong><br>${fileNames}`;
-        } else { fileListElement.innerHTML = ''; }
+      const files = fileInput.files;
+      if (files.length > 0) {
+        let fileNames = Array.from(files).sort((a,b) => a.name.localeCompare(b.name, 'ko', {numeric: true})).map(f => f.name).join('<br>');
+        fileListElement.innerHTML = `<strong>선택된 파일 (${files.length}개):</strong><br>${fileNames}`;
+      } else fileListElement.innerHTML = '';
     }
     setupDragAndDrop('md-drop-zone', 'mdFiles', 'md-file-list');
     setupDragAndDrop('docx-drop-zone', 'docxFiles', 'docx-file-list');
     setupDragAndDrop('rename-drop-zone', 'renameFiles', 'rename-file-list');
 
-    // --- 기능 1: MD -> DOCX ---
+    // MD -> DOCX
     document.getElementById('convertMdBtn').onclick = async () => {
       const files = document.getElementById('mdFiles').files;
-      if (!files.length) {
-        alert('변환할 Markdown(.md) 파일을 선택하거나 드래그하세요.');
-        return;
-      }
-      statusDiv.innerText = `INFO: 총 ${files.length}개의 파일 변환을 시작합니다...`;
+      if (!files.length) return alert('MD 파일을 선택하세요.');
       const converter = new showdown.Converter();
-      let successCount = 0; let errorCount = 0;
+      statusDiv.innerText = `총 ${files.length}개 파일 변환 중...`;
       for (const file of files) {
-        try {
-          statusDiv.innerText += `\n-> PROCESSING: ${file.name}`;
-          const text = await file.text();
-          const title = file.name.replace(/\.md$/i, '').replace(/_/g, ' ');
-          const html = `<h1>${title}</h1>${converter.makeHtml(text)}`;
-          const docxBlob = htmlDocx.asBlob(html);
-          const newDocxName = file.name.replace(/\.md$/i, '.docx');
-          saveAs(docxBlob, newDocxName);
-          successCount++;
-        } catch (err) {
-          errorCount++; console.error(`Error converting ${file.name}:`, err);
-          statusDiv.innerText += `\n   ㄴ ❌ ERROR: ${err.message}`;
-        }
+        const text = await file.text();
+        const title = file.name.replace(/\.md$/i, '').replace(/_/g, ' ');
+        const html = `<h1>${title}</h1>${converter.makeHtml(text)}`;
+        const blob = htmlDocx.asBlob(html);
+        saveAs(blob, file.name.replace(/\.md$/i, '.docx'));
       }
-      statusDiv.innerText += `\n\n✅ 작업 완료: ${successCount}개 성공, ${errorCount}개 실패.`;
+      statusDiv.innerText += `\n✅ 변환 완료`;
     };
 
-    // --- 기능 2: DOCX 병합 ---
+    // DOCX 병합 (수정 완료)
     document.getElementById('mergeDocxBtn').onclick = async () => {
-      if (typeof DocxMerger === 'undefined') {
-        statusDiv.innerText = '❌ 오류: DocxMerger 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.';
-        return;
-      }
       const files = document.getElementById('docxFiles').files;
-      if (files.length < 2) {
-        alert('병합할 DOCX 파일을 2개 이상 선택하거나 드래그하세요.');
-        return;
-      }
+      if (files.length < 2) return alert('2개 이상의 DOCX 파일을 선택하세요.');
       statusDiv.innerText = 'INFO [1/3]: DOCX 파일을 이름순으로 정렬합니다...';
-      const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
+      const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}));
+      const buffers = [];
+      for (const file of sortedFiles) {
+        const ab = await file.arrayBuffer();
+        buffers.push(new Uint8Array(ab)); // ✅ 핵심 수정
+      }
       statusDiv.innerText += '\nINFO [2/3]: 파일 데이터를 읽는 중...';
-      const docxBuffers = [];
       try {
-        for (const file of sortedFiles) {
-          const arrayBuffer = await file.arrayBuffer();
-          docxBuffers.push(arrayBuffer);
-        }
-        statusDiv.innerText += '\nINFO [3/3]: DOCX 파일 병합 중...';
-
-        // ✅ 수정된 부분: DocxMerger 대문자로 사용
-        const mergedDoc = new DocxMerger({ pageBreak: true }, docxBuffers);
-
-        mergedDoc.save('blob', (data) => {
+        const merged = new DocxMerger({pageBreak: true}, buffers);
+        merged.save('blob', (data) => {
           saveAs(data, 'merged_documents.docx');
-          statusDiv.innerText += '\n\n✅ 성공: "merged_documents.docx" 파일이 다운로드됩니다.';
+          statusDiv.innerText += '\n✅ 병합 완료: merged_documents.docx 다운로드됨';
         });
-      } catch (err) {
-        console.error(err);
-        statusDiv.innerText += `\n\n❌ 오류: 파일 병합 중 문제가 발생했습니다.\n${err.message}`;
+      } catch (e) {
+        statusDiv.innerText += `\n❌ 오류: ${e.message}`;
       }
     };
-
-    // --- 기능 3: 파일명 일괄 변경 ---
-    document.getElementById('renameBtn').onclick = async () => {
-        const files = document.getElementById('renameFiles').files;
-        const pattern = document.getElementById('renamePattern').value;
-        if (!files.length) {
-            alert('이름을 변경할 파일을 선택하거나 드래그하세요.');
-            return;
-        }
-        if (!pattern) {
-            alert('새 파일 이름 형식을 입력하세요.');
-            return;
-        }
-        statusDiv.innerText = `INFO: 총 ${files.length}개 파일의 이름 변경을 시작합니다...`;
-        const zip = new JSZip();
-        const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
-        for (const file of sortedFiles) {
-            try {
-                const newFileName = generateNewFileName(file.name, pattern);
-                zip.file(newFileName, file);
-                statusDiv.innerText += `\n  ${file.name} -> ${newFileName}`;
-            } catch (error) {
-                statusDiv.innerText += `\n  [오류] ${file.name}: ${error.message}`;
-            }
-        }
-        statusDiv.innerText += '\n\nINFO: ZIP 파일 생성 중...';
-        try {
-            const zipBlob = await zip.generateAsync({ type: "blob" });
-            saveAs(zipBlob, "renamed_files.zip");
-            statusDiv.innerText += '\n\n✅ 성공: "renamed_files.zip" 파일이 다운로드됩니다.';
-        } catch (err) {
-            statusDiv.innerText += `\n\n❌ 오류: ZIP 파일 생성 중 문제가 발생했습니다.\n${err.message}`;
-        }
-    };
-    function generateNewFileName(originalName, pattern) {
-        const extMatch = originalName.match(/\.([^.]+)$/);
-        const ext = extMatch ? extMatch[1] : '';
-        const nameWithoutExt = extMatch ? originalName.slice(0, -ext.length - 1) : originalName;
-        const numMatch = nameWithoutExt.match(/(?:_|-|\s|^)(\d+)(?:강|장|회)?(?:_|-|\s|$)/);
-        let num = '';
-        let title = nameWithoutExt;
-        if (numMatch) {
-            num = String(parseInt(numMatch[1], 10)).padStart(2, '0');
-            title = nameWithoutExt.replace(numMatch[0], ' ').trim();
-        }
-        title = title.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-        let newName = pattern.replace(/{{num}}/g, num).replace(/{{title}}/g, title).replace(/{{ext}}/g, ext);
-        newName = newName.replace(/[\\/:*?"<>|]/g, '');
-        return newName;
-    }
   </script>
 </body>
 </html>
