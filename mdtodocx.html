@@ -77,29 +77,36 @@
   <script>
     const statusDiv = document.getElementById('status');
 
-    // 드래그 앤 드롭 설정
+    // --- 공통 드래그 앤 드롭 ---
     function setupDragAndDrop(dropZoneId, fileInputId, fileListId) {
       const dropZone = document.getElementById(dropZoneId);
       const fileInput = document.getElementById(fileInputId);
       const fileList = document.getElementById(fileListId);
       dropZone.onclick = () => fileInput.click();
-      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+      dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-      dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); fileInput.files = e.dataTransfer.files; updateFileList(fileInput, fileList); });
+      dropZone.addEventListener('drop', e => {
+        e.preventDefault(); dropZone.classList.remove('drag-over');
+        fileInput.files = e.dataTransfer.files;
+        updateFileList(fileInput, fileList);
+      });
       fileInput.addEventListener('change', () => updateFileList(fileInput, fileList));
     }
+
     function updateFileList(fileInput, fileListElement) {
       const files = fileInput.files;
       if (files.length > 0) {
-        let fileNames = Array.from(files).sort((a,b) => a.name.localeCompare(b.name, 'ko', {numeric: true})).map(f => f.name).join('<br>');
+        const fileNames = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}))
+          .map(f => f.name).join('<br>');
         fileListElement.innerHTML = `<strong>선택된 파일 (${files.length}개):</strong><br>${fileNames}`;
       } else fileListElement.innerHTML = '';
     }
+
     setupDragAndDrop('md-drop-zone', 'mdFiles', 'md-file-list');
     setupDragAndDrop('docx-drop-zone', 'docxFiles', 'docx-file-list');
     setupDragAndDrop('rename-drop-zone', 'renameFiles', 'rename-file-list');
 
-    // MD -> DOCX
+    // --- 기능 1: MD -> DOCX ---
     document.getElementById('convertMdBtn').onclick = async () => {
       const files = document.getElementById('mdFiles').files;
       if (!files.length) return alert('MD 파일을 선택하세요.');
@@ -115,25 +122,34 @@
       statusDiv.innerText += `\n✅ 변환 완료`;
     };
 
-    // DOCX 병합 (수정 완료)
+    // --- 기능 2: DOCX 병합 (Base64 버전) ---
     document.getElementById('mergeDocxBtn').onclick = async () => {
       const files = document.getElementById('docxFiles').files;
       if (files.length < 2) return alert('2개 이상의 DOCX 파일을 선택하세요.');
+      
       statusDiv.innerText = 'INFO [1/3]: DOCX 파일을 이름순으로 정렬합니다...';
       const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}));
-      const buffers = [];
+      
+      statusDiv.innerText += '\nINFO [2/3]: 파일 데이터를 Base64로 변환 중...';
+      const base64Docs = [];
+
       for (const file of sortedFiles) {
         const ab = await file.arrayBuffer();
-        buffers.push(new Uint8Array(ab)); // ✅ 핵심 수정
+        const uint8 = new Uint8Array(ab);
+        const binary = Array.from(uint8).map(b => String.fromCharCode(b)).join('');
+        const base64 = btoa(binary);
+        base64Docs.push(base64);
       }
-      statusDiv.innerText += '\nINFO [2/3]: 파일 데이터를 읽는 중...';
+
+      statusDiv.innerText += '\nINFO [3/3]: DOCX 병합 중...';
       try {
-        const merged = new DocxMerger({pageBreak: true}, buffers);
-        merged.save('blob', (data) => {
+        const merged = new DocxMerger({ pageBreak: true }, base64Docs);
+        merged.save('blob', data => {
           saveAs(data, 'merged_documents.docx');
           statusDiv.innerText += '\n✅ 병합 완료: merged_documents.docx 다운로드됨';
         });
       } catch (e) {
+        console.error(e);
         statusDiv.innerText += `\n❌ 오류: ${e.message}`;
       }
     };
