@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Markdown & DOCX 도구 (최종 완성판)</title>
+  <title>Markdown & DOCX 도구 (안정판)</title>
 
   <!-- 파비콘 오류 방지 -->
   <link rel="icon" href="data:,">
@@ -128,7 +128,6 @@
 
       statusDiv.innerText += '\nINFO [3/3]: 병합 중...';
       try {
-        // 🚨 여기가 최종적으로 수정된 부분입니다: new DocxMerger (대문자 'D')
         const merged = new DocxMerger({ pageBreak: true }, docxBuffers);
         
         merged.save('blob', (data) => {
