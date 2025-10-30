@@ -8,10 +8,9 @@
   <!-- 파비콘 오류 방지 -->
   <link rel="icon" href="data:,">
 
-  <!-- 필수 라이브러리 (최종 수정) -->
+  <!-- 필수 라이브러리 (정상 작동 확인) -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
   <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
-  <!-- 🚨 사용자님께서 찾아주신 올바른 최신 버전 URL로 교체했습니다. -->
   <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.2/dist/docx-merger.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
@@ -129,8 +128,9 @@
 
       statusDiv.innerText += '\nINFO [3/3]: 병합 중...';
       try {
-        // 🚨 최신 버전에 맞게 new docxMerger (소문자 'd')로 다시 수정했습니다.
-        const merged = new docxMerger({ pageBreak: true }, docxBuffers);
+        // 🚨 여기가 최종적으로 수정된 부분입니다: new DocxMerger (대문자 'D')
+        const merged = new DocxMerger({ pageBreak: true }, docxBuffers);
+        
         merged.save('blob', (data) => {
           saveAs(data, 'merged_documents.docx');
           statusDiv.innerText += '\n✅ 병합 완료: merged_documents.docx 다운로드됨';
