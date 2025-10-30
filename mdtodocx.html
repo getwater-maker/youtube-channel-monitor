@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title> Markdown → DOCX 변환 / 여러 DOCX 병합 </title>
-  
+  <title>Markdown → DOCX 변환 / DOCX 병합 안정판</title>
+
   <!-- 필수 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
   <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.2/dist/docx-merger.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  
+
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
     #container { max-width: 800px; width: 100%; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
@@ -23,135 +23,101 @@
     .drop-zone p { margin: 0; color: #555; font-size: 16px; }
     .drop-zone.drag-over { background-color: #e9f4ff; border-color: #005fa3; }
     .file-list { text-align: left; font-size: 14px; color: #333; margin-top: 15px; max-height: 150px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;}
-    .input-group { margin-top: 15px; }
-    .input-group label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; }
-    .input-group input { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
-    .input-group small { font-size: 12px; color: #666; margin-top: 5px; display: block; }
     button { background-color: #0078d7; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: background-color 0.2s; width: 100%; margin-top: 20px; }
     button:hover { background-color: #005fa3; }
-    #status { margin-top: 25px; font-size: 15px; color: #333; white-space: pre-wrap; text-align: left; background-color: #f8f9fa; padding: 15px; border-radius: 8px; min-height: 80px; overflow-x: auto; }
+    #status { margin-top: 25px; font-size: 15px; color: #333; white-space: pre-wrap; background-color: #f8f9fa; padding: 15px; border-radius: 8px; min-height: 80px; overflow-x: auto; }
   </style>
 </head>
 <body>
   <div id="container">
-    <h1>📄 파일 도구 최종판</h1>
+    <h1>📄 파일 변환 & 병합 안정판</h1>
 
-    <!-- 기능 1: MD -> DOCX 개별 변환 -->
+    <!-- MD → DOCX -->
     <div class="tool-section">
-      <h3>① Markdown 파일 → DOCX로 변환</h3>
-      <p class="description">선택한 MD 파일을 각각 개별 DOCX 파일로 변환합니다.</p>
-      <div class="drop-zone" id="md-drop-zone"><p>여기를 클릭하거나 MD 파일을 드래그하세요</p></div>
+      <h3>① Markdown → DOCX</h3>
+      <p class="description">여러 개의 MD 파일을 각각 DOCX로 변환합니다.</p>
+      <div class="drop-zone" id="md-drop-zone"><p>MD 파일을 클릭 또는 드래그하세요</p></div>
       <input type="file" id="mdFiles" accept=".md" multiple style="display:none;">
       <div class="file-list" id="md-file-list"></div>
-      <button id="convertMdBtn">MD → DOCX 개별 변환 시작</button>
+      <button id="convertMdBtn">MD → DOCX 변환</button>
     </div>
 
-    <!-- 기능 2: DOCX 파일 병합 -->
+    <!-- DOCX 병합 -->
     <div class="tool-section">
-      <h3>② 여러 DOCX 파일 → 하나로 병합</h3>
-      <p class="description">선택한 DOCX 파일들을 순서대로 합쳐 하나의 파일로 만듭니다.</p>
-      <div class="drop-zone" id="docx-drop-zone"><p>여기를 클릭하거나 DOCX 파일을 드래그하세요</p></div>
+      <h3>② DOCX 파일 병합</h3>
+      <p class="description">여러 DOCX 파일을 하나로 합치며, 파일 단위로 새 페이지에서 시작합니다.</p>
+      <div class="drop-zone" id="docx-drop-zone"><p>DOCX 파일을 클릭 또는 드래그하세요</p></div>
       <input type="file" id="docxFiles" accept=".docx" multiple style="display:none;">
       <div class="file-list" id="docx-file-list"></div>
-      <button id="mergeDocxBtn">DOCX 병합 시작</button>
+      <button id="mergeDocxBtn">DOCX 병합</button>
     </div>
 
-    <!-- 기능 3: 파일명 일괄 변경 -->
-    <div class="tool-section">
-      <h3>③ 파일명 일괄 변경 (ZIP으로 다운로드)</h3>
-      <p class="description">파일을 선택하고 새 이름 규칙을 정하면, 이름이 변경된 파일들을 ZIP으로 한번에 다운로드합니다.</p>
-      <div class="drop-zone" id="rename-drop-zone"><p>여기에 모든 종류의 파일을 드래그하세요</p></div>
-      <input type="file" id="renameFiles" multiple style="display:none;">
-      <div class="input-group">
-        <label for="renamePattern">새 파일 이름 형식</label>
-        <input type="text" id="renamePattern" value="새파일_{{num}}_{{title}}.{{ext}}">
-        <small>변수: {{num}} (숫자), {{title}} (나머지 제목), {{ext}} (확장자)</small>
-      </div>
-      <div class="file-list" id="rename-file-list"></div>
-      <button id="renameBtn">파일명 변경 및 ZIP으로 다운로드</button>
-    </div>
-
-    <div id="status">진행 상태가 여기에 표시됩니다.</div>
+    <div id="status">진행 상태 표시창</div>
   </div>
 
   <script>
     const statusDiv = document.getElementById('status');
 
-    // --- 공통 드래그 앤 드롭 ---
-    function setupDragAndDrop(dropZoneId, fileInputId, fileListId) {
-      const dropZone = document.getElementById(dropZoneId);
-      const fileInput = document.getElementById(fileInputId);
-      const fileList = document.getElementById(fileListId);
-      dropZone.onclick = () => fileInput.click();
-      dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-      dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-      dropZone.addEventListener('drop', e => {
-        e.preventDefault(); dropZone.classList.remove('drag-over');
-        fileInput.files = e.dataTransfer.files;
-        updateFileList(fileInput, fileList);
+    function setupDragAndDrop(zoneId, inputId, listId) {
+      const dz = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+      dz.onclick = () => input.click();
+      dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+      dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+      dz.addEventListener('drop', e => {
+        e.preventDefault(); dz.classList.remove('drag-over');
+        input.files = e.dataTransfer.files;
+        updateList(input, list);
       });
-      fileInput.addEventListener('change', () => updateFileList(fileInput, fileList));
+      input.addEventListener('change', () => updateList(input, list));
     }
 
-    function updateFileList(fileInput, fileListElement) {
-      const files = fileInput.files;
-      if (files.length > 0) {
-        const fileNames = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}))
-          .map(f => f.name).join('<br>');
-        fileListElement.innerHTML = `<strong>선택된 파일 (${files.length}개):</strong><br>${fileNames}`;
-      } else fileListElement.innerHTML = '';
+    function updateList(input, listEl) {
+      const files = input.files;
+      if (files.length) {
+        const names = Array.from(files).map(f => f.name).join('<br>');
+        listEl.innerHTML = `<strong>${files.length}개 선택됨:</strong><br>${names}`;
+      } else listEl.innerHTML = '';
     }
 
     setupDragAndDrop('md-drop-zone', 'mdFiles', 'md-file-list');
     setupDragAndDrop('docx-drop-zone', 'docxFiles', 'docx-file-list');
-    setupDragAndDrop('rename-drop-zone', 'renameFiles', 'rename-file-list');
 
-    // --- 기능 1: MD -> DOCX ---
+    // --- MD → DOCX ---
     document.getElementById('convertMdBtn').onclick = async () => {
       const files = document.getElementById('mdFiles').files;
-      if (!files.length) return alert('MD 파일을 선택하세요.');
+      if (!files.length) return alert("MD 파일을 선택하세요.");
       const converter = new showdown.Converter();
-      statusDiv.innerText = `총 ${files.length}개 파일 변환 중...`;
       for (const file of files) {
         const text = await file.text();
-        const title = file.name.replace(/\.md$/i, '').replace(/_/g, ' ');
-        const html = `<h1>${title}</h1>${converter.makeHtml(text)}`;
+        const html = `<h1>${file.name.replace(/_/g, ' ').replace('.md', '')}</h1>${converter.makeHtml(text)}`;
         const blob = htmlDocx.asBlob(html);
-        saveAs(blob, file.name.replace(/\.md$/i, '.docx'));
+        saveAs(blob, file.name.replace('.md', '.docx'));
       }
-      statusDiv.innerText += `\n✅ 변환 완료`;
+      statusDiv.innerText = "✅ MD → DOCX 변환 완료";
     };
 
-    // --- 기능 2: DOCX 병합 (Base64 버전) ---
+    // --- DOCX 병합 (mammoth.js 사용) ---
     document.getElementById('mergeDocxBtn').onclick = async () => {
       const files = document.getElementById('docxFiles').files;
-      if (files.length < 2) return alert('2개 이상의 DOCX 파일을 선택하세요.');
-      
+      if (files.length < 2) return alert("2개 이상의 DOCX 파일을 선택하세요.");
+
       statusDiv.innerText = 'INFO [1/3]: DOCX 파일을 이름순으로 정렬합니다...';
-      const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}));
-      
-      statusDiv.innerText += '\nINFO [2/3]: 파일 데이터를 Base64로 변환 중...';
-      const base64Docs = [];
+      const sorted = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, 'ko', {numeric: true}));
 
-      for (const file of sortedFiles) {
-        const ab = await file.arrayBuffer();
-        const uint8 = new Uint8Array(ab);
-        const binary = Array.from(uint8).map(b => String.fromCharCode(b)).join('');
-        const base64 = btoa(binary);
-        base64Docs.push(base64);
+      statusDiv.innerText += '\nINFO [2/3]: 각 DOCX 파일을 HTML로 변환 중...';
+      let combinedHTML = "";
+      for (const file of sorted) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.convertToHtml({arrayBuffer});
+        combinedHTML += `<div style="page-break-before: always;"><h1>${file.name.replace('.docx', '').replace(/_/g,' ')}</h1>${result.value}</div>`;
       }
 
-      statusDiv.innerText += '\nINFO [3/3]: DOCX 병합 중...';
-      try {
-        const merged = new DocxMerger({ pageBreak: true }, base64Docs);
-        merged.save('blob', data => {
-          saveAs(data, 'merged_documents.docx');
-          statusDiv.innerText += '\n✅ 병합 완료: merged_documents.docx 다운로드됨';
-        });
-      } catch (e) {
-        console.error(e);
-        statusDiv.innerText += `\n❌ 오류: ${e.message}`;
-      }
+      statusDiv.innerText += '\nINFO [3/3]: DOCX로 다시 변환 중...';
+      const finalBlob = htmlDocx.asBlob(combinedHTML);
+      saveAs(finalBlob, 'merged_documents.docx');
+      statusDiv.innerText += '\n✅ 병합 완료: merged_documents.docx 다운로드됨';
     };
   </script>
 </body>
