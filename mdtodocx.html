@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title> Markdown → DOCX 변환 / 여러 DOCX 병합 </title>
   
-  <!-- 필수 라이브러리 -->
+  <!-- 필수 라이브러리 (URL 주소 오류 수정) -->
   <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
   <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.1/dist/docx-merger.min.js"></script>
-  <script src="https.://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   
   <style>
@@ -108,8 +108,7 @@
       }
       statusDiv.innerText = `INFO: 총 ${files.length}개의 파일 변환을 시작합니다...`;
       const converter = new showdown.Converter();
-      let successCount = 0;
-      let errorCount = 0;
+      let successCount = 0; let errorCount = 0;
       for (const file of files) {
         try {
           statusDiv.innerText += `\n-> PROCESSING: ${file.name}`;
@@ -121,16 +120,20 @@
           saveAs(docxBlob, newDocxName);
           successCount++;
         } catch (err) {
-          errorCount++;
-          console.error(`Error converting ${file.name}:`, err);
+          errorCount++; console.error(`Error converting ${file.name}:`, err);
           statusDiv.innerText += `\n   ㄴ ❌ ERROR: ${err.message}`;
         }
       }
       statusDiv.innerText += `\n\n✅ 작업 완료: ${successCount}개 성공, ${errorCount}개 실패.`;
     };
 
-    // --- 기능 2: DOCX 파일 병합 (오류 수정됨) ---
+    // --- 기능 2: DOCX 파일 병합 (오류 최종 수정) ---
     document.getElementById('mergeDocxBtn').onclick = async () => {
+      // 라이브러리가 로드되었는지 최종 확인
+      if (typeof docxMerger === 'undefined') {
+        statusDiv.innerText = '❌ 오류: 필수 라이브러리를 불러오지 못했습니다.\n인터넷 연결을 확인하고 페이지를 새로고침 해주세요.';
+        return;
+      }
       const files = document.getElementById('docxFiles').files;
       if (files.length < 2) {
         alert('병합할 DOCX 파일을 2개 이상 선택하거나 드래그하세요.');
@@ -147,7 +150,6 @@
         }
         statusDiv.innerText += '\nINFO [3/3]: DOCX 파일 병합 중...';
         
-        // 🚨 여기가 최종적으로 수정된 부분입니다: new docxMerger (소문자 d)
         const mergedDoc = new docxMerger({ pageBreak: true }, docxBuffers);
 
         mergedDoc.save('blob', (data) => {
