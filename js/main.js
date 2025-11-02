@@ -3,6 +3,7 @@ import { initDB, kvGet, kvSet } from './indexedStore.js';
 import { verifyApiKey } from './youtube.js';
 import { initChannel }  from './channel.js';
 import { initVideos } from './videos.js';
+import { initSearch } from './search.js';
 import { initScript }   from './script.js';
 import { initTTS }      from './tts.js';
 import { initStudy }    from './study.js';
@@ -150,13 +151,14 @@ function bindTabs(){
   const tabs = {
     channel:    document.getElementById('yt-tab-channel'),
     videos :    document.getElementById('yt-tab-videos'),
+    search :    document.getElementById('yt-tab-search'),
     script :    document.getElementById('yt-tab-script'),
     tts    :    document.getElementById('yt-tab-tts'),
     study  :    document.getElementById('yt-tab-study'),
     vrew   :    document.getElementById('yt-tab-vrew'),
     'my-channel': document.getElementById('yt-tab-my-channel'),
   };
-  const inited = { channel:false, videos:false, script:false, tts:false, study:false, vrew:false, 'my-channel':false };
+  const inited = { channel:false, videos:false, search:false, script:false, tts:false, study:false, vrew:false, 'my-channel':false };
 
   const safeInit = (fn)=> Promise.resolve().then(fn).catch(e=>{
     console.error('init failed', e); window.toast('초기화 중 오류가 발생했습니다.', 'error', 2200);
@@ -167,6 +169,7 @@ function bindTabs(){
     Object.entries(tabs).forEach(([k,el])=> el && el.classList.toggle('yt-active', k===name));
     if (name==='channel'    && !inited.channel)    { await safeInit(()=>initChannel({ mount:'#yt-tab-channel' }));       inited.channel=true; }
     if (name==='videos'     && !inited.videos)     { await safeInit(()=>initVideos({ mount:'#yt-tab-videos' }));         inited.videos=true; }
+    if (name==='search'     && !inited.search)     { await safeInit(()=>initSearch({ mount:'#yt-tab-search' }));         inited.search=true; }
     if (name==='script'     && !inited.script)     { await safeInit(()=>initScript({ mount:'#yt-tab-script' }));         inited.script=true; }
     if (name==='tts'        && !inited.tts)        { await safeInit(()=>initTTS({ mount:'#yt-tab-tts' }));               inited.tts=true; }
     if (name==='study'      && !inited.study)      { await safeInit(()=>initStudy({ mount:'#yt-tab-study' }));           inited.study=true; }

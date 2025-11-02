@@ -1,27 +1,20 @@
 // js/videos.js
-// 영상분석 탭
-// - 채널 캐시를 기반으로 최신/돌연변이 모드 분석
-// - 필터(조회수/기간/정렬/구독자수), 페이지네이션, 키워드 분석
-// - 제목 다운로드, 썸네일 복사/다운로드, 정보 복사, 작업완료 토글
-// - 키워드 분석 섹션과 카드 사이에 검색창 추가(제목 포함 검색, 카드 1장 폭/한 줄)
-// - 정보 복사 항목에 설명글, 해시태그 포함
-// - PDF 분석 리포트 기능 추가 (A4, 3열, 자동 페이지 분할, 텍스트 잘림 최종 해결)
-
 import { kvGet, kvSet, channelsAll, channelsRemove } from './indexedStore.js';
 import { ytApi } from './youtube.js';
+import { createVideoCard } from './shared-ui.js'; // [수정] 공통 비디오 카드 임포트
 
 const CONFIG = {
   perPage: 6,
   minViews: 10000,
   period: '1m', // '1w'|'2w'|'1m'|'all'
   longformSec: 181,
-  minSubs: 0, // 구독자 최소값 필터 (0 = 비활성)
-  maxSubs: 0, // 구독자 최대값 필터 (0 = 비활성)
+  minSubs: 0, 
+  maxSubs: 0, 
 };
 
 const state = {
-  mode: 'mutant',           // 'latest' | 'mutant'
-  sortBy: 'mutant_desc',    // 'views_desc' | 'mutant_desc' | 'publishedAt_desc' | 'subs_desc'
+  mode: 'mutant',           
+  sortBy: 'mutant_desc',    
   page: 1,
   filtered: [],
   cached: [],
@@ -71,19 +64,6 @@ async function downloadThumbnail(videoId, videoTitle) {
   } catch (e) {
     console.error('썸네일 다운로드 실패:', e);
     window.toast?.('썸네일 다운로드에 실패했습니다.', 'error');
-  }
-}
-
-function getQuotaResetTimeKST() {
-  try {
-    const nowInLA = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-    const tomorrowInLA = new Date(nowInLA);
-    tomorrowInLA.setDate(nowInLA.getDate() + 1);
-    tomorrowInLA.setHours(0, 0, 0, 0);
-    const options = { hour: 'numeric', minute: 'numeric', hour12: true, timeZone: 'Asia/Seoul' };
-    return new Intl.DateTimeFormat('ko-KR', options).format(tomorrowInLA);
-  } catch (e) {
-    return "내일";
   }
 }
 
@@ -150,21 +130,9 @@ function normalizeVideo(raw, ch){
   const subs = Number(ch.subscriberCount || 0);
   const mutant = subs > 0 ? (views / subs) * 10 : 0;
   return {
-    id: raw.id,
-    title,
-    description,
-    tags,
-    publishedAt,
-    views,
-    secs,
-    channel: {
-      id: ch.id,
-      name: ch.title,
-      subs,
-      thumb: ch.thumbnail
-    },
-    mutant,
-    isDone: false,
+    id: raw.id, title, description, tags, publishedAt, views, secs,
+    channel: { id: ch.id, name: ch.title, subs, thumb: ch.thumbnail },
+    mutant, isDone: false,
   };
 }
 
@@ -527,6 +495,37 @@ function renderPagination(root, totalItems){
   root.appendChild(nav);
 }
 
+function attachCardEventListeners(card, v, root) {
+    card.querySelector('.btn-copy-thumb').onclick = () => copyThumbnailImage(v.id);
+    card.querySelector('.btn-download-thumb').onclick = () => downloadThumbnail(v.id, v.title);
+    card.querySelector('.btn-copy-title').onclick = () => copyText(v.title);
+    card.querySelector('.btn-copy-info').onclick = () => {
+        const tagsStr = (v.tags && v.tags.length > 0) ? v.tags.map(t => `#${t}`).join(' ') : '없음';
+        const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}\n설명글 : ${v.description || '없음'}\n해시태그 : ${tagsStr}`;
+        copyText(info);
+    };
+
+    const doneButton = card.querySelector('.btn-toggle-done');
+    if (doneButton) {
+        doneButton.onclick = async () => {
+            const isDone = state.doneIds.has(v.id);
+            if (isDone) {
+                state.doneIds.delete(v.id);
+            } else {
+                state.doneIds.add(v.id);
+            }
+            await saveDoneIds();
+
+            const cachedItem = state.cached.find(item => item.id === v.id);
+            if (cachedItem) {
+                cachedItem.isDone = !isDone;
+            }
+
+            applyFiltersAndRender(root, { preservePage: true });
+        };
+    }
+}
+
 function renderList(root){
   const listWrap = root;
   listWrap.innerHTML = '';
@@ -546,65 +545,9 @@ function renderList(root){
 
   const grid = el('<div class="video-grid"></div>');
   items.forEach(v=>{
-    const done = state.doneIds.has(v.id);
-    const doneButtonText = done ? '완료취소' : '작업완료';
-    const doneButtonClass = done ? 'btn-outline' : 'btn-success';
-
-    const card = el(`
-      <div class="video-card ${done ? 'is-done' : ''}">
-        <div class="thumb-wrap">
-          <a href="https://youtu.be/${h(v.id)}" target="_blank" rel="noopener">
-            <img class="thumb" src="https://i.ytimg.com/vi/${h(v.id)}/mqdefault.jpg" alt="${h(v.title)}">
-          </a>
-        </div>
-        <div class="video-body">
-          <div class="title">${h(v.title)}</div>
-          <div class="meta">
-            <a href="https://www.youtube.com/channel/${h(v.channel.id)}" target="_blank" rel="noopener">
-              <img src="${h(v.channel.thumb)}" alt="${h(v.channel.name)}">
-            </a>
-            <span>${h(v.channel.name)}</span>
-            <span class="muted" style="margin-left: auto;">${num(v.channel.subs).toLocaleString()}명</span>
-          </div>
-          <div class="v-meta">
-            <div class="v-meta-top">
-              <span class="mutant-indicator">지수: ${v.mutant.toFixed(1)}</span>
-              <span>조회수 ${num(v.views).toLocaleString()}회</span>
-              <span class="muted">${new Date(v.publishedAt).toLocaleDateString('ko-KR')}</span>
-            </div>
-          </div>
-        </div>
-        <div class="video-actions" style="flex-wrap: wrap; justify-content: flex-start; gap: 6px;">
-          <button class="btn btn-sm btn-outline btn-copy-thumb">썸네일복사</button>
-          <button class="btn btn-sm btn-outline btn-download-thumb">썸네일다운</button>
-          <button class="btn btn-sm btn-outline btn-copy-info">정보</button>
-          <button class="btn btn-sm ${doneButtonClass} btn-toggle-done">${doneButtonText}</button>
-        </div>
-      </div>
-    `);
-
-    card.querySelector('.btn-copy-thumb').onclick = ()=> copyThumbnailImage(v.id);
-    card.querySelector('.btn-download-thumb').onclick = () => downloadThumbnail(v.id, v.title);
-    card.querySelector('.btn-copy-info').onclick = ()=>{
-      const tagsStr = (v.tags && v.tags.length > 0) ? v.tags.map(t=>`#${t}`).join(' ') : '없음';
-      const info = `제목 : ${v.title}\n구독자수 : ${num(v.channel.subs).toLocaleString()}명\n조회수 : ${num(v.views).toLocaleString()}회\n업로드 일: ${new Date(v.publishedAt).toLocaleDateString('ko-KR')}\n설명글 : ${v.description || '없음'}\n해시태그 : ${tagsStr}`;
-      copyText(info);
-    };
-
-    card.querySelector('.btn-toggle-done').onclick = async ()=>{
-      const isDone = state.doneIds.has(v.id);
-      if (isDone) state.doneIds.delete(v.id);
-      else state.doneIds.add(v.id);
-      await saveDoneIds();
-
-      const cachedItem = state.cached.find(item => item.id === v.id);
-      if (cachedItem) {
-        cachedItem.isDone = !isDone;
-      }
-
-      applyFiltersAndRender(root, { preservePage: true });
-    };
-
+    const isDone = state.doneIds.has(v.id);
+    const card = createVideoCard(v, { showDoneButton: true, isDone });
+    attachCardEventListeners(card, v, root);
     grid.appendChild(card);
   });
   listWrap.appendChild(grid);
