@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초반 이탈율 방어 전략 분석</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- 
+    Chosen Palette: Warm & Supportive (#F5F3EF, #A59A94, #DED7D1, #4A4441, #E79C75)
+    Application Structure Plan: 
+    - A single-page, scrolling qualitative report. No tabs are needed as the focus is 100% on one topic (the hook).
+    - Section 1: The Core Thesis. Explains the "Two-Part Punch" (Title + Script) theory. This is the main answer.
+    - Section 2: "The Pre-Play Promise". This section deconstructs the Title and Description, showing how they function as a 'contract' with the viewer.
+    - Section 3: "The In-Audio Confirmation". This section deconstructs the first 56 seconds of the transcript, showing how the audio *confirms* the contract.
+    - This structure logically presents the argument: Here is the answer (Thesis), here is Part 1 of the evidence (Title), here is Part 2 (Script). It directly addresses the user's focused query.
+    Visualization & Content Choices:
+    - [Thesis] -> Goal: Inform -> Method: Styled Hero Card (HTML/Tailwind) -> Interaction: None -> Justification: Presents the main conclusion upfront.
+    - [Title Deconstruction] -> Goal: Organize -> Method: Styled HTML Card with 'highlight' spans -> Interaction: Read -> Justification: Breaks the title into its functional, promise-making components (Betrayal, Conflict, Climax).
+    - [Description Deconstruction] -> Goal: Organize -> Method: Styled HTML Card with 'highlight' span -> Interaction: Read -> Justification: Shows how the description explicitly confirms the "revenge" ("Ssaida") promise.
+    - [Transcript Hook Analysis] -> Goal: Organize -> Method: A grid of HTML cards (Key Hook 1-4) -> Interaction: Read -> Justification: Allows for a snippet-by-snippet analysis of the audio's role in *confirming* the promise.
+    - **No charts are used** as no quantitative retention data was provided. The user explicitly stated info was limited. The SPA is a qualitative analysis tool.
+    CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #F5F3EF;
+            color: #4A4441;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        <section id="header" class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-[#4A4441] mb-4">초반 이탈율 방어 전략 100% 집중 분석</h1>
+            <p class="text-xl text-gray-700">"여행지에서 버려진 저..." (1시간 38분)</p>
+        </section>
+
+        <section id="thesis" class="mb-12">
+            <div class="bg-white p-8 rounded-lg shadow-lg border-l-4 border-[#E79C75]">
+                <h2 class="text-3xl font-bold mb-4 text-[#4A4441]">핵심 분석: '2중 잠금' (Two-Part Punch) 후크</h2>
+                <p class="text-lg text-gray-700 leading-relaxed">
+                    이 영상은 데이터가 없음에도 불구하고, 지난번 분석한 '고아 병사' 영상보다 **더욱 강력하고 정교한 초반 후크**를 사용합니다. 이 영상의 초반 이탈율이 낮은 이유는, 시청자가 영상을 재생하기 **'전'**과 **'후'**에 걸쳐 2단계로 작동하는 '확신의 덫'을 놓기 때문입니다.
+                </p>
+                <ul class="list-disc list-inside mt-4 space-y-2 text-gray-700">
+                    <li><strong>1단계 (사전의 약속):</strong> 시청자는 <span class="font-bold text-[#E79C75]">제목과 설명글</span>을 통해 '배신'과 '통쾌한 복수'라는 1시간 38분짜리 '사이다 드라마'의 전체 줄거리를 이미 '계약'하고 재생 버튼을 누릅니다.</li>
+                    <li><strong>2단계 (대본의 확증):</strong> 영상 시작 후 <span class="font-bold text-[#E79C75]">초반 56초의 대본</span>은 이 '계약'이 진짜임을 즉각 '확증'시켜 줍니다. 시청자는 미스터리를 푸는 것이 아니라, 약속된 복수가 시작되었음을 확인하고 안심하며 이야기에 탑승합니다.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="part1" class="mb-12">
+            <h2 class="text-3xl font-bold text-center mb-8">1단계: '사전의 약속' (재생 전 계약)</h2>
+            <p class="text-lg text-center text-gray-700 mb-8">시청자는 재생 버튼을 누르기 전에 이미 영상의 '가치'를 100% 인지합니다. 제목과 설명란은 이 영상이 '고구마'로 끝나지 않을 것이라는 강력한 보증수표입니다.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4">제목 분석: 완벽한 3단 플롯</h3>
+                    <p class="text-gray-600 mb-4">제목 자체가 하나의 완결된 기승전결(사이다) 요약본입니다.</p>
+                    <div class="space-y-3">
+                        <p class="text-gray-800">"<span class="bg-[#E79C75]/30 px-2 py-1 rounded">여행지에서 버려진 저.</span>"
+                            <br><span class="text-sm text-[#4A4441] font-semibold ml-2">→ ① 갈등 (Betrayal):</span> 시청자의 공감과 분노를 유발합니다.</p>
+                        <p class="text-gray-800">"<span class="bg-[#E79C75]/30 px-2 py-1 rounded">남편은... 제 15억 아파트를 뺏으러 왔습니다.</span>"
+                            <br><span class="text-sm text-[#4A4441] font-semibold ml-2">→ ② 위기 (Conflict):</span> 구체적인 금액(15억)이 갈등을 현실적이고 심각하게 만듭니다.</p>
+                        <p class="text-gray-800">"<span class="bg-[#E79C75]/30 px-2 py-1 rounded">하지만 문을 열자마자 그들이 마주한 것은…!</span>"
+                            <br><span class="text-sm text-[#4A4441] font-semibold ml-2">→ ③ 반전 (Revenge):</span> 통쾌한 복수('사이다')를 100% '약속'합니다. 시청자는 '마주한 것'이 무엇인지 확인하기 위해 영상을 볼 수밖에 없습니다.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4">설명글 & 해시태그 분석</h3>
+                    <p class="text-gray-600 mb-4">설명글은 '복수'를 재확인하고, 해시태그는 '타겟'을 명확히 합니다.</p>
+                    <div class="space-y-3">
+                        <p class="text-gray-800">
+                            <span class="font-semibold text-gray-900">설명글의 약속:</span>
+                            <br>
+                            "<span class="bg-[#E79C75]/30 px-2 py-1 rounded">...음모를 밝혀내고 복수하기로 결심했습니다.</span>"
+                            <br>
+                            "<span class="bg-[#E79C75]/30 px-2 py-1 rounded">...제 복수의 이야기를 함께 확인해보세요.</span>"
+                            <br><span class="text-sm text-[#4A4441] font-semibold ml-2">→ '사이다사연'임을 다시 한번 못 박아 시청자를 안심시킵니다.</span>
+                        </p>
+                        <p class="text-gray-800">
+                            <span class="font-semibold text-gray-900">해시태그의 타겟팅:</span>
+                            <br>
+                            <span class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-700">#황혼연애</span>
+                            <span class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-700">#노후사연</span>
+                            <span class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-700">#오디오북</span>
+                            <br><span class="text-sm text-[#4A4441] font-semibold ml-2">→ 이 영상이 10대, 20대가 아닌 <span class="text-[#E79C75]">장년~노년층(50대 이상)</span>을 위한 긴 호흡의 '듣는' 콘텐츠임을 명확히 합니다. 이 타겟은 1시간 38분을 이탈 없이 시청할 '인내심'과 '시청 습관'을 가진 집단입니다.</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="part2">
+            <h2 class="text-3xl font-bold text-center mb-8">2단계: '대본의 확증' (0:00 - 0:56)</h2>
+            <p class="text-lg text-center text-gray-700 mb-8">시청자가 '계약서(제목)'를 읽고 입장하자마자, 대본은 1분도 안 되어 '계약 이행'을 시작합니다. 시청자는 '내가 원한 이야기가 맞다'고 확신합니다.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold mb-2">Key Hook 1: 불길한 전조</h3>
+                    <p class="italic bg-gray-50 p-3 rounded text-gray-700">"(00:00) ...이상하리만치 마음은 평온했다."</p>
+                    <p class="mt-2 text-gray-700">
+                        → '평온'이 '이상하다'는 모순된 표현으로 즉각적인 서스펜스를 만듭니다. '폭풍전야'임을 암시하며, 시청자는 '무슨 일이 터질 것'이라고 직감합니다.
+                    </p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold mb-2">Key Hook 2: 악당의 징후</h3>
+                    <p class="italic bg-gray-50 p-3 rounded text-gray-700">"(00:23) 그는 어딘가 정신이 팔린 듯... 운전대를 툭툭 건드렸다."</p>
+                    <p class="mt-2 text-gray-700">
+                        → '막장 드라마'의 전형적인 '악당(남편)'의 행동입니다. 시청자는 '저 남편이 딴짓(음모, 외도 등)을 하고 있군'이라고 즉각 인지합니다.
+                    </p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold mb-2">Key Hook 3: 음모의 확증</h3>
+                    <p class="italic bg-gray-50 p-3 rounded text-gray-700">"(00:39) 기표는 그녀를 힐긋보더니 알아채기 힘든 <span class="font-bold text-[#E79C75]">냉소가 어린 미소</span>를... 띄웠다. '괜찮아. 거의 다 왔어.'"</p>
+                    <p class="mt-2 text-gray-700">
+                        → **결정적 한 방입니다.** '냉소(Cynical Smile)'는 남편의 적대감을 100% 확증합니다. "거의 다 왔어"라는 말은 위로가 아닌, '음모의 장소(버리는 곳)에 거의 다 왔다'는 위협으로 들립니다. 시청자는 제목에서 본 '배신'이 바로 이 순간임을 깨닫습니다.
+                    </p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold mb-2">Key Hook 4: 공모자들의 등장</h3>
+                    <p class="italic bg-gray-50 p-3 rounded text-gray-700">"(00:49) 뒷좌석에서는 시어머니와 신우이 가족이 시끌벅적하게..."</p>
+                    <p class="mt-2 text-gray-700">
+                        → 제목에서 본 '남편' 외의 '시어머니와 시누이네' 공모자들이 모두 한 차에 타고 있음을 확인시켜 줍니다. 주인공이 1:N으로 고립되었다는 '고구마' 상황이 완성됩니다.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section id="conclusion" class="mt-16 text-center">
+            <h2 class="text-3xl font-bold mb-4">결론: '불안'이 아닌 '확신'을 파는 전략</h2>
+            <div class="bg-white p-8 rounded-lg shadow-lg max-w-3xl mx-auto">
+                <p class="text-lg text-gray-700 leading-relaxed">
+                    이 영상의 초반 1분은 시청자에게 '무슨 내용일까?'라는 <span class="font-bold text-blue-600">'미스터리(Mystery)'</span>를 파는 것이 아닙니다.
+                    <br><br>
+                    오히려 '당신이 제목에서 본 그 통쾌한 복수극, 지금 바로 시작합니다'라는 <span class="font-bold text-[#E79C75]">'확신(Confirmation)'</span>을 팝니다.
+                    <br><br>
+                    타겟 시청층(50대 이상)은 불안한 미스터리보다 '권선징악'이라는 약속된 '사이다'를 원합니다. 이 영상은 1시간 38분짜리 긴 여정을 떠나기 전, 시청자에게 "목적지는 100% 사이다 복수입니다. 안심하고 탑승하세요"라는 확신을 줌으로써, 긴 재생 시간을 '기대감'으로 바꾸어 버립니다.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+        });
+    </script>
+</body>
+</html>
