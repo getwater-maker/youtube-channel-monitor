@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 영상 성공 분석</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- 
+    Chosen Palette: Warm & Supportive (#F5F3EF, #A59A94, #DED7D1, #4A4441, #E79C75)
+    Application Structure Plan: 
+    - A single-page, tab-based SPA for easy exploration.
+    - '대시보드' (Dashboard): Default view with KPIs, the main thesis, and the "30-second hook" retention chart. This gives the user the most critical info upfront.
+    - '시청자 분석' (Audience Analysis): A dedicated section for the demographic and acquisition data (Gender, Age, Viewer Type) using charts. This provides the core evidence.
+    - '성공 전략' (Success Strategies): An interactive tab component to break down the 4 qualitative strategies, preventing a wall of text.
+    - '대본 조언' (Script Advice): A card-based layout for the 7 actionable takeaways.
+    - This structure logically separates the summary (Dashboard), the proof (Audience), the "why" (Strategies), and the "how-to" (Advice), guiding the user through a story of analysis.
+    Visualization & Content Choices:
+    - [KPIs] -> Goal: Inform -> Method: Styled HTML Cards -> Interaction: None -> Justification: Quick, high-level stats.
+    - [Retention at 30s] -> Goal: Change -> Method: Line Chart (Chart.js) -> Interaction: Hover -> Justification: Visually demonstrates the critical "promise-first" hook.
+    - [Gender Data] -> Goal: Compare (Composition) -> Method: Donut Chart (Chart.js) -> Interaction: Hover -> Justification: Standard for simple part-to-whole comparison.
+    - [Age Data] -> Goal: Compare (Categories) -> Method: Bar Chart (Chart.js) -> Interaction: Hover -> Justification: Best way to show the dramatic skew towards D 55+ viewers.
+    - [Viewer Type] -> Goal: Compare (Composition) -> Method: Donut Chart (Chart.js) -> Interaction: Hover -> Justification: Emphasizes the "new viewer" (algorithmic success) aspect.
+    - [4 Strategies] -> Goal: Organize -> Method: Interactive Tabs (HTML/JS) -> Interaction: Click -> Justification: Hides complexity, allows focused reading on one strategy at a time.
+    - [7 Advices] -> Goal: Organize -> Method: Styled Card List (HTML/Tailwind) -> Interaction: Read -> Justification: Breaks list into visually digestible chunks.
+    CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #F5F3EF;
+            color: #4A4441;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .nav-btn {
+            @apply px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors duration-200;
+            color: #A59A94;
+            border-bottom: 4px solid transparent;
+        }
+        .nav-btn.active {
+            color: #4A4441;
+            border-bottom-color: #E79C75;
+        }
+        .section-content {
+            display: none;
+        }
+        .section-content.active {
+            display: block;
+        }
+        .strategy-tab-btn {
+            @apply px-4 py-2 text-sm font-semibold text-gray-600 border-b-2 border-transparent cursor-pointer;
+        }
+        .strategy-tab-btn.active {
+            @apply text-[#E79C75] border-[#E79C75];
+        }
+        .strategy-tab-content {
+            display: none;
+        }
+        .strategy-tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="sticky top-0 bg-[#F5F3EF] shadow-sm z-10">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-center border-b border-gray-200">
+                <button id="nav-dashboard" class="nav-btn active" onclick="showSection('dashboard')">대시보드</button>
+                <button id="nav-audience" class="nav-btn" onclick="showSection('audience')">시청자 분석</button>
+                <button id="nav-strategies" class="nav-btn" onclick="showSection('strategies')">성공 전략</button>
+                <button id="nav-advice" class="nav-btn" onclick="showSection('advice')">대본 조언</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <section id="dashboard" class="section-content active">
+            <h1 class="text-3xl font-bold text-center mb-4">YouTube 영상 성공 분석</h1>
+            <p class="text-center text-lg text-gray-700 mb-8">"고아 출신 왕따병사를 구하러 온 쓰리스타"</p>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+                <h2 class="text-2xl font-bold mb-4 text-[#4A4441]">분석 요약: 왜 이 영상은 성공했는가?</h2>
+                <p class="text-gray-700 leading-relaxed">
+                    이 영상의 성공은 '우연'이 아니라, **특정 타겟 고객(55세 이상 여성)에게 완벽하게 맞춤 설계된 '작품'**임을 명확히 보여줍니다. 1시간이 넘는 긴 분량에도 불구하고 초반 30초 안에 시청자가 원하는 '보상'(복수와 재회)을 명확히 '약속'하고, TV '막장 드라마'의 서사 공식을 충실히 따름으로써, 타겟 시청층의 시청 습관(긴 호흡의 내러티브 선호)과 완벽히 부합했습니다. 시청자들은 이 영상이 반드시 통쾌한 결말을 줄 것이라는 확신을 초반에 얻었기 때문에 이탈하지 않았습니다.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                    <h3 class="text-sm font-semibold text-[#A59A94] uppercase">평균 시청 지속 시간</h3>
+                    <p class="text-3xl font-bold text-[#4A4441] mt-2">24:19</p>
+                    <p class="text-xs text-gray-500">(총 1:03:43 영상)</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                    <h3 class="text-sm font-semibold text-[#A59A94] uppercase">평균 조회율</h3>
+                    <p class="text-3xl font-bold text-[#4A4441] mt-2">38.2%</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                    <h3 class="text-sm font-semibold text-[#A59A94] uppercase">핵심 시청자 (55세+)</h3>
+                    <p class="text-3xl font-bold text-[#4A4441] mt-2">95.4%</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                    <h3 class="text-sm font-semibold text-[#A59A94] uppercase">신규 시청자 비율</h3>
+                    <p class="text-3xl font-bold text-[#4A4441] mt-2">98.9%</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-bold text-center mb-4 text-[#4A4441]">초반 30초의 '약속'</h2>
+                <p class="text-center text-gray-700 mb-4">영상의 성공은 초반 30초에 결정되었습니다. 66%의 시청자가 30초 지점에서도 시청을 지속했으며, 이는 이탈율이 매우 낮음을 의미합니다. 그 이유는 이 30초 안에 '갈등'과 '해결의 약속'이 모두 제시되었기 때문입니다.</p>
+                <div class="chart-container">
+                    <canvas id="retentionChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <section id="audience" class="section-content">
+            <h1 class="text-3xl font-bold text-center mb-8">시청자 분석: '누가' 보았는가?</h1>
+            <p class="text-lg text-center text-gray-700 mb-8">데이터는 이 영상의 시청자가 '유튜브 주류'와 완전히 다름을 보여줍니다. 이들은 TV 드라마의 핵심 시청층과 정확히 일치합니다.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-bold text-center mb-4 text-[#4A4441]">연령별 분포</h2>
+                    <p class="text-center text-gray-700 mb-4">시청자의 95.4%가 55세 이상으로, 압도적인 비중을 차지합니다. 이는 '시니어 드라마' 시청층을 완벽하게 공략했음을 보여줍니다.</p>
+                    <div class="chart-container" style="height: 400px; max-height: 450px;">
+                        <canvas id="ageChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-bold text-center mb-4 text-[#4A4441]">성별 분포</h2>
+                        <p class="text-center text-gray-700 mb-4">여성 시청자가 70.5%로 남성보다 2배 이상 많습니다.</p>
+                        <div class="chart-container" style="height: 250px; max-height: 300px;">
+                            <canvas id="genderChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-bold text-center mb-4 text-[#4A4441]">시청자 유형</h2>
+                        <p class="text-center text-gray-700 mb-4">시청자의 98.9%가 신규 시청자입니다. 이는 알고리즘에 의한 '발견'으로 성공했음을 의미합니다.</p>
+                        <div class="chart-container" style="height: 250px; max-height: 300px;">
+                            <canvas id="viewerTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="strategies" class="section-content">
+            <h1 class="text-3xl font-bold text-center mb-8">4대 성공 전략: '왜' 이탈하지 않았나?</h1>
+            <p class="text-lg text-center text-gray-700 mb-8">이 영상의 성공은 치밀하게 설계된 4가지 핵심 전략의 결과입니다. 아래 탭을 클릭하여 각 전략을 확인해 보세요.</p>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="border-b border-gray-200 mb-4">
+                    <nav class="flex justify-center -mb-px space-x-4">
+                        <button class="strategy-tab-btn active" onclick="showStrategyTab('strategy1')">① '약속 선불'형 콜드 오픈</button>
+                        <button class="strategy-tab-btn" onclick="showStrategyTab('strategy2')">② '트로프' 총집합</button>
+                        <button class="strategy-tab-btn" onclick="showStrategyTab('strategy3')">③ 완벽한 '상품 설명서'</button>
+                        <button class="strategy-tab-btn" onclick="showStrategyTab('strategy4')">④ '청취' 중심 포맷</button>
+                    </nav>
+                </div>
+
+                <div id="strategy1" class="strategy-tab-content active">
+                    <h3 class="text-xl font-bold mb-2">전략 1: '약속 선불'형 콜드 오픈 (The "Promise-First" Cold Open)</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        대부분의 영상이 '갈등'만 보여주고 '해결'은 숨기는 것과 달리, 이 영상은 단 30초 안에 '고아인 주인공이 핍박받는다'(갈등)와 '사단장 아빠가 그를 찾으러 온다'(해결/복수)는 핵심 전제를 모두 보여주었습니다.<br><br>
+                        시청자는 '이 고구마가 끝나긴 할까?'라는 불안감 없이, '저 악당이 어떻게 당할까?'라는 **'확신에 찬 기대감'**으로 영상을 시청합니다. 이는 1시간이라는 긴 여정을 버티게 하는 가장 강력한 동력입니다.
+                    </p>
+                </div>
+                <div id="strategy2" class="strategy-tab-content">
+                    <h3 class="text-xl font-bold mb-2">전략 2: 타겟 오디언스가 열광하는 '트로프(Trope)' 총집합</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        이 영상은 55+ 여성 시청층이 열광하는 '막장 드라마'의 성공 공식을 모두 담고 있습니다.
+                    </p>
+                    <ul class="list-disc list-inside mt-2 text-gray-700">
+                        <li><strong>신분 역전:</strong> 최하층(고아 일등병)이 최고층(사단장 아들)으로.</li>
+                        <li><strong>인과응보/참교육:</strong> 가해자가 사단장 아들 앞에서 벌벌 떠는 '사이다' 복수.</li>
+                        <li><strong>출생의 비밀/가족 찾기:</strong> 20년간의 그리움, DNA 검사, 눈물의 부자 상봉.</li>
+                        <li><strong>절대적 약자와 절대적 강자:</strong> 핍박받는 고아(약자)와 그를 구하러 온 쓰리스타(절대적 강자).</li>
+                    </ul>
+                </div>
+                <div id="strategy3" class="strategy-tab-content">
+                    <h3 class="text-xl font-bold mb-2">전략 3: 완벽한 '상품 설명서' (제목, 설명, 썸네일)</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        이 영상은 '이 안에 무엇이 들었는지'를 완벽하게 포장해서 제시했습니다.
+                    </p>
+                    <ul class="list-disc list-inside mt-2 text-gray-700">
+                        <li><strong>제목:</strong> "고아 출신 왕따병사를 구하러 온 쓰리스타인데 사단장인 좀 이상한 아빠" -> 모든 핵심 키워드를 담아 스토리를 요약.</li>
+                        <li><strong>설명:</strong> "가해자들이 벌벌 떠는 통쾌한 반전 드라마", "✅ 가해자들의 참교육과 무릎 꿇는 장면" 등 시청자가 얻을 '감정적 보상'을 정확히 나열.</li>
+                        <li><strong>해시태그:</strong> #막장드라마, #신분반전, #참교육, #시니어드라마 -> 타겟과 알고리즘에게 영상의 정체성을 명확히 함.</li>
+                    </ul>
+                </div>
+                <div id="strategy4" class="strategy-tab-content">
+                    <h3 class="text-xl font-bold mb-2">전략 4: '시청'이 아닌 '청취'를 고려한 포맷</h3>
+                    <p class="text-gray-700 leading-relaxed">
+                        1시간 3분의 긴 영상은 화면을 계속 보고 있기 부담스럽습니다. 하지만 이 영상은 '이야기' 중심입니다.<br><br>
+                        즉, 55+ 시청자들이 라디오 드라마를 듣거나 TV를 켜놓고 다른 일을 하듯, **화면을 보지 않고 '들으면서'** 내용을 따라갈 수 있습니다. 자극적인 컷 편집 없이도 서사에만 집중할 수 있다는 점이 이 타겟에게는 오히려 '피로도 없는' 시청(청취) 경험을 제공합니다.
+                    </p>
+                </div>
+            </div>
+        </section>
+        
+        <section id="advice" class="section-content">
+            <h1 class="text-3xl font-bold text-center mb-8">성공 대본을 위한 7가지 조언</h1>
+            <p class="text-lg text-center text-gray-700 mb-8">이러한 성공 사례를 바탕으로, 유사한 콘텐츠를 기획하는 크리에이터에게 다음과 같은 조언과 방향성을 제시합니다.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">1. '누가' 볼 것인지 명확히 하라</h3>
+                    <p class="text-gray-700">모두를 위한 콘텐츠는 아무도 보지 않습니다. '55세 이상, TV 드라마 소비자'를 타겟으로 한다면, 그들의 문법과 호흡(긴 서사, 확실한 권선징악)을 따라야 합니다.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">2. 초반 30초는 '결말의 예고편'이다</h3>
+                    <p class="text-gray-700">시청자의 1시간을 붙잡고 싶다면, 30초 안에 "당신이 원하는 그 감동/통쾌함을 *반드시* 얻게 될 것"이라고 '약속'하십시오.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">3. '고구마' 10개엔 '사이다' 100개를</h3>
+                    <p class="text-gray-700">시청자가 주인공의 고난에 공감하며 쌓은 스트레스를, 결말에서 완벽하게 해소시켜야 합니다. 이 '감정적 카타르시스'의 강도가 AVD와 직결됩니다.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">4. '트로프'는 '검증된 공식'이다</h3>
+                    <p class="text-gray-700">출생의 비밀, 신분 역전, 인과응보는 낡은 것이 아니라 수천 년간 인류가 사랑해 온 이야기의 원형입니다. 이를 현대적 배경으로 변주하십시오.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">5. 긴장감은 '어떻게 터질까'에서 온다</h3>
+                    <p class="text-gray-700">시청자는 '아빠를 만날까?'가 아니라, '언제, 어떤 방식으로 만나서, 저 악당을 어떻게 처리할까?'를 궁금해합니다. 이것이 '과정의 힘'입니다.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">6. 제목과 설명란은 '계약서'처럼</h3>
+                    <p class="text-gray-700">시청자에게 "이 영상을 클릭하면 당신은 [✅ 이런 통쾌함]을 얻을 수 있습니다"라고 명확히 제시하십시오.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-lg font-bold mb-2 text-[#4A4441]">7. 청각적 경험을 중시하라</h3>
+                    <p class="text-gray-700">타겟이 55+라면, 화면을 보지 않고 '들으면서' 따라올 수 있게 만드십시오. 내레이션과 대사만으로 서사가 전달되어야 합니다.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const sections = {
+            'dashboard': document.getElementById('dashboard'),
+            'audience': document.getElementById('audience'),
+            'strategies': document.getElementById('strategies'),
+            'advice': document.getElementById('advice')
+        };
+        const navButtons = {
+            'dashboard': document.getElementById('nav-dashboard'),
+            'audience': document.getElementById('nav-audience'),
+            'strategies': document.getElementById('nav-strategies'),
+            'advice': document.getElementById('nav-advice')
+        };
+        const strategyTabs = {
+            'strategy1': document.getElementById('strategy1'),
+            'strategy2': document.getElementById('strategy2'),
+            'strategy3': document.getElementById('strategy3'),
+            'strategy4': document.getElementById('strategy4')
+        };
+        const strategyTabButtons = document.querySelectorAll('.strategy-tab-btn');
+
+        function showSection(sectionId) {
+            Object.values(sections).forEach(section => {
+                section.classList.remove('active');
+            });
+            Object.values(navButtons).forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            if (sections[sectionId]) {
+                sections[sectionId].classList.add('active');
+            }
+            if (navButtons[sectionId]) {
+                navButtons[sectionId].classList.add('active');
+            }
+        }
+
+        function showStrategyTab(tabId) {
+            Object.values(strategyTabs).forEach(tab => {
+                tab.classList.remove('active');
+            });
+            strategyTabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            if (strategyTabs[tabId]) {
+                strategyTabs[tabId].classList.add('active');
+            }
+            const activeButton = document.querySelector(`.strategy-tab-btn[onclick="showStrategyTab('${tabId}')"]`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+        }
+
+        strategyTabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('onclick').match(/'(.*?)'/)[1];
+                showStrategyTab(tabId);
+            });
+        });
+
+        const tooltipTitleCallback = {
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const item = tooltipItems[0];
+                            let label = item.chart.data.labels[item.dataIndex];
+                            if (Array.isArray(label)) {
+                              return label.join(' ');
+                            } else {
+                              return label;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        function createCharts() {
+            const chartColors = {
+                primary: '#E79C75',
+                secondary: '#A59A94',
+                tertiary: '#DED7D1'
+            };
+
+            const retentionCtx = document.getElementById('retentionChart').getContext('2d');
+            new Chart(retentionCtx, {
+                type: 'line',
+                data: {
+                    labels: ['0초', '30초'],
+                    datasets: [{
+                        label: '시청자 유지율 (%)',
+                        data: [100, 66],
+                        borderColor: chartColors.primary,
+                        backgroundColor: 'rgba(231, 156, 117, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    ...tooltipTitleCallback,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 50,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const ageCtx = document.getElementById('ageChart').getContext('2d');
+            new Chart(ageCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['만 13–17세', '만 18–24세', '만 25–34세', '만 35–44세', '만 45–54세', '만 55–64세', '만 65세 이상'],
+                    datasets: [{
+                        label: '시청자 비율 (%)',
+                        data: [0, 0, 0.5, 0.8, 3.2, 17.2, 78.2],
+                        backgroundColor: chartColors.primary,
+                    }]
+                },
+                options: {
+                    ...tooltipTitleCallback,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%'
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        ...tooltipTitleCallback.plugins,
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            const genderCtx = document.getElementById('genderChart').getContext('2d');
+            new Chart(genderCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['여성', '남성'],
+                    datasets: [{
+                        data: [70.5, 29.5],
+                        backgroundColor: [chartColors.primary, chartColors.secondary],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    ...tooltipTitleCallback,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        ...tooltipTitleCallback.plugins,
+                        tooltip: {
+                            ...tooltipTitleCallback.plugins.tooltip,
+                            callbacks: {
+                                ...tooltipTitleCallback.plugins.tooltip.callbacks,
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const viewerTypeCtx = document.getElementById('viewerTypeChart').getContext('2d');
+            new Chart(viewerTypeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['신규 시청자', '기존 시청자 (일반+고정)'],
+                    datasets: [{
+                        data: [98.9, 1.1],
+                        backgroundColor: [chartColors.primary, chartColors.tertiary],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    ...tooltipTitleCallback,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        ...tooltipTitleCallback.plugins,
+                        tooltip: {
+                            ...tooltipTitleCallback.plugins.tooltip,
+                            callbacks: {
+                                ...tooltipTitleCallback.plugins.tooltip.callbacks,
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        window.onload = function() {
+            showSection('dashboard');
+            createCharts();
+        };
+    </script>
+</body>
+</html>
