@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>유튜브 오디오북 채널 전략 | 45-64세 남성 타겟</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Brilliant Blues -->
+    <!-- Application Structure Plan: The SPA is structured as a narrative flow mimicking the content strategy process from the source report. It moves from (1) Audience Analysis (Who), to (2) Content Strategy (What), to (3-4) Capture Strategy (Thumbnails/Titles - How to Get Clicks), and finally (5) Retention Strategy (Hooks - How to Keep Viewers). This thematic, step-by-step structure is the most logical way for a user (the channel owner) to digest and apply the report's findings. Key visualizations are used for ranked/proportional data, while HTML/Tailwind cards are used for qualitative, conceptual strategies (like thumbnail design). -->
+    <!-- Visualization & Content Choices: (1) Audience Interests: Goal: Inform. Viz: Donut Chart (Chart.js) - Justification: Clear, simple proportional view of the 3 key topics. (2) Content Priority: Goal: Organize (Rank). Viz: Horizontal Bar Chart (Chart.js) - Justification: Best for visualizing a clear 1-4 priority ranking. (3) Thumbnail Strategy: Goal: Inform/Organize. Viz: HTML/Tailwind Cards - Justification: This is a qualitative, visual concept. Mocking up the styles in HTML is more effective than a data chart. (4) Title Strategy: Goal: Organize. Viz: HTML/Tailwind List Cards - Justification: Textual formulas best presented as clear, organized text. (5) Hook Strategy: Goal: Compare. Viz: Radar Chart (Chart.js) - Justification: Perfect for comparing 3 strategies across 3 common attributes (Trust, Value, Impact). (6) Hook "Don'ts": Goal: Inform. Viz: HTML List (Unicode) - Justification: Simple, clear list of "don'ts". CONFIRMING: NO SVG/Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #EBF4FF;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-height: 400px;
+            }
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            height: 100%;
+        }
+        .palette-primary { color: #167BDB; }
+        .palette-dark { color: #0B4C84; }
+        .bg-palette-primary { background-color: #167BDB; }
+        .bg-palette-dark { background-color: #0B4C84; }
+        .border-palette-primary { border-color: #167BDB; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container max-w-7xl mx-auto p-4 md:p-8">
+        
+        <header class="text-center mb-10 md:mb-16">
+            <h1 class="text-3xl md:text-5xl font-bold palette-dark mb-2">AI 오디오북 채널 핵심 전략</h1>
+            <p class="text-xl md:text-2xl font-bold palette-primary">45-64세 남성 시청자 공략법</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <div class="card lg:col-span-1">
+                <h2 class="text-2xl font-bold mb-4 palette-dark">1. 핵심 타겟: 45-64세 남성</h2>
+                <p class="mb-4">단순 오락을 넘어 '지적 만족'과 '실질적 효용'을 추구하는 세대입니다. 신뢰도와 정보의 질을 최우선으로 고려합니다.</p>
+                <div class="chart-container">
+                    <canvas id="audienceInterestsChart"></canvas>
+                </div>
+                <p class="text-center font-bold mt-2">주요 관심 분야</p>
+            </div>
+
+            <div class="card lg:col-span-1">
+                <h2 class="text-2xl font-bold mb-4 palette-dark">2. 타겟 맞춤 콘텐츠 전략</h2>
+                <p class="mb-4">시청자의 니즈에 기반한 콘텐츠 주제 우선순위입니다. '유행'이 아닌 '본질'과 '통찰'을 제공해야 합니다.</p>
+                <div class="chart-container" style="height: 350px; max-height: 450px;">
+                    <canvas id="contentStrategyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-1">
+                <h2 class="text-2xl font-bold mb-4 palette-dark">5. 훅(Hook) 전략: 금지 사항</h2>
+                <p class="mb-4">시작 30초 내 이탈을 방지하기 위해, AI 음성의 단점을 변명하는 대신 가치를 증명해야 합니다. 다음은 <span class="font-bold text-red-600">절대 피해야 할</span> 훅입니다.</p>
+                <ul class="space-y-3 mt-6">
+                    <li class="flex items-start">
+                        <span class="text-2xl mr-3">❌</span>
+                        <div>
+                            <h3 class="font-bold">"안녕하세요! OOO입니다!"</h3>
+                            <p class="text-sm">타겟은 친근함보다 '본론'을 원합니다.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-2xl mr-3">❌</span>
+                        <div>
+                            <h3 class="font-bold">"구독과 좋아요 부탁드립니다!"</h3>
+                            <p class="text-sm">가치를 증명하기도 전에 요구하는 채널은 신뢰를 잃습니다.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-2xl mr-3">❌</span>
+                        <div>
+                            <h3 class="font-bold">"AI가 읽어 부족할 수 있습니다..."</h3>
+                            <p class="text-sm">자신감 없는 태도는 콘텐츠 가치를 떨어뜨립니다.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-2xl mr-3">❌</span>
+                        <div>
+                            <h3 class="font-bold">화려한 인트로 / 시끄러운 효과음</h3>
+                            <p class="text-sm">'청각'에 집중하는 오디오북에 방해만 됩니다.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="card lg:col-span-3">
+                <h2 class="text-2xl font-bold mb-6 palette-dark text-center">3. 클릭 유도 전략 (1): 썸네일</h2>
+                <p class="text-center mb-6 max-w-3xl mx-auto">썸네일은 '신뢰'와 '가치'를 즉각적으로 전달해야 합니다. 가벼워 보여서는 안 됩니다.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    
+                    <div class="border-4 border-palette-primary p-4 rounded-lg shadow-lg">
+                        <h3 class="text-xl font-bold text-center mb-3">1순위: "북커버" 스타일</h3>
+                        <div class="aspect-video bg-gray-800 text-white p-4 flex flex-col justify-center items-center rounded-md text-center">
+                            <h4 class="text-2xl font-bold" style="font-family: 'Times New Roman', serif;">『명상록』</h4>
+                            <p class="text-sm mt-2">마르쿠스 아우렐리우스</p>
+                        </div>
+                        <p class="text-sm mt-3"><b>전략:</b> 고급 양장본 표지처럼 디자인하여 '전문성'과 '신뢰도'를 구축합니다. 채널 브랜딩에 가장 효과적입니다.</p>
+                    </div>
+
+                    <div class="border-2 border-gray-300 p-4 rounded-lg">
+                        <h3 class="text-xl font-bold text-center mb-3">2순위: "핵심 메시지" 스타일</h3>
+                        <div class="aspect-video bg-gray-200 p-4 flex flex-col justify-center items-center rounded-md text-center text-gray-900">
+                            <h4 class="text-xl font-bold">"인생의 고난은<br>피하는 것이 아니라<br>이용하는 것이다"</h4>
+                        </div>
+                        <p class="text-sm mt-3"><b>전략:</b> 책의 핵심을 관통하는 한 문장으로 시청자의 '니즈'를 직접 자극합니다. "내게 필요한 이야기"임을 각인시킵니다.</p>
+                    </div>
+
+                    <div class="border-2 border-gray-300 p-4 rounded-lg">
+                        <h3 class="text-xl font-bold text-center mb-3">3순위: "질문" 스타일</h3>
+                        <div class="aspect-video bg-blue-100 p-4 flex flex-col justify-center items-center rounded-md text-center text-gray-900">
+                            <h4 class="text-2xl font-bold">"40년 일해도<br>왜 노후는 불안한가?"</h4>
+                        </div>
+                        <p class="text-sm mt-3"><b>전략:</b> 타겟이 현실적으로 고민하는 질문을 던져 '호기심'을 자극하고 해답을 찾기 위해 클릭하게 만듭니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-2">
+                <h2 class="text-2xl font-bold mb-4 palette-dark">4. 클릭 유도 전략 (2): 제목</h2>
+                <p class="mb-6">제목은 시청자에게 '무엇을' 들을 수 있고 '왜' 들어야 하는지 명확하게 약속해야 합니다.</p>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-bold palette-primary">1순위: [책 제목] + [가치 제안]</h3>
+                        <p class="text-sm">가장 안정적이며 명확하게 가치를 전달합니다.</p>
+                        <p class="text-sm bg-gray-100 p-2 rounded mt-1"><b>예:</b> 『명상록』 풀 오디오북 : 불안과 스트레스에서 벗어나 내면의 평화를 찾는 법</p>
+                        <p class="text-sm bg-gray-100 p-2 rounded mt-1"><b>예:</b> 『손자병법』 풀 오디오북 : 인간관계와 비즈니스에서 반드시 이기는 전략</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold palette-primary">2순위: [문제 제기] + [해결책]</h3>
+                        <p class="text-sm">타겟의 '결핍'이나 '문제'를 먼저 언급하여 공감을 사고 해답을 제시합니다.</p>
+                        <p class="text-sm bg-gray-100 p-2 rounded mt-1"><b>예:</b> 매일 열심히 사는데 왜 삶이 공허할까... 『노자』에서 찾은 해답</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold palette-primary">3순위: [강력한 선언] + [책 제목]</h3>
+                        <p class="text-sm">책의 핵심 통찰을 강력한 어록처럼 제시하여 임팩트를 줍니다.</p>
+                        <p class="text-sm bg-gray-100 p-2 rounded mt-1"><b>예:</b> "운명은 피하는 자를 끌고 간다" - 『스토아 철학』 오디오북</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-1">
+                <h2 class="text-2xl font-bold mb-4 palette-dark">5. 이탈 방지 전략: 훅(Hook)</h2>
+                <p class="mb-4">30초 안에 시청자를 붙잡는 훅(Hook) 전략별 속성 비교입니다. AI 음성의 한계를 '논리'와 '가치'로 극복해야 합니다.</p>
+                <div class="chart-container" style="height: 320px; max-height: 380px;">
+                    <canvas id="hookStrategyChart"></canvas>
+                </div>
+                <p class="text-center font-bold mt-2">훅 전략별 강점 비교</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            const palette = {
+                dark: '#0B4C84',
+                primary: '#167BDB',
+                medium: '#5DA3E8',
+                light: '#ACCFF5',
+                palest: '#EBF4FF'
+            };
+
+            function processLabels(labels, maxChars = 16) {
+                return labels.map(label => {
+                    if (label.length <= maxChars) {
+                        return label;
+                    }
+                    const words = label.split(' ');
+                    const lines = [];
+                    let currentLine = '';
+                    for (const word of words) {
+                        if ((currentLine + ' ' + word).trim().length > maxChars && currentLine.length > 0) {
+                            lines.push(currentLine);
+                            currentLine = word;
+                        } else {
+                            currentLine = (currentLine + ' ' + word).trim();
+                        }
+                    }
+                    if (currentLine.length > 0) {
+                        lines.push(currentLine);
+                    }
+                    return lines;
+                });
+            }
+
+            const tooltipTitleCallback = {
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const item = tooltipItems[0];
+                                let label = item.chart.data.labels[item.dataIndex];
+                                if (Array.isArray(label)) {
+                                  return label.join(' ');
+                                } else {
+                                  return label;
+                                }
+                            }
+                        }
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            };
+
+            var ctxInterests = document.getElementById('audienceInterestsChart');
+            if (ctxInterests) {
+                new Chart(ctxInterests, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['경제/경영', '인문/역사/철학', '자기계발'],
+                        datasets: [{
+                            label: '관심 분야',
+                            data: [40, 35, 25],
+                            backgroundColor: [palette.dark, palette.primary, palette.medium],
+                            borderColor: '#ffffff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        ...tooltipTitleCallback
+                    }
+                });
+            }
+
+            var ctxContent = document.getElementById('contentStrategyChart');
+            if (ctxContent) {
+                new Chart(ctxContent, {
+                    type: 'bar',
+                    data: {
+                        labels: processLabels(['1순위: 불변의 고전 (철학/전략)', '2순위: 역사 및 거시 트렌드', '3순위: 경제/경영 (투자/은퇴)', '4순위: 거장들의 전기/회고록']),
+                        datasets: [{
+                            label: '콘텐츠 우선순위',
+                            data: [4, 3, 2, 1],
+                            backgroundColor: [palette.dark, palette.primary, palette.medium, palette.light],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            ...tooltipTitleCallback.plugins,
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+
+            var ctxHook = document.getElementById('hookStrategyChart');
+            if (ctxHook) {
+                new Chart(ctxHook, {
+                    type: 'radar',
+                    data: {
+                        labels: ['신뢰도 (Trust)', '가치 전달 (Value)', '즉각적 몰입 (Impact)'],
+                        datasets: [
+                            {
+                                label: '1순위: "계약형" 훅',
+                                data: [5, 5, 3],
+                                fill: true,
+                                backgroundColor: 'rgba(11, 76, 132, 0.2)',
+                                borderColor: palette.dark,
+                                pointBackgroundColor: palette.dark,
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: palette.dark
+                            },
+                            {
+                                label: '2순위: "질문형" 훅',
+                                data: [3, 4, 4],
+                                fill: true,
+                                backgroundColor: 'rgba(22, 123, 219, 0.2)',
+                                borderColor: palette.primary,
+                                pointBackgroundColor: palette.primary,
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: palette.primary
+                            },
+                            {
+                                label: '3순위: "In Medias Res" 훅',
+                                data: [2, 3, 5],
+                                fill: true,
+                                backgroundColor: 'rgba(93, 163, 232, 0.2)',
+                                borderColor: palette.medium,
+                                pointBackgroundColor: palette.medium,
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: palette.medium
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+                                max: 5,
+                                min: 0,
+                                ticks: {
+                                    stepSize: 1,
+                                    backdropColor: 'transparent'
+                                },
+                                pointLabels: {
+                                    font: {
+                                        size: 13,
+                                        weight: 'bold'
+                                    }
+                                }
+                            }
+                        },
+                        ...tooltipTitleCallback
+                    }
+                });
+            }
+
+        });
+    </script>
+</body>
+</html>
