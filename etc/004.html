@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>60분+ 오디오북 황금 구조 전략</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm & Grounded (#F5EFE6, #E8DDCB, #B7C4CF, #7F8487, with #6D7275 as darker text) -->
+    <!-- Application Structure Plan: 이 SPA는 'Source Report'(이전의 딥 리서치 분석)의 내용을 55세 이상 여성 타겟, 60분+ 오디오북, 멀티태스킹 청취자라는 핵심 제약 조건에 맞춰 가장 효과적인 전략을 제시하는 대화형 대시보드로 설계되었습니다. 사용자는 단순한 보고서가 아닌, '전략 개요', '본문 구성', 'CTA 전략', '추가 콘텐츠', '댓글 유도' 5가지 핵심 주제별로 구분된 탭(버튼으로 구현)을 통해 능동적으로 정보를 탐색할 수 있습니다. '전략 개요'는 전체 60분 구조를 한눈에 보여주는 HTML 타임라인을 제공하며, 'CTA 전략' 섹션은 차트(Chart.js)를 활용해 각 시점의 이탈 위험과 몰입도를 시각적으로 비교하여 최적의 타이밍을 직관적으로 증명합니다. '댓글 유도' 섹션은 두 가지 핵심 전략을 HTML 표로 비교 분석합니다. 이 구조는 사용자가 텍스트 보고서를 읽는 것이 아니라, 인터랙티브한 '전략 가이드'를 경험하도록 설계되어 60분 콘텐츠 제작이라는 복잡한 작업을 위한 명확한 청사진을 제공합니다. -->
+    <!-- Visualization & Content Choices: 
+        1. 60분+ 황금 구조 (전략 개요 섹션): Report Info(딥 리서치의 60분+ 구조 제안) -> Goal(Organize) -> Viz/Presentation Method(HTML/Tailwind 기반 시각적 타임라인) -> Interaction(없음, 시각적 안내) -> Justification(전체 콘텐츠 흐름을 시간대별로 명확하게 시각화하여 사용자가 60분의 구조를 한눈에 파악할 수 있도록 함. '멀티태스킹 CTA'와 '추가 콘텐츠'의 위치를 명시함.) -> Library/Method(HTML/Tailwind).
+        2. CTA 시점별 몰입도/이탈 위험 (CTA 전략 섹션): Report Info(CTA 최적 타이밍 분석) -> Goal(Compare) -> Viz/Presentation Method(Bar Charts - 2개) -> Interaction(차트 호버 시 툴팁 표시) -> Justification(단순 텍스트 설명보다 '후킹 직후', '챕터 휴식(25분)', '종료 직후'의 CTA 타이밍별 '몰입도'와 '이탈 위험'을 차트로 극명하게 대비시켜, 왜 '챕터 휴식' 시점이 최적인지 직관적으로 증명함.) -> Library/Method(Chart.js - Canvas).
+        3. 댓글 유도 전략 비교 (댓글 유도 섹션): Report Info(두 가지 핵심 댓글 유도 전략) -> Goal(Compare) -> Viz/Presentation Method(HTML/Tailwind 표) -> Interaction(없음, 정적 비교) -> Justification(A/B 전략인 '감정 투표'와 '멀티태스킹 확인'의 장단점과 실행 방법을 명확하게 병렬 비교하여 사용자가 즉시 선택하고 적용할 수 있도록 함.) -> Library/Method(HTML/Tailwind).
+        -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #F5EFE6;
+            color: #6D7275;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        .nav-btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            background-color: #E8DDCB;
+            color: #7F8487;
+        }
+        .nav-btn.active {
+            background-color: #7F8487;
+            color: #F5EFE6;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+        }
+        .content-section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        .content-section.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #E8DDCB;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 6px solid #B7C4CF;
+        }
+        .timeline-time {
+            flex-shrink: 0;
+            width: 8rem;
+            font-weight: 700;
+            color: #7F8487;
+            font-size: 0.9rem;
+        }
+        .timeline-content {
+            flex-grow: 1;
+        }
+        .timeline-content h4 {
+            color: #6D7275;
+            font-weight: 700;
+        }
+        .timeline-content p {
+            font-size: 0.9rem;
+        }
+        .timeline-cta {
+            border-left-color: #D98880; 
+        }
+        .timeline-bonus {
+            border-left-color: #A9CCE3;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="container mx-auto max-w-6xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#6D7275] mb-4">60분+ 오디오북 황금 구조 전략</h1>
+            <p class="text-lg md:text-xl text-[#7F8487]">멀티태스킹 시니어 청취자를 60분 내내 사로잡는 대시보드</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center gap-3 md:gap-4 mb-10">
+            <button class="nav-btn active" data-target="overview">
+                <span>&#128202;</span> 전략 개요
+            </button>
+            <button class="nav-btn" data-target="main-body">
+                <span>&#128221;</span> 본문 구성
+            </button>
+            <button class="nav-btn" data-target="cta">
+                <span>&#128079;</span> CTA 전략
+            </button>
+            <button class="nav-btn" data-target="bonus">
+                <span>&#127873;</span> 추가 콘텐츠
+            </button>
+            <button class="nav-btn" data-target="comments">
+                <span>&#128172;</span> 댓글 유도
+            </button>
+        </nav>
+
+        <main id="content-container">
+            <section id="overview" class="content-section active">
+                <div class="card">
+                    <h2 class="text-3xl font-bold text-[#6D7275] mb-6 text-center">전략 개요: 60분+ 황금 구조</h2>
+                    <p class="text-lg text-center text-[#7F8487] mb-8 max-w-3xl mx-auto">
+                        60분이 넘는 긴 오디오북은 '청취 기반 멀티태스킹'을 하는 55세 이상 여성 타겟에게 맞춰져야 합니다. 이 구조는 청취자의 이탈을 막고, 감정적 보상을 극대화하며, 채널 성장에 필수적인 요소를 전략적으로 배치한 청사진입니다.
+                    </p>
+                    <div class="space-y-4 max-w-4xl mx-auto">
+                        <div class="timeline-item">
+                            <div class="timeline-time">[ 00:00 ~ 00:30 ]</div>
+                            <div class="timeline-content">
+                                <h4>후킹 (Hooking)</h4>
+                                <p>'S-티어급 사이다'를 확신시키는 심리적 계약 체결</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-time">[ 00:30 ~ 25:00 ]</div>
+                            <div class="timeline-content">
+                                <h4>본편 1부 (기+승)</h4>
+                                <p>갈등 최고조 및 주인공의 최대 위기. 청취자 몰입도 100% 달성.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item timeline-cta">
+                            <div class="timeline-time">[ 25:00 ~ 25:15 ]</div>
+                            <div class="timeline-content">
+                                <h4>⭐ 멀티태스킹 CTA ⭐</h4>
+                                <p>최고 몰입 시점의 '챕터 휴식'. 클릭 '요청'이 아닌 '가치 제안' 및 '행동 예약'.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-time">[ 25:15 ~ 60:00 ]</div>
+                            <div class="timeline-content">
+                                <h4>본편 2부 (전+결)</h4>
+                                <p>'지적 복수' 과정과 '미니 사이다'의 주기적 배치, S-티어급 최종 사이다 폭발.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item timeline-bonus">
+                            <div class="timeline-time">[ 60:00 ~ 63:00 ]</div>
+                            <div class="timeline-content">
+                                <h4>추가 콘텐츠 (Cool-down)</h4>
+                                <p>'감정 정리' 및 '지혜 공유'. 훈계가 아닌 공감을 통해 정서적 유대감 형성.</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item timeline-bonus">
+                            <div class="timeline-time">[ 63:00 ~ 63:30 ]</div>
+                            <div class="timeline-content">
+                                <h4>댓글 유도 (Algorithm)</h4>
+                                <p>'감정 투표' 등 저비용 고효율 질문으로 알고리즘 활성화 및 데이터 확보.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="main-body" class="content-section">
+                <div class="card">
+                    <h2 class="text-3xl font-bold text-[#6D7275] mb-6 text-center">본문 구성: '미니 사이다'의 힘</h2>
+                    <p class="text-lg text-center text-[#7F8487] mb-8 max-w-3xl mx-auto">
+                        60분 내내 청취자를 붙잡는 핵심은 '최종 사이다' 외에 주기적인 '청각적 보상'을 제공하는 것입니다. 50분간 고구마만 주면 멀티태스킹 중인 청취자는 지쳐 이탈합니다. '지적 복수'의 과정을 4막 구조로 설계하고 '미니 사이다'를 배치해야 합니다.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">1막: 기+승(위기) (10~25분)</h4>
+                            <p>후킹 직후, 주인공이 가장 억울하고 절망적인 순간을 묘사하여 감정 이입을 극대화합니다. 청취자는 "이제 어떻게 해?"라며 몰입합니다.</p>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">2막: 전(반격 준비) (25~40분)</h4>
+                            <p>주인공이 반격을 결심하고 '지적 복수'(법률, 증거 수집)를 준비하는 과정. 첫 번째 '미니 사이다'(희망)를 제공합니다.</p>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">3막: 전(반격 실행) (40~55분)</h4>
+                            <p>악당들이 주인공의 덫에 걸려드는 과정. 청취자는 악당의 몰락을 '예상'하며 2차 '미니 사이다'를 즐깁니다.</p>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">4D막: 결(최종 사이다) (55~60분)</h4>
+                            <p>모든 복수가 완성되고 악당이 완벽하게 처벌받는 'S-티어급' 카타르시스를 제공하여 60분의 투자를 완벽하게 보상합니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="cta" class="content-section">
+                <div class="card">
+                    <h2 class="text-3xl font-bold text-[#6D7275] mb-6 text-center">CTA 전략: '멀티태스킹' 청취자 공략</h2>
+                    <p class="text-lg text-center text-[#7F8487] mb-8 max-w-3xl mx-auto">
+                        '후킹 직후'의 CTA는 기대감에 찬물을 끼얹는 최악의 타이밍입니다. 청취자의 몰입도가 최고조에 달하고, 다음 이야기가 가장 궁금한 '챕터 휴식'(약 25분) 시점이 최적입니다. 차트는 각 시점의 청취자 심리를 시각화한 것입니다.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h3 class="text-xl font-bold text-center text-[#7F8487] mb-4">CTA 시점별 '몰입도'</h3>
+                            <div class="chart-container">
+                                <canvas id="immersionChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h3 class="text-xl font-bold text-center text-[#7F8487] mb-4">CTA 시점별 '이탈 위험'</h3>
+                            <div class="chart-container">
+                                <canvas id="churnChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-[#E8DDCB]">
+                        <h4 class="text-xl font-bold text-[#6D7275] mb-3">최적의 CTA 대본 예시 (멀티태스킹 존중)</h4>
+                        <p class="text-[#7F8487] mb-2">(내레이션) "...잠시 후, 그녀의 통쾌한 반격이 시작됩니다."</p>
+                        <p class="text-[#7F8487] mb-2">(채널 성우) "2부에서는 이 모든 악연을 끊어낼 지혜로운 복수가 이어집니다. <strong>이런 사이다를 매일 듣고 싶으시다면</strong>, '구독' 버튼을 <strong>'기억'해두셨다가</strong> 영상이 끝난 뒤 꼭 눌러주세요. 그럼, 2부. 지금 바로 시작합니다."</p>
+                        <p class="text-[#7F8487] mt-4 font-bold">핵심: '클릭하세요(X)'가 아닌 '기억하세요(O)'로 행동을 예약시키고, 즉시 본편으로 복귀하여 몰입을 유지합니다.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="bonus" class="content-section">
+                <div class="card">
+                    <h2 class="text-3xl font-bold text-[#6D7275] mb-6 text-center">추가 콘텐츠: '교훈'이 아닌 '지혜'</h2>
+                    <p class="text-lg text-center text-[#7F8487] mb-8 max-w-3xl mx-auto">
+                        '교훈 요약'은 훈계조로 들릴 수 있어 시니어 타겟에게 거부감을 줍니다. 60분 본편이 끝난 후, 3~5분간 '감정 정리 및 지혜 공유' 시간을 통해 채널과의 정서적 유대감을 형성하는 것이 차별화 포인트입니다.
+                    </p>
+                    <div class="space-y-4 max-w-3xl mx-auto">
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">1. 감정적 공감 (Validation)</h4>
+                            <p>"오늘 이야기 정말 속 시원하셨죠? 특히 그 뻔뻔한 시어머니가..."라며 청취자의 카타르시스를 공감하고 확인시켜줍니다.</p>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">2. 핵심 지혜 공유 (Wisdom)</h4>
+                            <p>"이럴 때 주인공처럼 감정보다 '증거'라는 지혜를 준비하는 것이..."라며 '교훈'이 아닌 삶의 '지혜'를 공유하는 톤을 유지합니다.</p>
+                        </div>
+                        <div class="card bg-gray-50 border-[#E8DDCB]">
+                            <h4 class="text-xl font-bold text-[#7F8487] mb-2">3. 자연스러운 연결 (Transition)</h4>
+                            <p>이 '지혜 공유'는 청취자가 멀티태스킹을 마치고 휴대폰을 확인할 타이밍과 맞물려, 자연스럽게 다음 단계인 '댓글 유도'로 이어집니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="comments" class="content-section">
+                <div class="card">
+                    <h2 class="text-3xl font-bold text-[#6D7275] mb-6 text-center">댓글 유도: '저비용 고효율' 전략</h2>
+                    <p class="text-lg text-center text-[#7F8487] mb-8 max-w-3xl mx-auto">
+                        알고리즘을 위한 댓글은 '매우 낮은 사고 비용(Low Friction)'과 '강한 감정적 연관성'을 가져야 합니다. "어디서 듣고 계세요?"는 좋은 전략이지만 식상해질 수 있습니다. 다음 두 가지 전략을 추천합니다.
+                    </p>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 border border-[#E8DDCB]">
+                            <thead class="bg-[#E8DDCB]">
+                                <tr>
+                                    <th classscope="col" class="px-6 py-3 text-left text-xs font-bold text-[#6D7275] uppercase tracking-wider">전략</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-[#6D7275] uppercase tracking-wider">실행 방법 (대본 예시)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-[#6D7275] uppercase tracking-wider">기대 효과</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-bold text-[#7F8487]">A. 감정 투표 (강력 추천)</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="text-sm text-gray-700">"오늘 가장 속 시원했던 순간은 언제였나요? 댓글에 '번호'만 남겨주세요."</p>
+                                        <p class="text-sm text-gray-700 mt-2">"1번. 남편에게 이혼 서류 던졌을 때"</p>
+                                        <p class="text-sm text-gray-700">"2번. 시어머니가 빈털터리 되었을 때"</p>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="text-sm text-gray-700"><strong>- 제로 마찰력:</strong> 숫자 '1'만 쓰면 됨 (멀티태스킹 직후 최적)</p>
+                                        <p class="text-sm text-gray-700 mt-2"><strong>- A/B 테스트:</strong> 다음 대본의 '사이다' 포인트를 위한 핵심 데이터 확보</p>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-bold text-[#7F8487]">B. 멀티태스킹 확인</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="text-sm text-gray-700">"오늘 이 60분 사연을 '어떤 일'을 하시면서 함께해주셨나요? 운전하며, 혹은 저녁 준비하며 들으셨는지 댓글로 공유해주세요."</p>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="text-sm text-gray-700"><strong>- 커뮤니티 형성:</strong> "나만 그런 게 아니구나"라는 동질감 형성</p>
+                                        <p class="text-sm text-gray-700 mt-2"><strong>- 팬덤 구축:</strong> 채널과 청취자 간의 유대감 강화</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navButtons = document.querySelectorAll('.nav-btn');
+            const contentSections = document.querySelectorAll('.content-section');
+            const contentContainer = document.getElementById('content-container');
+
+            let immersionChartInstance = null;
+            let churnChartInstance = null;
+
+            const tooltipCallback = {
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const item = tooltipItems[0];
+                                let label = item.chart.data.labels[item.dataIndex];
+                                if (Array.isArray(label)) {
+                                  return label.join(' ');
+                                } else {
+                                  return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            const chartColors = {
+                bg: 'rgba(183, 196, 207, 0.2)',
+                border: 'rgba(183, 196, 207, 1)',
+                bgBad: 'rgba(217, 136, 128, 0.2)',
+                borderBad: 'rgba(217, 136, 128, 1)',
+                bgGood: 'rgba(169, 204, 227, 0.2)',
+                borderGood: 'rgba(169, 204, 227, 1)',
+            };
+
+            function createImmersionChart() {
+                const ctx = document.getElementById('immersionChart').getContext('2d');
+                return new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['후킹 직후 (이탈↑)', '25분 챕터 휴식 (최적)', '종료 직후 (청취 종료)'],
+                        datasets: [{
+                            label: '몰입도',
+                            data: [10, 95, 30],
+                            backgroundColor: [chartColors.bgBad, chartColors.bgGood, chartColors.bg],
+                            borderColor: [chartColors.borderBad, chartColors.borderGood, chartColors.border],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        },
+                        ...tooltipCallback
+                    }
+                });
+            }
+
+            function createChurnChart() {
+                const ctx = document.getElementById('churnChart').getContext('2d');
+                return new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['후킹 직후 (위험↑)', '25분 챕터 휴식 (최저)', '종료 직후 (이미 이탈)'],
+                        datasets: [{
+                            label: '이탈 위험',
+                            data: [90, 5, 70],
+                            backgroundColor: [chartColors.bgBad, chartColors.bgGood, chartColors.bg],
+                            borderColor: [chartColors.borderBad, chartColors.borderGood, chartColors.border],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        },
+                        ...tooltipCallback
+                    }
+                });
+            }
+
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-target');
+                    
+                    navButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    contentSections.forEach(section => {
+                        if (section.id === targetId) {
+                            section.classList.add('active');
+                        } else {
+                            section.classList.remove('active');
+                        }
+                    });
+
+                    if (targetId === 'cta') {
+                        if (!immersionChartInstance) {
+                            immersionChartInstance = createImmersionChart();
+                        }
+                        if (!churnChartInstance) {
+                            churnChartInstance = createChurnChart();
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
