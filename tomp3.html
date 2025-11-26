@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>동영상 → MP3 추출기</title>
-    <!-- GitHub Pages 호환을 위한 Service Worker (필수!) -->
-    <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -58,7 +56,6 @@
             gap: 8px;
         }
 
-        /* 드롭존 */
         .dropzone {
             border: 2px dashed rgba(0, 217, 255, 0.4);
             border-radius: 12px;
@@ -93,7 +90,6 @@
             display: none;
         }
 
-        /* 파일 리스트 */
         .file-list {
             margin-top: 15px;
             max-height: 250px;
@@ -187,7 +183,6 @@
             background: rgba(0, 255, 136, 0.2);
         }
 
-        /* 설정 */
         .settings-row {
             display: flex;
             align-items: center;
@@ -220,7 +215,6 @@
             border-color: #00d9ff;
         }
 
-        /* 버튼 */
         .btn {
             padding: 12px 24px;
             border: none;
@@ -258,7 +252,6 @@
             margin-top: 20px;
         }
 
-        /* 진행 상황 */
         .progress-container {
             margin-top: 15px;
             display: none;
@@ -295,7 +288,6 @@
             text-align: center;
         }
 
-        /* 로딩 */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -338,7 +330,6 @@
             color: #888;
         }
 
-        /* 알림 */
         .notice {
             background: rgba(0, 217, 255, 0.1);
             border: 1px solid rgba(0, 217, 255, 0.3);
@@ -355,7 +346,6 @@
             font-size: 1.2em;
         }
 
-        /* 스크롤바 */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -374,7 +364,6 @@
             background: rgba(0, 217, 255, 0.7);
         }
 
-        /* 반응형 */
         @media (max-width: 600px) {
             h1 { font-size: 1.4em; }
             .dropzone { padding: 30px 15px; }
@@ -385,7 +374,6 @@
     </style>
 </head>
 <body>
-    <!-- 로딩 오버레이 -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="spinner"></div>
         <div class="loading-text">FFmpeg 로딩 중...</div>
@@ -401,7 +389,6 @@
             <span>모든 변환은 브라우저 내에서 처리되며, 파일이 외부로 전송되지 않습니다.</span>
         </div>
 
-        <!-- 파일 선택 -->
         <div class="card">
             <div class="card-title">📁 파일 선택</div>
             <div class="dropzone" id="dropzone">
@@ -413,7 +400,6 @@
             <div class="file-list" id="fileList"></div>
         </div>
 
-        <!-- 설정 -->
         <div class="card">
             <div class="card-title">⚙️ 설정</div>
             <div class="settings-row">
@@ -435,7 +421,6 @@
             </div>
         </div>
 
-        <!-- 실행 버튼 -->
         <div class="action-section">
             <button class="btn btn-success" id="convertBtn" disabled>
                 🚀 MP3 추출 시작
@@ -443,13 +428,11 @@
         </div>
     </div>
 
-    <!-- FFmpeg.wasm -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <!-- FFmpeg.wasm 0.11 버전 (SharedArrayBuffer 불필요) -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     
     <script>
-        const { FFmpeg } = FFmpegWASM;
-        const { fetchFile } = FFmpegUtil;
+        const { createFFmpeg, fetchFile } = FFmpeg;
 
         let ffmpeg = null;
         let files = [];
@@ -465,25 +448,18 @@
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
 
-        // FFmpeg 초기화
         async function initFFmpeg() {
-            ffmpeg = new FFmpeg();
-            
-            ffmpeg.on('log', ({ message }) => {
-                console.log(message);
-            });
-
-            ffmpeg.on('progress', ({ progress }) => {
-                const percent = Math.round(progress * 100);
-                progressBar.style.width = percent + '%';
-                progressBar.textContent = percent + '%';
+            ffmpeg = createFFmpeg({ 
+                log: true,
+                progress: ({ ratio }) => {
+                    const percent = Math.round(ratio * 100);
+                    progressBar.style.width = percent + '%';
+                    progressBar.textContent = percent + '%';
+                }
             });
 
             try {
-                await ffmpeg.load({
-                    coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-                    wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
-                });
+                await ffmpeg.load();
                 loadingOverlay.classList.add('hidden');
                 console.log('FFmpeg 로드 완료');
             } catch (error) {
@@ -493,8 +469,8 @@
                         <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
                         <div style="font-size: 1.2em; margin-bottom: 10px;">FFmpeg 로드 실패</div>
                         <div style="color: #888; font-size: 0.9em; margin-bottom: 15px;">
-                            페이지를 새로고침 해주세요.<br>
-                            (처음 접속 시 자동 새로고침이 필요할 수 있습니다)
+                            브라우저가 지원되지 않거나 네트워크 오류입니다.<br>
+                            Chrome, Edge, Firefox 최신 버전을 사용해주세요.
                         </div>
                         <button onclick="location.reload()" style="padding: 12px 30px; font-size: 1em; cursor: pointer; border-radius: 8px; border: none; background: #00d9ff; color: #000; font-weight: bold;">
                             🔄 새로고침
@@ -538,7 +514,7 @@
                 </div>
             `).join('');
 
-            convertBtn.disabled = isProcessing || files.every(f => f.status === 'done');
+            convertBtn.disabled = isProcessing || files.every(f => f.status === 'done') || !ffmpeg || !ffmpeg.isLoaded();
         }
 
         function getStatusText(status) {
@@ -575,7 +551,7 @@
         }
 
         async function convertFiles() {
-            if (isProcessing || !ffmpeg) return;
+            if (isProcessing || !ffmpeg || !ffmpeg.isLoaded()) return;
             
             isProcessing = true;
             convertBtn.disabled = true;
@@ -595,28 +571,28 @@
                 renderFileList();
 
                 try {
-                    const inputName = 'input_' + Date.now() + '.video';
-                    const outputName = 'output_' + Date.now() + '.mp3';
+                    const inputName = 'input.video';
+                    const outputName = 'output.mp3';
 
-                    await ffmpeg.writeFile(inputName, await fetchFile(fileObj.file));
+                    ffmpeg.FS('writeFile', inputName, await fetchFile(fileObj.file));
 
-                    await ffmpeg.exec([
+                    await ffmpeg.run(
                         '-i', inputName,
                         '-vn',
                         '-acodec', 'libmp3lame',
                         '-ab', bitrate + 'k',
                         '-ar', '44100',
                         outputName
-                    ]);
+                    );
 
-                    const data = await ffmpeg.readFile(outputName);
+                    const data = ffmpeg.FS('readFile', outputName);
                     const blob = new Blob([data.buffer], { type: 'audio/mp3' });
                     
                     fileObj.downloadUrl = URL.createObjectURL(blob);
                     fileObj.status = 'done';
 
-                    await ffmpeg.deleteFile(inputName);
-                    await ffmpeg.deleteFile(outputName);
+                    ffmpeg.FS('unlink', inputName);
+                    ffmpeg.FS('unlink', outputName);
 
                 } catch (error) {
                     console.error('변환 오류:', error);
@@ -638,7 +614,6 @@
             }, 3000);
         }
 
-        // 이벤트 리스너
         dropzone.addEventListener('click', () => fileInput.click());
         dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
         dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
@@ -646,7 +621,6 @@
         fileInput.addEventListener('change', (e) => { addFiles(e.target.files); fileInput.value = ''; });
         convertBtn.addEventListener('click', convertFiles);
 
-        // 초기화
         initFFmpeg();
     </script>
 </body>
