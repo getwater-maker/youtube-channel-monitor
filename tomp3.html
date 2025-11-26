@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>동영상 → MP3 추출기</title>
+    <!-- GitHub Pages 호환을 위한 Service Worker (필수!) -->
+    <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -232,16 +234,6 @@
             gap: 8px;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #00d9ff 0%, #0099cc 100%);
-            color: #000;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
-        }
-
         .btn-success {
             background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
             color: #000;
@@ -259,16 +251,6 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.2);
         }
 
         .action-section {
@@ -394,27 +376,11 @@
 
         /* 반응형 */
         @media (max-width: 600px) {
-            h1 {
-                font-size: 1.4em;
-            }
-            
-            .dropzone {
-                padding: 30px 15px;
-            }
-            
-            .dropzone-icon {
-                font-size: 2.5em;
-            }
-            
-            .settings-row {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .btn-success {
-                width: 100%;
-                justify-content: center;
-            }
+            h1 { font-size: 1.4em; }
+            .dropzone { padding: 30px 15px; }
+            .dropzone-icon { font-size: 2.5em; }
+            .settings-row { flex-direction: column; align-items: flex-start; }
+            .btn-success { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -423,7 +389,7 @@
     <div id="loadingOverlay" class="loading-overlay">
         <div class="spinner"></div>
         <div class="loading-text">FFmpeg 로딩 중...</div>
-        <div class="loading-hint">처음 실행 시 약간의 시간이 소요됩니다</div>
+        <div class="loading-hint">처음 실행 시 약 30초 소요됩니다</div>
     </div>
 
     <div class="container">
@@ -432,7 +398,7 @@
 
         <div class="notice">
             <span class="notice-icon">💡</span>
-            <span>모든 변환은 브라우저 내에서 처리되며, 파일이 외부로 전송되지 않습니다. 대용량 파일은 시간이 걸릴 수 있습니다.</span>
+            <span>모든 변환은 브라우저 내에서 처리되며, 파일이 외부로 전송되지 않습니다.</span>
         </div>
 
         <!-- 파일 선택 -->
@@ -444,7 +410,6 @@
                 <div class="dropzone-hint">MP4, AVI, MKV, MOV, WebM 등 지원</div>
             </div>
             <input type="file" id="fileInput" multiple accept="video/*,.mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp">
-            
             <div class="file-list" id="fileList"></div>
         </div>
 
@@ -462,8 +427,6 @@
                     </select>
                 </div>
             </div>
-
-            <!-- 진행 상황 -->
             <div class="progress-container" id="progressContainer">
                 <div class="progress-bar-bg">
                     <div class="progress-bar" id="progressBar">0%</div>
@@ -492,7 +455,6 @@
         let files = [];
         let isProcessing = false;
 
-        // DOM 요소
         const loadingOverlay = document.getElementById('loadingOverlay');
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -530,14 +492,18 @@
                     <div style="text-align: center; padding: 20px;">
                         <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
                         <div style="font-size: 1.2em; margin-bottom: 10px;">FFmpeg 로드 실패</div>
-                        <div style="color: #888; font-size: 0.9em;">브라우저를 새로고침하거나 다른 브라우저를 사용해주세요.</div>
-                        <div style="color: #666; font-size: 0.8em; margin-top: 15px;">Chrome, Edge, Firefox 최신 버전 권장</div>
+                        <div style="color: #888; font-size: 0.9em; margin-bottom: 15px;">
+                            페이지를 새로고침 해주세요.<br>
+                            (처음 접속 시 자동 새로고침이 필요할 수 있습니다)
+                        </div>
+                        <button onclick="location.reload()" style="padding: 12px 30px; font-size: 1em; cursor: pointer; border-radius: 8px; border: none; background: #00d9ff; color: #000; font-weight: bold;">
+                            🔄 새로고침
+                        </button>
                     </div>
                 `;
             }
         }
 
-        // 파일 크기 포맷
         function formatSize(bytes) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -546,12 +512,10 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // 파일명에서 확장자 제거
         function removeExtension(filename) {
             return filename.replace(/\.[^/.]+$/, '');
         }
 
-        // 파일 목록 렌더링
         function renderFileList() {
             if (files.length === 0) {
                 fileList.innerHTML = '';
@@ -577,7 +541,6 @@
             convertBtn.disabled = isProcessing || files.every(f => f.status === 'done');
         }
 
-        // 상태 텍스트
         function getStatusText(status) {
             switch (status) {
                 case 'waiting': return '대기 중';
@@ -588,14 +551,9 @@
             }
         }
 
-        // 파일 추가
         function addFiles(newFiles) {
             for (const file of newFiles) {
-                // 중복 체크
-                if (files.some(f => f.name === file.name && f.size === file.size)) {
-                    continue;
-                }
-                
+                if (files.some(f => f.name === file.name && f.size === file.size)) continue;
                 files.push({
                     file: file,
                     name: file.name,
@@ -608,7 +566,6 @@
             renderFileList();
         }
 
-        // 파일 제거
         function removeFile(index) {
             if (files[index].downloadUrl) {
                 URL.revokeObjectURL(files[index].downloadUrl);
@@ -617,7 +574,6 @@
             renderFileList();
         }
 
-        // 변환 실행
         async function convertFiles() {
             if (isProcessing || !ffmpeg) return;
             
@@ -630,7 +586,6 @@
             
             for (let i = 0; i < waitingFiles.length; i++) {
                 const fileObj = waitingFiles[i];
-                const index = files.indexOf(fileObj);
                 
                 progressText.textContent = `${i + 1}/${waitingFiles.length} - ${fileObj.name} 변환 중...`;
                 progressBar.style.width = '0%';
@@ -640,13 +595,11 @@
                 renderFileList();
 
                 try {
-                    const inputName = 'input_' + Date.now() + '_' + fileObj.name;
+                    const inputName = 'input_' + Date.now() + '.video';
                     const outputName = 'output_' + Date.now() + '.mp3';
 
-                    // 파일 쓰기
                     await ffmpeg.writeFile(inputName, await fetchFile(fileObj.file));
 
-                    // 변환 실행
                     await ffmpeg.exec([
                         '-i', inputName,
                         '-vn',
@@ -656,14 +609,12 @@
                         outputName
                     ]);
 
-                    // 결과 읽기
                     const data = await ffmpeg.readFile(outputName);
                     const blob = new Blob([data.buffer], { type: 'audio/mp3' });
                     
                     fileObj.downloadUrl = URL.createObjectURL(blob);
                     fileObj.status = 'done';
 
-                    // 정리
                     await ffmpeg.deleteFile(inputName);
                     await ffmpeg.deleteFile(outputName);
 
@@ -682,37 +633,17 @@
             isProcessing = false;
             convertBtn.disabled = files.every(f => f.status === 'done');
 
-            // 3초 후 진행 바 숨김
             setTimeout(() => {
-                if (!isProcessing) {
-                    progressContainer.classList.remove('active');
-                }
+                if (!isProcessing) progressContainer.classList.remove('active');
             }, 3000);
         }
 
         // 이벤트 리스너
         dropzone.addEventListener('click', () => fileInput.click());
-
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('drag-over');
-        });
-
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('drag-over');
-        });
-
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('drag-over');
-            addFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            addFiles(e.target.files);
-            fileInput.value = '';
-        });
-
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+        dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
+        fileInput.addEventListener('change', (e) => { addFiles(e.target.files); fileInput.value = ''; });
         convertBtn.addEventListener('click', convertFiles);
 
         // 초기화
