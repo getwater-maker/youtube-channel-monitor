@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동영상 → MP3 추출기</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            color: #00d9ff;
+            text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card-title {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            color: #00d9ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 드롭존 */
+        .dropzone {
+            border: 2px dashed rgba(0, 217, 255, 0.4);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(0, 217, 255, 0.05);
+        }
+
+        .dropzone:hover, .dropzone.drag-over {
+            border-color: #00d9ff;
+            background: rgba(0, 217, 255, 0.1);
+        }
+
+        .dropzone-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .dropzone-text {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .dropzone-hint {
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* 파일 리스트 */
+        .file-list {
+            margin-top: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .file-icon {
+            font-size: 1.5em;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 0.95em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-size {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .file-status {
+            font-size: 0.85em;
+            padding: 4px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .file-status.waiting {
+            background: rgba(255, 255, 255, 0.1);
+            color: #888;
+        }
+
+        .file-status.processing {
+            background: rgba(255, 204, 0, 0.2);
+            color: #ffcc00;
+        }
+
+        .file-status.done {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+
+        .file-status.error {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+
+        .file-remove {
+            color: #ff6b6b;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+
+        .file-remove:hover {
+            background: rgba(255, 107, 107, 0.2);
+        }
+
+        .file-download {
+            color: #00ff88;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .file-download:hover {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        /* 설정 */
+        .settings-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .setting-item label {
+            font-size: 0.95em;
+        }
+
+        select {
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.95em;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+
+        /* 버튼 */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099cc 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+            color: #000;
+            font-size: 1.1em;
+            padding: 15px 40px;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
+        }
+
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .action-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        /* 진행 상황 */
+        .progress-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar-bg {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            height: 25px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00d9ff 0%, #00ff88 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85em;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .progress-text {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #888;
+            text-align: center;
+        }
+
+        /* 로딩 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(0, 217, 255, 0.2);
+            border-top-color: #00d9ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+
+        .loading-hint {
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        /* 알림 */
+        .notice {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .notice-icon {
+            font-size: 1.2em;
+        }
+
+        /* 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 217, 255, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 217, 255, 0.7);
+        }
+
+        /* 반응형 */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.4em;
+            }
+            
+            .dropzone {
+                padding: 30px 15px;
+            }
+            
+            .dropzone-icon {
+                font-size: 2.5em;
+            }
+            
+            .settings-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .btn-success {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">FFmpeg 로딩 중...</div>
+        <div class="loading-hint">처음 실행 시 약간의 시간이 소요됩니다</div>
+    </div>
+
+    <div class="container">
+        <h1>🎬 동영상 → MP3 추출기</h1>
+        <p class="subtitle">브라우저에서 바로 변환 · 설치 불필요 · 파일이 서버로 전송되지 않음</p>
+
+        <div class="notice">
+            <span class="notice-icon">💡</span>
+            <span>모든 변환은 브라우저 내에서 처리되며, 파일이 외부로 전송되지 않습니다. 대용량 파일은 시간이 걸릴 수 있습니다.</span>
+        </div>
+
+        <!-- 파일 선택 -->
+        <div class="card">
+            <div class="card-title">📁 파일 선택</div>
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-icon">📂</div>
+                <div class="dropzone-text">클릭하거나 파일을 드래그하세요</div>
+                <div class="dropzone-hint">MP4, AVI, MKV, MOV, WebM 등 지원</div>
+            </div>
+            <input type="file" id="fileInput" multiple accept="video/*,.mp4,.avi,.mkv,.mov,.wmv,.flv,.webm,.m4v,.mpeg,.mpg,.3gp">
+            
+            <div class="file-list" id="fileList"></div>
+        </div>
+
+        <!-- 설정 -->
+        <div class="card">
+            <div class="card-title">⚙️ 설정</div>
+            <div class="settings-row">
+                <div class="setting-item">
+                    <label for="bitrate">비트레이트:</label>
+                    <select id="bitrate">
+                        <option value="128">128 kbps</option>
+                        <option value="192" selected>192 kbps</option>
+                        <option value="256">256 kbps</option>
+                        <option value="320">320 kbps</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 진행 상황 -->
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar" id="progressBar">0%</div>
+                </div>
+                <div class="progress-text" id="progressText">준비 중...</div>
+            </div>
+        </div>
+
+        <!-- 실행 버튼 -->
+        <div class="action-section">
+            <button class="btn btn-success" id="convertBtn" disabled>
+                🚀 MP3 추출 시작
+            </button>
+        </div>
+    </div>
+
+    <!-- FFmpeg.wasm -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    
+    <script>
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile } = FFmpegUtil;
+
+        let ffmpeg = null;
+        let files = [];
+        let isProcessing = false;
+
+        // DOM 요소
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const convertBtn = document.getElementById('convertBtn');
+        const bitrateSelect = document.getElementById('bitrate');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+
+        // FFmpeg 초기화
+        async function initFFmpeg() {
+            ffmpeg = new FFmpeg();
+            
+            ffmpeg.on('log', ({ message }) => {
+                console.log(message);
+            });
+
+            ffmpeg.on('progress', ({ progress }) => {
+                const percent = Math.round(progress * 100);
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+            });
+
+            try {
+                await ffmpeg.load({
+                    coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+                    wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+                });
+                loadingOverlay.classList.add('hidden');
+                console.log('FFmpeg 로드 완료');
+            } catch (error) {
+                console.error('FFmpeg 로드 실패:', error);
+                loadingOverlay.innerHTML = `
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 3em; margin-bottom: 20px;">❌</div>
+                        <div style="font-size: 1.2em; margin-bottom: 10px;">FFmpeg 로드 실패</div>
+                        <div style="color: #888; font-size: 0.9em;">브라우저를 새로고침하거나 다른 브라우저를 사용해주세요.</div>
+                        <div style="color: #666; font-size: 0.8em; margin-top: 15px;">Chrome, Edge, Firefox 최신 버전 권장</div>
+                    </div>
+                `;
+            }
+        }
+
+        // 파일 크기 포맷
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 파일명에서 확장자 제거
+        function removeExtension(filename) {
+            return filename.replace(/\.[^/.]+$/, '');
+        }
+
+        // 파일 목록 렌더링
+        function renderFileList() {
+            if (files.length === 0) {
+                fileList.innerHTML = '';
+                convertBtn.disabled = true;
+                return;
+            }
+
+            fileList.innerHTML = files.map((file, index) => `
+                <div class="file-item" data-index="${index}">
+                    <span class="file-icon">🎬</span>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${formatSize(file.size)}</div>
+                    </div>
+                    <span class="file-status ${file.status}">${getStatusText(file.status)}</span>
+                    ${file.status === 'done' && file.downloadUrl ? 
+                        `<a class="file-download" href="${file.downloadUrl}" download="${file.outputName}">💾 저장</a>` : 
+                        `<span class="file-remove" onclick="removeFile(${index})">✕</span>`
+                    }
+                </div>
+            `).join('');
+
+            convertBtn.disabled = isProcessing || files.every(f => f.status === 'done');
+        }
+
+        // 상태 텍스트
+        function getStatusText(status) {
+            switch (status) {
+                case 'waiting': return '대기 중';
+                case 'processing': return '변환 중...';
+                case 'done': return '완료 ✓';
+                case 'error': return '오류';
+                default: return '';
+            }
+        }
+
+        // 파일 추가
+        function addFiles(newFiles) {
+            for (const file of newFiles) {
+                // 중복 체크
+                if (files.some(f => f.name === file.name && f.size === file.size)) {
+                    continue;
+                }
+                
+                files.push({
+                    file: file,
+                    name: file.name,
+                    size: file.size,
+                    status: 'waiting',
+                    downloadUrl: null,
+                    outputName: removeExtension(file.name) + '.mp3'
+                });
+            }
+            renderFileList();
+        }
+
+        // 파일 제거
+        function removeFile(index) {
+            if (files[index].downloadUrl) {
+                URL.revokeObjectURL(files[index].downloadUrl);
+            }
+            files.splice(index, 1);
+            renderFileList();
+        }
+
+        // 변환 실행
+        async function convertFiles() {
+            if (isProcessing || !ffmpeg) return;
+            
+            isProcessing = true;
+            convertBtn.disabled = true;
+            progressContainer.classList.add('active');
+
+            const bitrate = bitrateSelect.value;
+            const waitingFiles = files.filter(f => f.status === 'waiting');
+            
+            for (let i = 0; i < waitingFiles.length; i++) {
+                const fileObj = waitingFiles[i];
+                const index = files.indexOf(fileObj);
+                
+                progressText.textContent = `${i + 1}/${waitingFiles.length} - ${fileObj.name} 변환 중...`;
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+                
+                fileObj.status = 'processing';
+                renderFileList();
+
+                try {
+                    const inputName = 'input_' + Date.now() + '_' + fileObj.name;
+                    const outputName = 'output_' + Date.now() + '.mp3';
+
+                    // 파일 쓰기
+                    await ffmpeg.writeFile(inputName, await fetchFile(fileObj.file));
+
+                    // 변환 실행
+                    await ffmpeg.exec([
+                        '-i', inputName,
+                        '-vn',
+                        '-acodec', 'libmp3lame',
+                        '-ab', bitrate + 'k',
+                        '-ar', '44100',
+                        outputName
+                    ]);
+
+                    // 결과 읽기
+                    const data = await ffmpeg.readFile(outputName);
+                    const blob = new Blob([data.buffer], { type: 'audio/mp3' });
+                    
+                    fileObj.downloadUrl = URL.createObjectURL(blob);
+                    fileObj.status = 'done';
+
+                    // 정리
+                    await ffmpeg.deleteFile(inputName);
+                    await ffmpeg.deleteFile(outputName);
+
+                } catch (error) {
+                    console.error('변환 오류:', error);
+                    fileObj.status = 'error';
+                }
+
+                renderFileList();
+            }
+
+            progressText.textContent = '완료!';
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100%';
+            
+            isProcessing = false;
+            convertBtn.disabled = files.every(f => f.status === 'done');
+
+            // 3초 후 진행 바 숨김
+            setTimeout(() => {
+                if (!isProcessing) {
+                    progressContainer.classList.remove('active');
+                }
+            }, 3000);
+        }
+
+        // 이벤트 리스너
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            addFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            addFiles(e.target.files);
+            fileInput.value = '';
+        });
+
+        convertBtn.addEventListener('click', convertFiles);
+
+        // 초기화
+        initFFmpeg();
+    </script>
+</body>
+</html>
